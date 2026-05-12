@@ -5,9 +5,9 @@
 | Item | Description |
 |---|---|
 | Course |  |
-| Class |  |
+| Class | SE20A04 |
 | Semester | SU26 |
-| Group |  |
+| Group | 4 |
 | Topic |  |
 | Repository |  |
 
