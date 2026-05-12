@@ -17,7 +17,8 @@
 
 | No | Student ID | Full Name | GitHub Username | Role | Main Responsibility |
 |---:|---|---|---|---|---|
-| 1 |  |  |  | Leader |  |
+| 1 | DE190430 |  | Văn Xuân Phước
+ | Leader |  |
 | 2 |  |  |  | Member |  |
 | 3 |  |  |  | Member |  |
 | 4 |  |  |  | Member |  |
