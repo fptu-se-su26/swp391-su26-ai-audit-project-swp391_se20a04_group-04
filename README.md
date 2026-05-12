@@ -17,12 +17,14 @@
 
 | No | Student ID | Full Name | GitHub Username | Role | Main Responsibility |
 |---:|---|---|---|---|---|
-| 1 | DE190430 |  | Văn Xuân Phước
+| 1 | DE190430 | Văn Xuân Phước | phuocvanday
  | Leader |  |
-| 2 |  |  |  | Member |  |
-| 3 |  |  |  | Member |  |
-| 4 |  |  |  | Member |  |
-| 5 |  |  |  | Member |  |
+| 2 | DE190362 | Nguyễn Văn Tuấn 
+ | TuanMauLanh | Member |  |
+| 3 | DE190614 | Nguyễn Đình Bảo | DinhBaoNg | Member |  |
+| 4 | DE190399 | Nguyễn Hữu Vũ Tuấn | karin-lover | Member |  |
+| 5 | DE190471 | Nguyễn Thành Trung
+ | TrungIT2005 | Member |  |
 
 ---
 
