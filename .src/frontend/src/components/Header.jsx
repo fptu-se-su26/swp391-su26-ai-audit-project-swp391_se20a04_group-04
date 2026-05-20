@@ -1,8 +1,26 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import authService from '../services/authService';
 import './Header.css';
 
 export default function Header() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [user, setUser] = useState(authService.getCurrentUser());
+
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setUser(authService.getCurrentUser());
+    };
+    window.addEventListener('authChange', handleAuthChange);
+    // Periodically sync user status as well (just in case)
+    const interval = setInterval(handleAuthChange, 2000);
+    
+    return () => {
+      window.removeEventListener('authChange', handleAuthChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   const isActive = (path) => location.pathname === path;
 
@@ -12,6 +30,14 @@ export default function Header() {
         ? 'text-primary dark:text-primary-fixed border-b-2 border-primary dark:border-primary-fixed pb-1'
         : 'text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed'
     }`;
+
+  const getDashboardPath = () => {
+    return user ? '/dashboard' : '/login';
+  };
+
+  const handleAccountClick = () => {
+    navigate(getDashboardPath());
+  };
 
   return (
     <header className="header bg-surface dark:bg-inverse-surface shadow-sm docked full-width">
@@ -35,14 +61,34 @@ export default function Header() {
           <button className="material-symbols-outlined text-primary dark:text-primary-fixed header__icon">
             notifications
           </button>
-          <button className="material-symbols-outlined text-primary dark:text-primary-fixed header__icon">
+          <button 
+            onClick={handleAccountClick} 
+            className={`material-symbols-outlined header__icon transition-colors ${
+              user ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-primary dark:text-primary-fixed'
+            }`}
+            title={user ? `Tài khoản: ${user.fullName}` : 'Đăng nhập'}
+          >
             account_circle
           </button>
-          <button className="header__cta bg-primary text-on-primary px-6 py-2.5 rounded-full font-label-md text-label-md hover:opacity-90 active:opacity-80 transition-all hidden md:block">
-            Tra cứu ngay
-          </button>
+          
+          {user ? (
+            <button 
+              onClick={() => navigate(getDashboardPath())}
+              className="header__cta bg-emerald-600 text-white px-6 py-2.5 rounded-full font-label-md text-label-md hover:bg-emerald-500 active:opacity-80 transition-all hidden md:block"
+            >
+              Bảng điều khiển
+            </button>
+          ) : (
+            <button 
+              onClick={() => navigate('/login')}
+              className="header__cta bg-primary text-on-primary px-6 py-2.5 rounded-full font-label-md text-label-md hover:opacity-90 active:opacity-80 transition-all hidden md:block"
+            >
+              Đăng nhập
+            </button>
+          )}
         </div>
       </div>
     </header>
   );
 }
+
