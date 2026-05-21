@@ -4,11 +4,11 @@
 
 | Item | Description |
 |---|---|
-| Course |  |
+| Course | SWP391 |
 | Class | SE20A04 |
 | Semester | SU26 |
 | Group | 4 |
-| Topic |  |
+| Topic | EcoSchedule - web hỗ trợ thu gom rác theo lịch trong các khu đô thị. |
 | Repository |  |
 
 ---
