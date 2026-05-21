@@ -5,14 +5,14 @@
 | Thông tin | Nội dung |
 |---|---|
 | Môn học |  |
-| Mã môn học |  |
-| Lớp |  |
-| Học kỳ |  |
-| Tên bài tập / Project |  |
-| Tên sinh viên / Nhóm |  |
-| MSSV / Danh sách MSSV |  |
-| Giảng viên hướng dẫn |  |
-| Ngày bắt đầu |  |
+| Mã môn học | SWP391 |
+| Lớp | SE20A04 |
+| Học kỳ | SU26 |
+| Tên bài tập / Project | EcoSchedule - web hỗ trợ thu gom rác theo lịch trong các khu đô thị. |
+| Tên sinh viên / Nhóm | Group-04 |
+| MSSV / Danh sách MSSV | DE190362, DE190614, DE190430, DE190399, DE190471 |
+| Giảng viên hướng dẫn | Lê Thiện Nhật Quang |
+| Ngày bắt đầu | 11/05/2026 |
 | Ngày hoàn thành |  |
 
 ---
