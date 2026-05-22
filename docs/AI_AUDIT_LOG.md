@@ -54,7 +54,7 @@ Ví dụ:
 
 ### Mô tả mục tiêu sử dụng AI
 
-```text
+- Sử dụng AI để hỗ trợ trong việc xây dưng UI của website
 Viết tại đây...
 
 ## 4. Nhật ký sử dụng AI chi tiết
@@ -69,14 +69,21 @@ Viết tại đây...
 | Nội dung | Thông tin |
 |---|---|
 | Ngày sử dụng |  |
-| Công cụ AI | ChatGPT / Gemini / Claude / GitHub Copilot / Cursor / Antigravity / Khác |
+| Công cụ AI | ChatGPT / Gemini   / Antigravity / Sticht |
 | Mục đích sử dụng |  |
-| Phần việc liên quan | Requirement / Design / Database / Frontend / Backend / Testing / Debug / Report / Presentation / Other |
-| Mức độ sử dụng | Hỗ trợ ý tưởng / Hỗ trợ một phần / Hỗ trợ nhiều / Sinh chính nội dung |
+| Phần việc liên quan | FrontEnd|
+| Mức độ sử dụng | Hỗ trợ ý tưởng / Hỗ trợ nhiều |
 
 #### 4.1. Prompt đã sử dụng
 
-```text
+Brand: EcoSchedule
+Màu chủ đạo: Xanh lá + Trắng
+Loại sản phẩm: Web app quản lý
+Mục tiêu: Tra cứu lịch thu gom rác, nhận thông báo tự động, thanh toán phí vệ sinh trực tuyến
+Phong cách: Flat hiện đại + điểm nhấn Glassmorphism nhẹ
+
+Mình chọn luôn xanh lá + trắng cho EcoSchedule vì hợp ngữ cảnh môi trường, sạch, thân thiện và dễ tạo cảm giác tin cậy.
+
 Dán nguyên văn prompt đã hỏi AI tại đây.
 ```
 
@@ -84,7 +91,58 @@ Dán nguyên văn prompt đã hỏi AI tại đây.
 
 Tóm tắt nội dung AI đã trả lời hoặc gợi ý.
 
-```text
+ Action-first :
+
+Phù hợp khi mục tiêu chính là để người dân vào là tra cứu và thao tác ngay.
+
+Cấu trúc
+
+Header
+
+Logo EcoSchedule bên trái
+Menu gọn: Tra cứu lịch / Thông báo / Thanh toán / Hỗ trợ
+CTA bên phải: Tra cứu ngay
+
+Hero
+
+Headline cỡ lớn khoảng 60px:
+Tra cứu lịch thu gom rác nhanh, nhận nhắc lịch đúng ngày
+Subheadline ngắn:
+Theo dõi lịch theo khu vực, nhận thông báo tự động và thanh toán phí vệ sinh trực tuyến trong một nền tảng duy nhất.
+2 CTA:
+Kiểm tra lịch thu gom
+Thanh toán phí
+Background: trắng hoặc gradient xanh lá rất nhẹ
+Bên phải là minh họa dashboard/map/card lịch thu gom đơn giản
+
+Content chính
+
+Khối tra cứu nhanh theo khu vực
+Dropdown chọn khu dân cư / phường / block
+Nút tra cứu rõ ràng
+Lịch thu gom sắp tới
+Card đồng đều chiều cao
+Hiển thị ngày, loại rác, khung giờ, trạng thái
+Thông báo tự động
+Card mô tả SMS / email / push
+Thanh toán phí vệ sinh
+Card hóa đơn hiện tại, hạn thanh toán, nút thanh toán
+Stats
+Số hộ dân đã đăng ký, tỷ lệ thanh toán đúng hạn, số khu vực đang hoạt động
+
+Footer
+
+Thông tin liên hệ
+Kênh hỗ trợ
+Social icons
+Bản quyền
+Khi nào nên chọn
+
+Chọn layout này nếu bạn muốn:
+
+tối ưu thao tác nhanh
+giảm thời gian người dân tìm thông tin
+đưa “tra cứu” và “thanh toán” thành 2 hành động trung tâm
 Viết tại đây...
 ```
 
@@ -92,7 +150,13 @@ Viết tại đây...
 
 Mô tả rõ phần nào được sử dụng lại từ gợi ý của AI.
 
-```text
+Sử dụng lại phần chọn màu, phần trăm, và nội dung trang web
+
+Ví dụ:
+- Cấu trúc trang web, các mục chính và nội dung của từng mục. 
+- Sử dụng các icon cho từng mục
+- Màu sắc chủ đạo
+- bố cục 
 Viết tại đây...
 ```
 
@@ -100,7 +164,9 @@ Viết tại đây...
 
 Mô tả sinh viên/nhóm đã thay đổi, kiểm tra, sửa lỗi hoặc cải tiến gì so với gợi ý ban đầu của AI.
 
-```text
+- Đã thay đổi bố cục trang web, các mục chính và nội dung của từng mục. 
+- Sử dụng các icon cho từng mục
+- bố cục 
 Viết tại đây...
 ```
 
@@ -119,7 +185,8 @@ Viết tại đây...
 
 Sinh viên/nhóm học được gì sau lần sử dụng AI này?
 
-```text
+- Sử dụng prompt rõ ràng về phần mình yêu cầu giúp AI hiểu được và hoàn thành theo mong muốn của mình
+- Nên thử nhiều prompt khác nhau để có được kết quả tốt nhất.
 Viết tại đây...
 ```
 
