@@ -23,8 +23,14 @@ export default function Dashboard() {
     return () => window.removeEventListener('authChange', handleAuthChange);
   }, [navigate]);
 
+<<<<<<< HEAD
   const handleLogout = async () => {
     await authService.logout();
+=======
+  const handleLogout = () => {
+    authService.logout();
+    window.dispatchEvent(new Event('authChange'));
+>>>>>>> dab39dbd0183b50eeafa6fadf2fbb79058580e92
     navigate('/login');
   };
 
