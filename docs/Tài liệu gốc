@@ -1,0 +1,36 @@
+# 5. Hệ thống quản lý thu gom rác theo khu dân cư
+
+**Mô tả:** Hỗ trợ người dân biết lịch thu gom rác, phản ánh rác tồn đọng. Nhắc lịch và phản ánh rác tồn đọng có giúp cải thiện ý thức và hiệu quả thu gom rác không?
+
+## 1. Đặt vấn đề
+Công tác thu gom rác ở khu dân cư thường gặp các vấn đề:
+- Người dân không nắm rõ hoặc quên lịch thu gom.
+- Đưa rác sai giờ, gây tồn đọng và mất vệ sinh.
+- Điểm tập kết rác bị quá tải vào một số khung giờ.
+- Phản ánh của người dân còn rời rạc qua điện thoại, Zalo hoặc tổ dân phố.
+- Thiếu dữ liệu để đánh giá khu vực nào thường xuyên phát sinh rác tồn đọng.
+- Đơn vị thu gom khó theo dõi mức độ hoàn thành theo tuyến/khu vực.
+- Chưa có công cụ đo lường tác động của nhắc lịch đến hành vi người dân.
+
+Do đó, đề tài tập trung vào việc xây dựng một hệ thống dữ liệu hóa quy trình thu gom rác và phản ánh môi trường tại khu dân cư.
+
+## 2. Câu hỏi nghiên cứu
+- **RQ1.** Hệ thống nhắc lịch thu gom rác có giúp người dân đưa rác đúng thời gian quy định hơn không?
+- **RQ2.** Dữ liệu phản ánh từ cộng đồng có giúp phát hiện các khu vực thường xuyên tồn đọng rác không?
+- **RQ3.** Trực quan hóa phản ánh rác tồn đọng trên bản đồ có giúp đơn vị thu gom xử lý hiệu quả hơn không?
+- **RQ4.** Việc kết hợp nhắc lịch, phản ánh và theo dõi trạng thái xử lý có giúp cải thiện ý thức người dân và hiệu quả thu gom rác tại khu dân cư không?
+
+## 3. Mục tiêu nghiên cứu
+
+### 3.1. Mục tiêu tổng quát
+Xây dựng hệ thống quản lý thu gom rác theo khu dân cư, hỗ trợ nhắc lịch, tiếp nhận phản ánh rác tồn đọng, trực quan hóa dữ liệu và đánh giá tác động đến ý thức người dân cũng như hiệu quả thu gom.
+
+### 3.2. Mục tiêu cụ thể
+- Thiết kế cơ sở dữ liệu quản lý khu dân cư, tuyến thu gom, lịch thu gom, người dân, phản ánh và trạng thái xử lý.
+- Xây dựng chức năng quản lý lịch thu gom theo khu vực, tuyến đường, khung giờ và loại rác.
+- Phát triển chức năng gửi nhắc lịch cho người dân qua ứng dụng, email, SMS hoặc Zalo giả lập.
+- Cho phép người dân gửi phản ánh rác tồn đọng kèm vị trí, mô tả, hình ảnh và mức độ nghiêm trọng.
+- Xây dựng dashboard theo dõi tình trạng phản ánh, khu vực tồn đọng và hiệu quả xử lý.
+- Tích hợp bản đồ số để hiển thị các điểm rác tồn đọng theo khu dân cư.
+- Phân tích dữ liệu để phát hiện khu vực thường xuyên phát sinh vấn đề.
+- Đánh giá hiệu quả của hệ thống thông qua dữ liệu trước/sau hoặc khảo sát người dùng.

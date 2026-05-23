@@ -1,0 +1,51 @@
+# PHÂN CHIA VÀ MÔ TẢ 4 VAI TRÒ (ROLES) TRONG HỆ THỐNG QUẢN LÝ THU GOM RÁC
+
+Dựa trên tài liệu gốc về "Hệ thống quản lý thu gom rác theo khu dân cư", hệ thống được phân chia thành 4 vai trò chính nhằm đảm bảo vận hành khép kín quy trình từ thông tin, phản ánh, thu gom đến quản lý và phân tích:
+
+---
+
+## 1. NGƯỜI DÂN (Resident / Citizen)
+Là đối tượng trực tiếp sinh hoạt và sử dụng dịch vụ thu gom rác trong khu dân cư.
+* **Chức năng chính:**
+  * **Tra cứu lịch trình:** Xem lịch thu gom rác định kỳ (rác hữu cơ, rác tái chế, rác nguy hại) theo khu vực cư trú (phường/xã, tổ dân phố).
+  * **Nhận thông báo:** Nhận nhắc nhở lịch thu gom tự động hàng ngày/hàng tuần (qua App, SMS, Email, Zalo giả lập) để đưa rác đúng giờ.
+  * **Gửi phản ánh môi trường:** Gửi báo cáo về các điểm rác tồn đọng, bừa bãi trong khu vực cư trú kèm theo:
+    * Hình ảnh hiện trạng.
+    * Vị trí địa lý (GPS/Bản đồ).
+    * Mô tả chi tiết và mức độ nghiêm trọng.
+  * **Theo dõi trạng thái phản ánh:** Xem tiến độ xử lý phản ánh của mình (Đã tiếp nhận -> Đang xử lý -> Đã hoàn thành kèm ảnh đối chứng).
+  * **Thanh toán dịch vụ:** Thực hiện thanh toán phí vệ sinh môi trường định kỳ trực tuyến qua các kênh MoMo, VNPay, thẻ ngân hàng.
+
+---
+
+## 2. NHÂN VIÊN THU GOM (Garbage Collector / Driver)
+Là lực lượng trực tiếp thực hiện công việc thu gom rác trên các tuyến đường và xử lý các phản ánh hiện trường.
+* **Chức năng chính:**
+  * **Xem lịch trình & Tuyến đường:** Theo dõi lịch làm việc, danh sách các tuyến thu gom rác được phân công hàng ngày trên bản đồ trực quan.
+  * **Nhận thông tin phản ánh:** Nhận các nhiệm vụ xử lý điểm rác tồn đọng phát sinh trên tuyến đường được giao (được điều phối từ Quản lý).
+  * **Cập nhật tiến độ hiện trường:**
+    * Báo cáo khi bắt đầu xử lý.
+    * Cập nhật trạng thái "Đã thu gom thành công" kèm hình ảnh sau khi dọn sạch điểm rác.
+  * **Báo cáo sự cố:** Gửi phản hồi nhanh về các sự cố phát sinh tại hiện trường (xe hỏng, đường tắc, điểm tập kết quá tải, rác nguy hại sai quy định).
+
+---
+
+## 3. ĐƠN VỊ THU GOM / ĐIỀU PHỐI (Collection Company Manager / Sub-Admin)
+Là đại diện của công ty môi trường đô thị hoặc đơn vị quản lý thu gom rác tại khu vực.
+* **Chức năng chính:**
+  * **Quản lý lịch trình & Tuyến đường:** Thiết lập lịch thu gom chi tiết và phân công các tuyến đường/khu vực cho từng nhân viên/xe thu gom.
+  * **Điều phối xử lý phản ánh:** Tiếp nhận các phản ánh về điểm rác tồn đọng từ người dân, kiểm tra tính xác thực và giao nhiệm vụ xử lý cho nhân viên đang phụ trách tuyến đường đó.
+  * **Giám sát thời gian thực:** Theo dõi tiến độ thu gom rác của các xe và trạng thái xử lý các điểm nóng môi trường trên bản đồ số.
+  * **Phê duyệt hoàn thành:** Xác nhận kết quả xử lý của nhân viên thu gom (kiểm tra ảnh đối chứng trước/sau) trước khi đóng yêu cầu phản ánh.
+
+---
+
+## 4. QUẢN TRỊ VIÊN HỆ THỐNG (System Administrator / Admin)
+Là người chịu trách nhiệm vận hành kỹ thuật toàn bộ hệ thống và phân tích dữ liệu tổng hợp.
+* **Chức năng chính:**
+  * **Quản lý người dùng:** Phân quyền và quản lý tài khoản của tất cả các nhóm người dùng trong hệ thống (Người dân, Nhân viên, Đơn vị thu gom, Admin).
+  * **Quản lý danh mục hệ thống:** Cấu hình danh mục khu vực hành chính (quận/huyện, phường/xã, tổ dân phố), các điểm tập kết rác và các loại rác thải.
+  * **Báo cáo và Phân tích (Dashboard):**
+    * Theo dõi các chỉ số hiệu suất (tỷ lệ thu gom đúng giờ, thời gian xử lý phản ánh trung bình).
+    * Sử dụng bản đồ số để phân tích mật độ phản ánh, từ đó phát hiện các khu vực thường xuyên phát sinh rác tồn đọng (điểm nóng).
+  * **Cấu hình hệ thống:** Thiết lập mức phí dịch vụ vệ sinh, quản lý cổng thanh toán trực tuyến và cấu hình dịch vụ gửi thông báo tự động (Email/SMS/Zalo API).

@@ -1,0 +1,15 @@
+.home-hero {
+  background: linear-gradient(135deg, #f8f9fa 0%, #cae6ff 100%);
+  padding-top: 4rem;
+  padding-bottom: 8rem;
+}
+
+.home-hero .home-hero__floating {
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.08);
+}
+
+.home-quick-search {
+  position: relative;
+  margin-top: -4rem;
+  z-index: 20;
+}

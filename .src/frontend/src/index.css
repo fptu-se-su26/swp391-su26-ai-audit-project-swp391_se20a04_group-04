@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  body {
+    @apply bg-background text-on-background font-body-md;
+  }
+}
+
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.hero-gradient {
+    background: linear-gradient(135deg, #f8f9fa 0%, #cae6ff 100%);
+}
+.card-shadow {
+    box-shadow: 0 4px 20px rgba(0, 109, 55, 0.05);
+}

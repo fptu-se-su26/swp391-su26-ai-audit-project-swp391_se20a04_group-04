@@ -1,0 +1,16 @@
+[
+  {
+    "id": "schedule1",
+    "area": "Phường Bến Nghé",
+    "wasteType": "Hữu cơ",
+    "dayOfWeek": "Thứ 2, 4, 6",
+    "timeFrame": "17:00 - 19:00"
+  },
+  {
+    "id": "schedule2",
+    "area": "Phường Bến Nghé",
+    "wasteType": "Tái chế",
+    "dayOfWeek": "Chủ nhật",
+    "timeFrame": "08:00 - 10:00"
+  }
+]
