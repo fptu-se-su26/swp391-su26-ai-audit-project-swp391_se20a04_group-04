@@ -60,15 +60,21 @@ export default function Login() {
     return Object.keys(newErrors).length === 0;
   };
 
+<<<<<<< HEAD
   // Kiểm tra lỗi chưa xác nhận email
   const [isEmailUnverified, setIsEmailUnverified] = useState(false);
 
+=======
+>>>>>>> dab39dbd0183b50eeafa6fadf2fbb79058580e92
   // Submit Handler
   const handleSubmit = async (e) => {
     e.preventDefault();
     setApiError('');
     setSuccessMessage('');
+<<<<<<< HEAD
     setIsEmailUnverified(false);
+=======
+>>>>>>> dab39dbd0183b50eeafa6fadf2fbb79058580e92
 
     if (!validateForm()) {
       return;
@@ -77,7 +83,11 @@ export default function Login() {
     setIsLoading(true);
 
     try {
+<<<<<<< HEAD
       await authService.login(
+=======
+      const response = await authService.login(
+>>>>>>> dab39dbd0183b50eeafa6fadf2fbb79058580e92
         formData.email.trim(),
         formData.password,
         formData.rememberMe
@@ -85,6 +95,7 @@ export default function Login() {
 
       setSuccessMessage('Đăng nhập thành công! Đang chuyển hướng...');
 
+<<<<<<< HEAD
       setTimeout(() => {
         navigate('/dashboard');
         window.dispatchEvent(new Event('authChange'));
@@ -96,6 +107,18 @@ export default function Login() {
         setIsEmailUnverified(true);
       }
       setApiError(msg);
+=======
+      // Delay slightly for transition animation
+      setTimeout(() => {
+        navigate('/dashboard');
+        // Force header reload to update navigation icons or menu options
+        window.dispatchEvent(new Event('authChange'));
+      }, 1200);
+
+
+    } catch (err) {
+      setApiError(err.message || 'Tên đăng nhập hoặc mật khẩu không đúng.');
+>>>>>>> dab39dbd0183b50eeafa6fadf2fbb79058580e92
     } finally {
       setIsLoading(false);
     }
@@ -134,6 +157,7 @@ export default function Login() {
 
           {/* Error Banner */}
           {apiError && (
+<<<<<<< HEAD
             <div className={`rounded-lg p-3 mb-5 flex items-start gap-2.5 text-xs animate-fade-in border ${
               isEmailUnverified
                 ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900'
@@ -151,6 +175,11 @@ export default function Login() {
                   </p>
                 )}
               </div>
+=======
+            <div className="alert alert-error bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 rounded-lg p-3 mb-5 flex items-start gap-2.5 text-xs animate-fade-in">
+              <span className="material-symbols-outlined text-base mt-0.5">error</span>
+              <span>{apiError}</span>
+>>>>>>> dab39dbd0183b50eeafa6fadf2fbb79058580e92
             </div>
           )}
 
