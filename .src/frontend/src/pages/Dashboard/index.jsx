@@ -14,8 +14,8 @@ export default function Dashboard() {
     navigate('/login');
     return;
   }
-
-     setUser(currentUser);
+   setUser(currentUser);
+     
 
   // Listen for auth change events
   const handleAuthChange = () => {
