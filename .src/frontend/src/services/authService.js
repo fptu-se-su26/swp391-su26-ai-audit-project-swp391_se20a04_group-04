@@ -63,9 +63,7 @@ const authService = {
       return { success: true };
     } catch (error) {
       if (error.code === 'auth/email-already-in-use') {
-        throw new Error('Email này đã được sử dụng. Vui lòng dùng email khác.') {
-          cause : error
-        };
+        throw new Error('Email này đã được sử dụng. Vui lòng dùng email khác.');
       }
       if (error.code === 'auth/invalid-email') {
         throw new Error('Địa chỉ email không hợp lệ.');
