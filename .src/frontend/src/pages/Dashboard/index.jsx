@@ -7,30 +7,31 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Check if user is logged in
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser) {
-      navigate('/login');
-      return;
-    }
-    setUser(currentUser);
+  // Check if user is logged in
+  const currentUser = authService.getCurrentUser();
 
-    // Listen for auth change events
-    const handleAuthChange = () => {
-      setUser(authService.getCurrentUser());
-    };
-    window.addEventListener('authChange', handleAuthChange);
-    return () => window.removeEventListener('authChange', handleAuthChange);
-  }, [navigate]);
+  if (!currentUser) {
+    navigate('/login');
+    return;
+  }
 
-<<<<<<< HEAD
+     setUser(currentUser);
+
+  // Listen for auth change events
+  const handleAuthChange = () => {
+    setUser(authService.getCurrentUser());
+  };
+
+  window.addEventListener('authChange', handleAuthChange);
+
+  return () => {
+    window.removeEventListener('authChange', handleAuthChange);
+  };
+
+}, [navigate]);
+
   const handleLogout = async () => {
     await authService.logout();
-=======
-  const handleLogout = () => {
-    authService.logout();
-    window.dispatchEvent(new Event('authChange'));
->>>>>>> dab39dbd0183b50eeafa6fadf2fbb79058580e92
     navigate('/login');
   };
 
