@@ -3,10 +3,11 @@
  * Sử dụng Secure Backend API (Express + Firebase Admin SDK)
  */
 
-import { signOut } from 'firebase/auth';
+import { signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from './firebase';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/auth';
+const googleProvider = new GoogleAuthProvider();
 
 const authService = {
   /**
@@ -64,6 +65,38 @@ const authService = {
       return { user, token };
     } catch (error) {
       throw error;
+    }
+  },
+
+  /**
+   * Đăng nhập bằng Google
+   */
+  async loginWithGoogle(rememberMe = true) {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      const token = await user.getIdToken();
+
+      const userData = {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        providerId: result.providerId || 'google.com',
+      };
+
+      const storage = rememberMe ? localStorage : sessionStorage;
+      storage.setItem('eco_token', token);
+      storage.setItem('eco_user', JSON.stringify(userData));
+
+      window.dispatchEvent(new Event('authChange'));
+      return { user: userData, token };
+    } catch (error) {
+      let message = error.message || 'Đăng nhập Google thất bại.';
+      if (error.code === 'auth/popup-closed-by-user') {
+        message = 'Bạn đã đóng cửa sổ đăng nhập Google.';
+      }
+      throw new Error(message);
     }
   },
 
