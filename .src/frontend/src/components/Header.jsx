@@ -51,12 +51,10 @@ export default function Header() {
           </span>
         </Link>
         <nav className="hidden md:flex items-center gap-8">
-          <Link className={navLinkClass('/')} to="/">Tra cứu lịch</Link>
+          <Link className={navLinkClass('/tra-cuu')} to="/tra-cuu">Tra cứu lịch</Link>
           <Link className={navLinkClass('/thong-bao')} to="/thong-bao">Thông báo</Link>
           <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
           <Link className={navLinkClass('/huong-dan')} to="/huong-dan">Hướng dẫn phân loại</Link>
-          <a className="font-label-md text-label-md text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed transition-colors" href="#">Hỗ trợ</a>
-
         </nav>
         <div className="flex items-center gap-4">
           <button className="material-symbols-outlined text-primary dark:text-primary-fixed header__icon">

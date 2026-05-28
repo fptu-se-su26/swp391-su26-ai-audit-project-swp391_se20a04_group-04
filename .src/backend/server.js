@@ -3,6 +3,8 @@ const cors = require('cors');
 require('dotenv').config();
 
 const { db, auth } = require('./firebaseAdmin');
+const addressService = require('./services/addressService');
+const scheduleService = require('./services/scheduleService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -206,6 +208,53 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (error) {
     console.error('[Login] Lỗi hệ thống khi đăng nhập:', error);
     return res.status(500).json({ error: 'Đã xảy ra lỗi hệ thống khi đăng nhập. Vui lòng thử lại sau.' });
+  }
+});
+
+/**
+ * Endpoint lấy danh sách Tỉnh/Thành phố
+ */
+app.get('/api/address/provinces', async (req, res) => {
+  try {
+    const provinces = await addressService.getProvinces();
+    return res.status(200).json(provinces);
+  } catch (error) {
+    console.error('[API] Lỗi lấy danh sách tỉnh thành:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Endpoint lấy danh sách Phường/Xã theo mã Tỉnh/Thành phố
+ */
+app.get('/api/address/wards', async (req, res) => {
+  const { provinceCode } = req.query;
+  if (!provinceCode) {
+    return res.status(400).json({ error: 'Thiếu mã Tỉnh/Thành phố (provinceCode).' });
+  }
+  try {
+    const wards = await addressService.getWardsByProvince(provinceCode);
+    return res.status(200).json(wards);
+  } catch (error) {
+    console.error(`[API] Lỗi lấy danh sách phường xã cho tỉnh ${provinceCode}:`, error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Endpoint tra cứu lịch thu gom rác theo khu vực
+ */
+app.get('/api/schedules', async (req, res) => {
+  const { city, ward, neighborhood } = req.query;
+  if (!city || !ward) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ Tỉnh/Thành phố và Phường/Xã để tra cứu.' });
+  }
+  try {
+    const schedules = await scheduleService.getSchedules({ city, ward, neighborhood });
+    return res.status(200).json(schedules);
+  } catch (error) {
+    console.error('[API] Lỗi tra cứu lịch thu gom:', error.message);
+    return res.status(500).json({ error: error.message });
   }
 });
 
