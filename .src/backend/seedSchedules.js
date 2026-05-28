@@ -4,6 +4,7 @@
 const { db } = require('./firebaseAdmin');
 
 const mockSchedules = [
+  // ---- Đà Nẵng - Phường Thọ Quang ----
   {
     city: 'Thành phố Đà Nẵng',
     ward: 'Phường Thọ Quang',
@@ -24,6 +25,27 @@ const mockSchedules = [
   },
   {
     city: 'Thành phố Đà Nẵng',
+    ward: 'Phường Thọ Quang',
+    neighborhood: 'Tổ 7',
+    schedule_date: '2026-05-29T16:00:00.000Z',
+    trash_type: 'Rác hữu cơ (Sinh hoạt)',
+    time_slot: '16:00 - 18:00',
+    status: 'đúng hạn'
+  },
+  // Lịch áp dụng cho toàn phường (không ghi tổ cụ thể)
+  {
+    city: 'Thành phố Đà Nẵng',
+    ward: 'Phường Thọ Quang',
+    neighborhood: '',
+    schedule_date: '2026-06-01T07:00:00.000Z',
+    trash_type: 'Rác cồng kềnh (Đồ nội thất cũ)',
+    time_slot: '07:00 - 11:00',
+    status: 'đúng hạn'
+  },
+
+  // ---- Đà Nẵng - Phường Khuê Mỹ ----
+  {
+    city: 'Thành phố Đà Nẵng',
     ward: 'Phường Khuê Mỹ',
     neighborhood: 'Tổ 5',
     schedule_date: '2026-05-29T18:00:00.000Z',
@@ -31,6 +53,18 @@ const mockSchedules = [
     time_slot: '18:00 - 20:00',
     status: 'đúng hạn'
   },
+  // Lịch áp dụng cho toàn phường Khuê Mỹ
+  {
+    city: 'Thành phố Đà Nẵng',
+    ward: 'Phường Khuê Mỹ',
+    neighborhood: '',
+    schedule_date: '2026-05-30T08:00:00.000Z',
+    trash_type: 'Rác tái chế (Nhựa, kim loại)',
+    time_slot: '08:00 - 10:30',
+    status: 'đúng hạn'
+  },
+
+  // ---- Hà Nội - Phường Hàng Trống ----
   {
     city: 'Thành phố Hà Nội',
     ward: 'Phường Hàng Trống',
@@ -49,6 +83,18 @@ const mockSchedules = [
     time_slot: '09:00 - 11:30',
     status: 'trì hoãn'
   },
+  // Lịch áp dụng cho toàn phường Hàng Trống
+  {
+    city: 'Thành phố Hà Nội',
+    ward: 'Phường Hàng Trống',
+    neighborhood: '',
+    schedule_date: '2026-06-02T06:30:00.000Z',
+    trash_type: 'Rác cồng kềnh (Đồ nội thất cũ)',
+    time_slot: '06:30 - 10:00',
+    status: 'đúng hạn'
+  },
+
+  // ---- Hà Nội - Phường Phúc Xá ----
   {
     city: 'Thành phố Hà Nội',
     ward: 'Phường Phúc Xá',
@@ -65,6 +111,16 @@ const mockSchedules = [
     schedule_date: '2026-05-31T08:00:00.000Z',
     trash_type: 'Rác tái chế (Nhựa, kim loại)',
     time_slot: '08:00 - 10:00',
+    status: 'đúng hạn'
+  },
+  // Lịch áp dụng cho toàn phường Phúc Xá
+  {
+    city: 'Thành phố Hà Nội',
+    ward: 'Phường Phúc Xá',
+    neighborhood: '',
+    schedule_date: '2026-05-29T07:00:00.000Z',
+    trash_type: 'Rác nguy hại (Pin, điện tử)',
+    time_slot: '07:00 - 09:00',
     status: 'đúng hạn'
   }
 ];
