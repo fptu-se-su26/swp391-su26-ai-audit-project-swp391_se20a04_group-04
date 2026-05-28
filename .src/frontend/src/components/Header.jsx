@@ -51,7 +51,7 @@ export default function Header() {
           </span>
         </Link>
         <nav className="hidden md:flex items-center gap-8">
-          <Link className={navLinkClass('/')} to="/">Tra cứu lịch</Link>
+          <Link className={navLinkClass('/tra-cuu')} to="/tra-cuu">Tra cứu lịch</Link>
           <Link className={navLinkClass('/thong-bao')} to="/thong-bao">Thông báo</Link>
           <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
           <Link className={navLinkClass('/huong-dan')} to="/huong-dan">Hướng dẫn phân loại</Link>
