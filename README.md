@@ -17,11 +17,11 @@
 
 | No | Student ID | Full Name | GitHub Username | Role | Main Responsibility |
 |---:|---|---|---|---|---|
-| 1 | DE190430 | Văn Xuân Phước | phuocvanday | Leader | Coder front-end |
-| 2 | DE190362 | Nguyễn Văn Tuấn | TuanMauLanh | Member | Coder back-end |
-| 3 | DE190614 | Nguyễn Đình Bảo | DinhBaoNg | Member | Coder back-end |
-| 4 | DE190399 | Nguyễn Hữu Vũ Tuấn | karin-lover | Member | Tester, Researcher |
-| 5 | DE190471 | Nguyễn Thành Trung | TrungIT2005 | Member | Tester, Researcher |
+| 1 | DE190430 | Văn Xuân Phước | phuocvanday | Leader | Dev |
+| 2 | DE190362 | Nguyễn Văn Tuấn | TuanMauLanh | Member | Dev |
+| 3 | DE190614 | Nguyễn Đình Bảo | DinhBaoNg | Member | Dev |
+| 4 | DE190399 | Nguyễn Hữu Vũ Tuấn | karin-lover | Member | Tester, Researcher, Dev |
+| 5 | DE190471 | Nguyễn Thành Trung | TrungIT2005 | Member | Tester, Researcher, Dev |
 
 ---
 
