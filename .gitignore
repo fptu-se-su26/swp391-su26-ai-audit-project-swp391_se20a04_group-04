@@ -1,2 +1,4 @@
 .src/backend/serviceAccountKey.json
 .src/backend/.env
+.DS_Store
+.src/backend/serviceAccountKey.json
