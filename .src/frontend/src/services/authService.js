@@ -4,16 +4,17 @@
  */
 
 import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendEmailVerification,
   signOut,
+  signInWithPopup,
+  GoogleAuthProvider,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 // Tên collection chính trên Firestore
 const USERS_COLLECTION = 'người dùng';
+
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/auth';
 
 /**
  * Chuẩn hóa dữ liệu user từ Firestore (hỗ trợ cả tên trường tiếng Việt lẫn tiếng Anh)
@@ -37,27 +38,13 @@ const authService = {
    */
   async register({ fullName, email, phone, password, address, role }) {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      await sendEmailVerification(user);
-
-      // Lưu với field names tiếng Anh (chuẩn) vào cả hai collection để đảm bảo tương thích hoàn toàn
-      const userData = {
-        uid: user.uid,
-        fullName,
-        email,
-        phone,
-        address,
-        role,
-        emailVerified: false,
-        createdAt: new Date().toISOString(),
-        area: 'Quận Sơn Trà, Đà Nẵng',
-      };
-
-      // Ghi nhận đồng thời vào hai collection ('người dùng' và 'users') để tương thích với tất cả trang
-      await setDoc(doc(db, USERS_COLLECTION, user.uid), userData);
-      await setDoc(doc(db, 'users', user.uid), userData);
+      const response = await fetch(`${BACKEND_URL}/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fullName, email, phone, password, address, role }),
+      });
 
       const data = await response.json();
 
@@ -90,25 +77,7 @@ const authService = {
         throw new Error(data.error || 'Đăng nhập thất bại.');
       }
 
-      // Lấy thông tin người dùng từ Firestore (tìm ở 'users' trước, sau đó 'người dùng' nếu không thấy)
-      let userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-      if (!userDoc.exists()) {
-        userDoc = await getDoc(doc(db, USERS_COLLECTION, firebaseUser.uid));
-      }
-
-      let userData = {};
-      if (userDoc.exists()) {
-        userData = normalizeUser(userDoc.data(), firebaseUser.uid);
-      } else {
-        // Dự phòng nếu không có trong Firestore (ví dụ admin tạo thủ công)
-        userData = {
-          uid: firebaseUser.uid,
-          fullName: firebaseUser.displayName || email.split('@')[0],
-          email: firebaseUser.email,
-          role: 'Citizen',
-          area: 'Quận Sơn Trà, Đà Nẵng',
-        };
-      }
+      const { user, token } = data;
 
       // Lưu thông tin vào storage
       const storage = rememberMe ? localStorage : sessionStorage;
@@ -127,17 +96,35 @@ const authService = {
    */
   async loginWithGoogle(rememberMe = true) {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      const token = await user.getIdToken();
+      const result = await signInWithPopup(auth, new GoogleAuthProvider());
+      const firebaseUser = result.user;
+      const token = await firebaseUser.getIdToken();
 
-      const userData = {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        providerId: result.providerId || 'google.com',
-      };
+      // Kiểm tra và lấy dữ liệu user từ Firestore
+      let userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+      if (!userDoc.exists()) {
+        userDoc = await getDoc(doc(db, USERS_COLLECTION, firebaseUser.uid));
+      }
+
+      let userData = {};
+      if (userDoc.exists()) {
+        userData = normalizeUser(userDoc.data(), firebaseUser.uid);
+      } else {
+        // Tạo tài khoản mặc định nếu đăng nhập lần đầu bằng Google
+        userData = {
+          uid: firebaseUser.uid,
+          fullName: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+          email: firebaseUser.email,
+          phone: firebaseUser.phoneNumber || '',
+          address: '',
+          role: 'Citizen',
+          area: 'Quận Sơn Trà, Đà Nẵng',
+          emailVerified: true,
+          createdAt: new Date().toISOString(),
+        };
+        await setDoc(doc(db, 'users', firebaseUser.uid), userData);
+        await setDoc(doc(db, USERS_COLLECTION, firebaseUser.uid), userData);
+      }
 
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem('eco_token', token);
@@ -153,7 +140,7 @@ const authService = {
       if (error.code === 'auth/too-many-requests') {
         throw new Error('Tài khoản bị tạm khóa do đăng nhập sai nhiều lần. Vui lòng thử lại sau.');
       }
-      throw error;
+      throw new Error(message);
     }
   },
 

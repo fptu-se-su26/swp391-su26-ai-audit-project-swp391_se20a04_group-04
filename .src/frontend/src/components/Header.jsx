@@ -55,8 +55,6 @@ export default function Header() {
           <Link className={navLinkClass('/thong-bao')} to="/thong-bao">Thông báo</Link>
           <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
           <Link className={navLinkClass('/huong-dan')} to="/huong-dan">Hướng dẫn phân loại</Link>
-          <a className="font-label-md text-label-md text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed transition-colors" href="#">Hỗ trợ</a>
-
         </nav>
         <div className="flex items-center gap-4">
           <button className="material-symbols-outlined text-primary dark:text-primary-fixed header__icon">
