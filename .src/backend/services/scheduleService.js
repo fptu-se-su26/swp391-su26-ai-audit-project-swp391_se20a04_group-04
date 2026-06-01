@@ -102,7 +102,9 @@ async function getSchedules({ city, ward, neighborhood }) {
     return schedules;
   } catch (error) {
     console.error('[scheduleService] Lỗi khi lấy lịch từ Firestore:', error);
-    throw new Error('Lỗi hệ thống khi tải lịch thu gom. Vui lòng thử lại sau.');
+    // Thêm chi tiết lỗi gốc để dễ debug phía client / logs
+    const message = error && error.message ? error.message : String(error);
+    throw new Error(`Lỗi hệ thống khi tải lịch thu gom. Chi tiết: ${message}`);
   }
 }
 
