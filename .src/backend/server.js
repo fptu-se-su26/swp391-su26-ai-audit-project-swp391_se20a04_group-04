@@ -6,6 +6,7 @@ require('dotenv').config();
 const { db, auth } = require('./firebaseAdmin');
 const addressService = require('./services/addressService');
 const scheduleService = require('./services/scheduleService');
+const notificationService = require('./services/notificationService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -262,6 +263,123 @@ app.get('/api/schedules', async (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date() });
+});
+
+// ============================================================
+// MIDDLEWARE: Xác thực Firebase JWT Token
+// ============================================================
+
+/**
+ * Middleware xác thực Token Firebase.
+ * Trích xuất UID người dùng và gán vào req.uid để các route phía sau sử dụng.
+ */
+async function verifyToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: Thiếu token xác thực.' });
+  }
+
+  const token = authHeader.split('Bearer ')[1];
+  try {
+    const decodedToken = await auth.verifyIdToken(token);
+    req.uid = decodedToken.uid;
+    next();
+  } catch (error) {
+    console.error('[Auth] Lỗi xác thực token:', error.message);
+    return res.status(401).json({ error: 'Unauthorized: Token không hợp lệ hoặc đã hết hạn.' });
+  }
+}
+
+// ============================================================
+// ROUTES: Thông báo Cư dân (/api/notifications)
+// ============================================================
+
+/**
+ * GET /api/notifications
+ * Lấy danh sách thông báo của cư dân đang đăng nhập.
+ */
+app.get('/api/notifications', verifyToken, async (req, res) => {
+  try {
+    const notifications = await notificationService.getNotifications(req.uid);
+    return res.status(200).json(notifications);
+  } catch (error) {
+    console.error('[API] Lỗi lấy danh sách thông báo:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/notifications/:id/read
+ * Đánh dấu một thông báo là đã đọc.
+ */
+app.post('/api/notifications/:id/read', verifyToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await notificationService.markAsRead(id, req.uid);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error(`[API] Lỗi đánh dấu đã đọc notification ${id}:`, error.message);
+    const statusCode = error.message.includes('quyền') ? 403 : 500;
+    return res.status(statusCode).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/notifications/read-all
+ * Đánh dấu toàn bộ thông báo của cư dân là đã đọc.
+ */
+app.post('/api/notifications/read-all', verifyToken, async (req, res) => {
+  try {
+    const result = await notificationService.markAllAsRead(req.uid);
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    console.error('[API] Lỗi đánh dấu đã đọc tất cả:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/notifications/settings
+ * Lấy cấu hình nhận thông báo của cư dân.
+ */
+app.get('/api/notifications/settings', verifyToken, async (req, res) => {
+  try {
+    const settings = await notificationService.getNotificationSettings(req.uid);
+    return res.status(200).json(settings);
+  } catch (error) {
+    console.error('[API] Lỗi lấy cài đặt thông báo:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/notifications/settings
+ * Cập nhật cấu hình nhận thông báo của cư dân.
+ */
+app.post('/api/notifications/settings', verifyToken, async (req, res) => {
+  const { email, sms, push } = req.body;
+  try {
+    await notificationService.updateNotificationSettings(req.uid, { email, sms, push });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[API] Lỗi cập nhật cài đặt thông báo:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/notifications/seed
+ * [DEV ONLY] Tạo dữ liệu thông báo mẫu cho cư dân đang đăng nhập để kiểm thử.
+ * LƯU Ý: Xóa hoặc bảo vệ route này trước khi deploy lên production!
+ */
+app.post('/api/notifications/seed', verifyToken, async (req, res) => {
+  try {
+    const result = await notificationService.seedNotificationsForUser(req.uid);
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    console.error('[API] Lỗi seed dữ liệu thông báo:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 // Khởi chạy Server Express
