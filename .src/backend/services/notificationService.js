@@ -88,11 +88,12 @@ async function markAllAsRead(userId) {
 async function getNotificationSettings(userId) {
   const userDoc = await db.collection(USERS_COLLECTION).doc(userId).get();
 
+  // Nếu tài khoản chưa có document trong Firestore (VD: đăng ký lần đầu),
+  // trả về cấu hình mặc định thay vì throw lỗi để tránh crash toàn trang
   if (!userDoc.exists) {
-    throw new Error('Không tìm thấy tài khoản người dùng.');
+    return { email: true, sms: false, push: true };
   }
 
-  // Trả về cấu hình hoặc mặc định nếu chưa có
   return userDoc.data().notificationSettings || {
     email: true,
     sms: false,

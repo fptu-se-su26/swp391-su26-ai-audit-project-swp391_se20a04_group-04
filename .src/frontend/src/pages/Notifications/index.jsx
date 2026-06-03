@@ -37,16 +37,21 @@ export default function Notifications() {
     setLoading(true);
     setError('');
     try {
-      const [notifs, cfg] = await Promise.all([
-        notificationService.getNotifications(),
-        notificationService.getNotificationSettings(),
-      ]);
+      // Tải thông báo — lỗi ở đây mới hiện thông báo lỗi cho người dùng
+      const notifs = await notificationService.getNotifications();
       setNotifications(notifs);
-      setSettings(cfg);
     } catch (err) {
-      setError(err.message || 'Không thể tải dữ liệu thông báo.');
+      setError(err.message || 'Không thể tải danh sách thông báo.');
     } finally {
       setLoading(false);
+    }
+
+    try {
+      // Tải cài đặt — lỗi ở đây chỉ giữ nguyên giá trị mặc định, không crash trang
+      const cfg = await notificationService.getNotificationSettings();
+      setSettings(cfg);
+    } catch {
+      // Im lặng: Dùng settings mặc định { email: true, sms: false, push: true }
     }
   }, []);
 
