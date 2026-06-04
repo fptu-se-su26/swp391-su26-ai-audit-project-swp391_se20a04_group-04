@@ -370,7 +370,12 @@ app.post('/api/admin/users', verifyToken, verifyAdmin, async (req, res) => {
     const { email, password, fullName, role, area } = req.body;
     let uid = '';
     try {
-      const userRecord = await auth.createUser({ email, password, displayName: fullName });
+      const userRecord = await auth.createUser({ 
+        email, 
+        password, 
+        displayName: fullName,
+        emailVerified: true 
+      });
       uid = userRecord.uid;
     } catch (authError) {
       console.error('[Admin] Lỗi tạo Auth user:', authError.message);
