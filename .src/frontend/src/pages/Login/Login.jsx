@@ -12,6 +12,7 @@ export default function Login() {
     password: '',
     rememberMe: false,
   });
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   // Password Visibility State
   const [showPassword, setShowPassword] = useState(false);
@@ -97,6 +98,27 @@ export default function Login() {
       setApiError(msg);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setApiError('');
+    setSuccessMessage('');
+    setIsEmailUnverified(false);
+    setIsGoogleLoading(true);
+
+    try {
+      await authService.loginWithGoogle(formData.rememberMe);
+      setSuccessMessage('Đăng nhập bằng Google thành công! Đang chuyển hướng...');
+
+      setTimeout(() => {
+        navigate('/dashboard');
+        window.dispatchEvent(new Event('authChange'));
+      }, 1200);
+    } catch (err) {
+      setApiError(err.message || 'Đăng nhập Google thất bại.');
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -241,7 +263,7 @@ export default function Login() {
               className={`w-full py-3 px-4 mt-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all focus:outline-none focus:ring-4 focus:ring-emerald-100 flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-[0.98] ${
                 isLoading ? 'opacity-85 cursor-not-allowed active:scale-100' : ''
               }`}
-              disabled={isLoading}
+              disabled={isLoading || isGoogleLoading}
             >
               {isLoading ? (
                 <>
@@ -255,6 +277,36 @@ export default function Login() {
                 <>
                   <span className="material-symbols-outlined text-lg">login</span>
                   <span>Đăng nhập</span>
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center gap-3 mt-4">
+              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
+              <span className="text-xs uppercase tracking-[0.20em] text-slate-400">hoặc</span>
+              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className={`w-full py-3 px-4 mt-4 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-100 font-semibold rounded-xl text-sm transition-all focus:outline-none focus:ring-4 focus:ring-emerald-100 flex items-center justify-center gap-2 shadow-sm ${
+                isGoogleLoading ? 'opacity-85 cursor-not-allowed' : ''
+              }`}
+              disabled={isLoading || isGoogleLoading}
+            >
+              {isGoogleLoading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-slate-700 dark:text-slate-100" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Đang đăng nhập bằng Google...</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-lg font-bold">G</span>
+                  <span>Đăng nhập với Google</span>
                 </>
               )}
             </button>

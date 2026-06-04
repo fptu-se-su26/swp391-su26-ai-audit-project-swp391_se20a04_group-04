@@ -9,6 +9,8 @@ import Notifications from './pages/Notifications';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import Dashboard from './pages/Dashboard';
+import ResidentSchedules from './resident/ResidentSchedules';
+import AdminUsers from './pages/AdminUsers';
 
 
 function App() {
@@ -19,12 +21,14 @@ function App() {
         <div className="flex-grow">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/tra-cuu" element={<ResidentSchedules />} />
             <Route path="/thanh-toan" element={<Payment />} />
             <Route path="/huong-dan" element={<Guide />} />
             <Route path="/thong-bao" element={<Notifications />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
           </Routes>
         </div>
         <Footer />

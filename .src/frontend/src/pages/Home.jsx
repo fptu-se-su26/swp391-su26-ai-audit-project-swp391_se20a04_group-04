@@ -1,6 +1,8 @@
+import { useNavigate } from 'react-router-dom';
 import './Home.css';
 
 export default function Home() {
+  const navigate = useNavigate();
   return (
     <main>
       {/* Hero Section */}
@@ -14,10 +16,16 @@ export default function Home() {
               Theo dõi lịch theo khu vực, nhận thông báo tự động và thanh toán phí vệ sinh trực tuyến trong một nền tảng duy nhất.
             </p>
             <div className="flex gap-4">
-              <button className="bg-primary text-on-primary px-8 py-4 rounded-xl font-label-md text-label-md hover:opacity-90 transition-all shadow-lg">
+              <button 
+                onClick={() => navigate('/tra-cuu')}
+                className="bg-primary text-on-primary px-8 py-4 rounded-xl font-label-md text-label-md hover:opacity-90 transition-all shadow-lg cursor-pointer"
+              >
                 Kiểm tra lịch
               </button>
-              <button className="border-2 border-primary text-primary px-8 py-4 rounded-xl font-label-md text-label-md hover:bg-primary/5 transition-all">
+              <button 
+                onClick={() => navigate('/thanh-toan')}
+                className="border-2 border-primary text-primary px-8 py-4 rounded-xl font-label-md text-label-md hover:bg-primary/5 transition-all cursor-pointer"
+              >
                 Thanh toán phí
               </button>
             </div>
@@ -64,7 +72,10 @@ export default function Home() {
                 <span className="material-symbols-outlined absolute right-4 top-4 pointer-events-none">expand_more</span>
               </div>
             </div>
-            <button className="bg-primary text-on-primary h-14 px-12 rounded-xl font-label-md text-label-md hover:opacity-90 transition-all flex items-center justify-center gap-2 w-full md:w-auto">
+            <button 
+              onClick={() => navigate('/tra-cuu')}
+              className="bg-primary text-on-primary h-14 px-12 rounded-xl font-label-md text-label-md hover:opacity-90 transition-all flex items-center justify-center gap-2 w-full md:w-auto cursor-pointer"
+            >
               <span className="material-symbols-outlined">search</span>
               Tra cứu
             </button>
