@@ -260,6 +260,167 @@ app.get('/api/schedules', async (req, res) => {
   }
 });
 
+/**
+ * Middleware cho phép truy cập chỉ với vai trò Manager
+ */
+async function ensureManager(req, res, next) {
+  try {
+    const userDoc = await db.collection(USERS_COLLECTION).doc(req.uid).get();
+    if (!userDoc.exists) {
+      return res.status(403).json({ error: 'Không tìm thấy thông tin người dùng để xác thực vai trò.' });
+    }
+
+    const userData = normalizeUser(userDoc.data(), req.uid);
+    if (userData.role !== 'Collection Company Manager') {
+      return res.status(403).json({ error: 'Chỉ có Collection Company Manager mới được phép truy cập chức năng này.' });
+    }
+
+    req.userProfile = userData;
+    next();
+  } catch (error) {
+    console.error('[Auth] Lỗi kiểm tra vai trò Manager:', error.message);
+    return res.status(500).json({ error: 'Lỗi hệ thống khi xác thực vai trò manager.' });
+  }
+}
+
+app.get('/api/manager/schedules', verifyToken, ensureManager, async (req, res) => {
+  try {
+    const snapshot = await db.collection('collection_schedules').orderBy('schedule_date', 'asc').get();
+    const schedules = [];
+    snapshot.forEach((doc) => schedules.push({ id: doc.id, ...doc.data() }));
+    return res.status(200).json(schedules);
+  } catch (error) {
+    console.error('[API] Lỗi lấy lịch quản lý:', error.message);
+    return res.status(500).json({ error: 'Không thể tải danh sách lịch cho Manager.' });
+  }
+});
+
+app.post('/api/manager/schedules', verifyToken, ensureManager, async (req, res) => {
+  const {
+    routeName,
+    serviceType,
+    date,
+    time,
+    city,
+    ward,
+    neighborhood,
+    assignedTruck,
+    assignedDriver,
+    notes,
+  } = req.body;
+
+  if (!routeName || !serviceType || !date || !time || !city || !ward) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin lịch thu gom.' });
+  }
+
+  try {
+    const scheduleDate = new Date(`${date}T${time}`);
+    if (Number.isNaN(scheduleDate.getTime())) {
+      return res.status(400).json({ error: 'Ngày hoặc giờ không hợp lệ.' });
+    }
+
+    const newSchedule = {
+      route_name: routeName,
+      service_type: serviceType,
+      schedule_date: scheduleDate.toISOString(),
+      city,
+      ward,
+      neighborhood: neighborhood || '',
+      assigned_truck: assignedTruck || '',
+      assigned_driver: assignedDriver || '',
+      status: assignedTruck && assignedDriver ? 'Assigned' : 'Planned',
+      notes: notes || '',
+      created_by: req.userProfile.fullName || req.uid,
+      created_at: new Date().toISOString(),
+    };
+
+    const docRef = await db.collection('collection_schedules').add(newSchedule);
+    return res.status(201).json({ success: true, id: docRef.id, schedule: newSchedule });
+  } catch (error) {
+    console.error('[API] Lỗi tạo lịch thu gom mới:', error.message);
+    return res.status(500).json({ error: 'Không thể tạo lịch thu gom. Vui lòng thử lại sau.' });
+  }
+});
+
+app.post('/api/manager/assign-route', verifyToken, ensureManager, async (req, res) => {
+  const { scheduleId, assignedTruck, assignedDriver } = req.body;
+  if (!scheduleId || !assignedTruck || !assignedDriver) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch, xe và tài xế để gán tuyến.' });
+  }
+
+  try {
+    const docRef = db.collection('collection_schedules').doc(scheduleId);
+    const snapshot = await docRef.get();
+    if (!snapshot.exists) {
+      return res.status(404).json({ error: 'Không tìm thấy lịch cần gán tuyến.' });
+    }
+
+    await docRef.update({
+      assigned_truck: assignedTruck,
+      assigned_driver: assignedDriver,
+      status: 'Assigned',
+      updated_at: new Date().toISOString(),
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[API] Lỗi gán tuyến cho lịch thu gom:', error.message);
+    return res.status(500).json({ error: 'Không thể gán tuyến cho lịch. Vui lòng thử lại sau.' });
+  }
+});
+
+app.get('/api/manager/complaints', verifyToken, ensureManager, async (req, res) => {
+  try {
+    const snapshot = await db.collection('complaints').orderBy('created_at', 'desc').limit(20).get();
+    const complaints = [];
+    snapshot.forEach((doc) => complaints.push({ id: doc.id, ...doc.data() }));
+    return res.status(200).json(complaints);
+  } catch (error) {
+    console.error('[API] Lỗi lấy phản ánh:', error.message);
+    return res.status(500).json({ error: 'Không thể tải danh sách phản ánh.' });
+  }
+});
+
+app.get('/api/manager/reports', verifyToken, ensureManager, async (req, res) => {
+  try {
+    const scheduleSnapshot = await db.collection('collection_schedules').get();
+    const schedules = [];
+    scheduleSnapshot.forEach((doc) => schedules.push({ id: doc.id, ...doc.data() }));
+
+    const complaintSnapshot = await db.collection('complaints').get();
+    const complaints = [];
+    complaintSnapshot.forEach((doc) => complaints.push({ id: doc.id, ...doc.data() }));
+
+    const totalSchedules = schedules.length;
+    const assignedRoutes = schedules.filter((item) => item.assigned_truck && item.assigned_driver).length;
+    const upcomingSchedules = schedules.filter((item) => item.schedule_date && new Date(item.schedule_date) > new Date()).length;
+    const openComplaints = complaints.filter((item) => item.status === 'open' || item.status === 'Open').length;
+    const byServiceType = schedules.reduce((acc, item) => {
+      const key = item.service_type || 'Other';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const reportData = {
+      generated_at: new Date().toISOString(),
+      summary: {
+        total_schedules: totalSchedules,
+        assigned_routes: assignedRoutes,
+        upcoming_schedules: upcomingSchedules,
+        open_complaints: openComplaints,
+      },
+      by_service_type: byServiceType,
+      schedules,
+      complaints,
+    };
+
+    return res.status(200).json(reportData);
+  } catch (error) {
+    console.error('[API] Lỗi tạo báo cáo:', error.message);
+    return res.status(500).json({ error: 'Không thể tải dữ liệu báo cáo.' });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date() });
