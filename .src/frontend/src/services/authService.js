@@ -12,7 +12,7 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 // Tên collection chính trên Firestore
-const USERS_COLLECTION = 'người dùng';
+const USERS_COLLECTION = 'users';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/auth';
 
