@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
+import { ROLES, normalizeRole } from '../../constants/roles';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -72,7 +73,7 @@ export default function Dashboard() {
   }, [navigate]);
 
   useEffect(() => {
-    if (user?.role === 'Collection Company Manager') {
+    if (normalizeRole(user?.role) === ROLES.MANAGER) {
       loadManagerData();
     }
   }, [user]);
@@ -220,7 +221,7 @@ export default function Dashboard() {
     );
   }
 
-  const isManager = user.role === 'Collection Company Manager';
+  const isManager = normalizeRole(user.role) === ROLES.MANAGER;
 
   if (!isManager) {
     return (

@@ -31,12 +31,12 @@ export const TYPE_CONFIG = {
  * Mở rộng thêm key mới ở đây khi kết nối Admin và Manager sau này.
  */
 export const SENDER_CONFIG = {
-  Admin: {
+  admin: {
     icon: 'shield',
-    label: 'Admin',
+    label: 'Quản trị viên',
     badgeClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
   },
-  Manager: {
+  manager: {
     icon: 'business_center',
     label: 'Ban quản lý',
     badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
