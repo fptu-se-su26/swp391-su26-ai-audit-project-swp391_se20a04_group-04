@@ -1,16 +1,22 @@
 // Trigger reload of .env configuration
 const express = require('express');
 const cors = require('cors');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const { db, auth } = require('./firebaseAdmin');
 const addressService = require('./services/addressService');
 const scheduleService = require('./services/scheduleService');
 const notificationService = require('./services/notificationService');
+const invoiceService = require('./services/invoiceService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
+const PAYOS_API_BASE_URL = process.env.PAYOS_API_BASE_URL || '';
+const PAYOS_CLIENT_ID = process.env.PAYOS_CLIENT_ID || '';
+const PAYOS_API_KEY = process.env.PAYOS_API_KEY || '';
+const PAYOS_CHECKSUM_KEY = process.env.PAYOS_CHECKSUM_KEY || '';
 
 // CORS configuration - Allow frontend server
 app.use(cors({
@@ -43,6 +49,18 @@ function normalizeUser(data, uid) {
     role:     data.role     || data['vai trò']      || data['Vai trò']   || 'Citizen',
     emailVerified: data.emailVerified ?? true,
   };
+}
+
+/**
+ * Chuẩn hóa vai trò sang hằng số trong ROLES
+ */
+function normalizeRole(role = '') {
+  if (typeof role !== 'string') return ROLES.RESIDENT;
+  const normalized = role.trim().toLowerCase();
+  if (normalized.includes('manager')) return ROLES.MANAGER;
+  if (normalized.includes('collector')) return ROLES.COLLECTOR;
+  if (normalized.includes('resident') || normalized.includes('citizen')) return ROLES.RESIDENT;
+  return role;
 }
 
 /**
@@ -338,7 +356,8 @@ async function ensureManager(req, res, next) {
     }
 
     const userData = normalizeUser(userDoc.data(), req.uid);
-    if (userData.role !== 'Collection Company Manager') {
+    const role = normalizeRole(userData.role);
+    if (role !== ROLES.MANAGER) {
       return res.status(403).json({ error: 'Chỉ có Collection Company Manager mới được phép truy cập chức năng này.' });
     }
 
@@ -358,7 +377,8 @@ async function ensureCollector(req, res, next) {
     }
 
     const userData = normalizeUser(userDoc.data(), req.uid);
-    if (userData.role !== ROLES.COLLECTOR) {
+    const role = normalizeRole(userData.role);
+    if (role !== ROLES.COLLECTOR) {
       return res.status(403).json({ error: 'Chỉ có nhân viên thu gom mới được phép xác nhận tuyến.' });
     }
 
@@ -367,6 +387,27 @@ async function ensureCollector(req, res, next) {
   } catch (error) {
     console.error('[Auth] Lỗi kiểm tra vai trò Collector:', error.message);
     return res.status(500).json({ error: 'Lỗi hệ thống khi xác thực vai trò collector.' });
+  }
+}
+
+async function ensureResident(req, res, next) {
+  try {
+    const userDoc = await db.collection(USERS_COLLECTION).doc(req.uid).get();
+    if (!userDoc.exists) {
+      return res.status(403).json({ error: 'Không tìm thấy thông tin người dùng để xác thực vai trò.' });
+    }
+
+    const userData = normalizeUser(userDoc.data(), req.uid);
+    const normalizedRole = (userData.role || '').toLowerCase();
+    if (!normalizedRole.includes('resident') && !normalizedRole.includes('citizen')) {
+      return res.status(403).json({ error: 'Chỉ cư dân mới được phép truy cập chức năng thanh toán.' });
+    }
+
+    req.userProfile = userData;
+    next();
+  } catch (error) {
+    console.error('[Auth] Lỗi kiểm tra vai trò Resident:', error.message);
+    return res.status(500).json({ error: 'Lỗi hệ thống khi xác thực vai trò resident.' });
   }
 }
 
@@ -612,6 +653,236 @@ app.get('/api/manager/reports', verifyToken, ensureManager, async (req, res) => 
 });
 
 // Health check endpoint
+app.post('/api/invoices', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const {
+      invoiceId,
+      amount,
+      billingMonth,
+      billingYear,
+      createdAt,
+      createdBy,
+      currency,
+      dueDate,
+      feeType,
+      paidAt,
+      status,
+      updatedAt,
+    } = req.body;
+
+    if (!invoiceId || !amount || !currency || !dueDate || !feeType) {
+      return res.status(400).json({ error: 'invoiceId, amount, currency, dueDate và feeType là bắt buộc.' });
+    }
+
+    const invoice = await invoiceService.createOrUpdateInvoice({
+      invoiceId,
+      amount,
+      billingMonth,
+      billingYear,
+      createdAt,
+      createdBy,
+      currency,
+      dueDate,
+      feeType,
+      paidAt: paidAt || null,
+      status: status || 'unpaid',
+      updatedAt: updatedAt || createdAt || new Date().toISOString(),
+      userId: req.uid,
+    });
+
+    return res.status(201).json(invoice);
+  } catch (error) {
+    console.error('[API] Lỗi tạo/cập nhật hóa đơn:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/invoices/current', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const invoice = await invoiceService.getLatestInvoiceForUser(req.uid);
+    if (!invoice) {
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn hiện tại.' });
+    }
+
+    if (invoice.status !== 'paid') {
+      try {
+        const { paymentUrl } = await createPayOSPaymentSession(invoice, req.uid);
+        invoice.paymentUrl = paymentUrl;
+      } catch (paymentError) {
+        console.warn('[API] Không thể tạo session PayOS tự động:', paymentError.message);
+      }
+    }
+
+    return res.status(200).json(invoice);
+  } catch (error) {
+    console.error('[API] Lỗi lấy hóa đơn hiện tại:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/invoices/:invoiceId', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const invoice = await invoiceService.getInvoiceById(req.params.invoiceId);
+    if (!invoice || invoice.userId !== req.uid) {
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn.' });
+    }
+    return res.status(200).json(invoice);
+  } catch (error) {
+    console.error('[API] Lỗi lấy hóa đơn theo ID:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+function buildPayOSChecksum(payload) {
+  return crypto.createHmac('sha256', PAYOS_CHECKSUM_KEY).update(JSON.stringify(payload)).digest('hex');
+}
+
+async function createPayOSPaymentSession(invoice, userId) {
+  const payload = {
+    clientId: PAYOS_CLIENT_ID,
+    apiKey: PAYOS_API_KEY,
+    invoiceId: invoice.invoiceId,
+    amount: invoice.amount,
+    currency: invoice.currency,
+    userId,
+    description: `Thanh toán ${invoice.feeType}`,
+  };
+
+  if (PAYOS_API_BASE_URL && PAYOS_CLIENT_ID && PAYOS_API_KEY && PAYOS_CHECKSUM_KEY) {
+    const checksum = buildPayOSChecksum(payload);
+    const response = await fetch(`${PAYOS_API_BASE_URL}/payments/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, checksum }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Không thể tạo yêu cầu PayOS.');
+    }
+    return { paymentUrl: data.paymentUrl || data.qrUrl || data.redirectUrl };
+  }
+
+  return {
+    paymentUrl: `https://payos.example.com/qr?client_id=${encodeURIComponent(PAYOS_CLIENT_ID || 'demo')}&invoice_id=${encodeURIComponent(invoice.invoiceId)}&amount=${invoice.amount}`,
+  };
+}
+
+async function verifyPayOSPayment(invoice) {
+  if (PAYOS_API_BASE_URL && PAYOS_CLIENT_ID && PAYOS_API_KEY && PAYOS_CHECKSUM_KEY) {
+    const payload = {
+      clientId: PAYOS_CLIENT_ID,
+      apiKey: PAYOS_API_KEY,
+      invoiceId: invoice.invoiceId,
+      amount: invoice.amount,
+    };
+    const checksum = buildPayOSChecksum(payload);
+    const response = await fetch(`${PAYOS_API_BASE_URL}/payments/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, checksum }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Không thể kiểm tra trạng thái PayOS.');
+    }
+    return data.status === 'PAID' || data.status === 'COMPLETED';
+  }
+
+  return true;
+}
+
+app.post('/api/invoices/:invoiceId/payment-request', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const invoice = await invoiceService.getInvoiceById(req.params.invoiceId);
+    if (!invoice || invoice.userId !== req.uid) {
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn để thanh toán.' });
+    }
+
+    if (invoice.status === 'paid') {
+      return res.status(400).json({ error: 'Hóa đơn đã được thanh toán.' });
+    }
+
+    const { paymentUrl } = await createPayOSPaymentSession(invoice, req.uid);
+    return res.status(200).json({ paymentUrl });
+  } catch (error) {
+    console.error('[API] Lỗi tạo yêu cầu thanh toán PayOS:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/invoices/:invoiceId/verify-payment', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const invoice = await invoiceService.getInvoiceById(req.params.invoiceId);
+    if (!invoice || invoice.userId !== req.uid) {
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn.' });
+    }
+
+    if (invoice.status === 'paid') {
+      return res.status(200).json({ invoice, paid: true });
+    }
+
+    const paid = await verifyPayOSPayment(invoice);
+    if (!paid) {
+      return res.status(402).json({ error: 'Thanh toán chưa hoàn tất.', invoice, paid: false });
+    }
+
+    const updatedInvoice = await invoiceService.updateInvoice(invoice.invoiceId, {
+      status: 'paid',
+      paidAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    return res.status(200).json({ invoice: updatedInvoice, paid: true });
+  } catch (error) {
+    console.error('[API] Lỗi kiểm tra thanh toán hóa đơn:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/manager/invoices', verifyToken, ensureManager, async (req, res) => {
+  try {
+    const {
+      invoiceId,
+      userId,
+      amount,
+      billingMonth,
+      billingYear,
+      createdAt,
+      createdBy,
+      currency,
+      dueDate,
+      feeType,
+      paidAt,
+      status,
+    } = req.body;
+
+    if (!invoiceId || !userId || !amount || !currency || !dueDate || !feeType) {
+      return res.status(400).json({ error: 'invoiceId, userId, amount, currency, dueDate và feeType là bắt buộc.' });
+    }
+
+    const invoice = await invoiceService.createOrUpdateInvoice({
+      invoiceId,
+      userId,
+      amount,
+      billingMonth,
+      billingYear,
+      createdAt,
+      createdBy: createdBy || req.userProfile.fullName || req.uid,
+      currency,
+      dueDate,
+      feeType,
+      paidAt: paidAt || null,
+      status: status || 'unpaid',
+      updatedAt: new Date().toISOString(),
+    });
+
+    return res.status(201).json(invoice);
+  } catch (error) {
+    console.error('[API] Lỗi tạo hóa đơn bởi manager:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date() });
 });
