@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import authService from '../services/authService';
+import { ROLES, normalizeRole } from '../constants/roles';
 import {
   createInvoice,
   createPaymentRequest,
@@ -58,6 +59,13 @@ export default function Payment() {
       return;
     }
 
+    const role = normalizeRole(currentUser.role);
+    if (role !== ROLES.RESIDENT) {
+      setError('Chỉ cư dân mới được phép truy cập và thanh toán hóa đơn.');
+      setLoading(false);
+      return;
+    }
+
     const load = async () => {
       setLoading(true);
       setError('');
@@ -81,7 +89,7 @@ export default function Payment() {
     };
 
     load();
-  }, [currentUser]);
+  }, [currentUser?.uid, currentUser?.role]);
 
   const createDefaultInvoice = async () => {
     if (!currentUser) {
