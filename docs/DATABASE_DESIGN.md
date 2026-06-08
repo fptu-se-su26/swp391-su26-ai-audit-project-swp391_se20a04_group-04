@@ -1,44 +1,50 @@
 # EcoSchedule Database Design
 
-## 1. Database Overview
+## 1. Overview
 
-EcoSchedule uses **Firebase Firestore** as the main database. Firestore is a NoSQL cloud database that stores data using the structure:
+| Item                | Value                               |
+| ------------------- | ----------------------------------- |
+| Firebase Project ID | `swp391-database`                   |
+| Database            | Cloud Firestore                     |
+| Phạm vi triển khai  | **Quận Sơn Trà**, Thành phố Đà Nẵng |
+
+EcoSchedule sử dụng **Firebase Firestore** (NoSQL). Cấu trúc:
 
 ```text
 Collection → Document → Fields
 ```
 
-This database design supports four main roles in the system:
+### Phường thuộc Quận Sơn Trà (7 phường)
 
-- resident
-- collector
-- manager
-- admin
+1. Phường An Hải Bắc
+2. Phường An Hải Đông
+3. Phường An Hải Tây
+4. Phường Mân Thái
+5. Phường Nại Hiên Đông
+6. Phường Phước Mỹ
+7. Phường Thọ Quang
 
-The database is designed to support the following core features:
+### Tính năng chính
 
-- User registration and authentication
-- Waste collection schedule lookup
-- Waste collection route management
-- Collector route assignment
-- Environmental issue reporting
-- Invoice and payment management
-- User notifications
-- Notification settings
-- System activity logging
+- Đăng ký và xác thực người dùng
+- Tra cứu lịch thu gom rác
+- Quản lý tuyến thu gom
+- Phân công nhân viên thu gom
+- Phản ánh môi trường
+- Hóa đơn và thanh toán phí vệ sinh
+- Thông báo và cài đặt thông báo
+- Nhật ký hoạt động hệ thống
 
 ---
 
 ## 2. User Roles
 
-
-| Role      | Description                                                                                       |
-| --------- | ------------------------------------------------------------------------------------------------- |
-| resident  | Resident who can search schedules, submit reports, receive notifications, and pay sanitation fees |
-| collector | Waste collection staff who can view assigned routes and update collection status                  |
-| manager   | Company manager who can create schedules, assign collectors, manage reports, and monitor routes   |
-| admin     | System administrator who can manage users, companies, areas, fees, and system data                |
-
+| Role        | Mô tả                                                   |
+| ----------- | ------------------------------------------------------- |
+| `resident`  | Người dân: tra cứu lịch, gửi phản ánh, thanh toán       |
+| `collector` | Nhân viên thu gom: xem tuyến, cập nhật tiến độ          |
+| `manager`   | Quản lý công ty: lịch, tuyến, phân công, xử lý phản ánh |
+| `admin`     | Quản trị hệ thống: user, danh mục, phí, báo cáo         |
 
 Allowed role values:
 
@@ -53,63 +59,55 @@ admin
 
 ## 3. Collection List
 
-
-| Collection              | Purpose                                                                    |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `users`                 | Stores user account and profile information                                |
-| `areas`                 | Stores administrative areas such as city, district, ward, and neighborhood |
-| `waste_types`           | Stores waste category information                                          |
-| `collection_companies`  | Stores waste collection company information                                |
-| `routes`                | Stores waste collection route information                                  |
-| `route_assignments`     | Stores collector assignments for routes                                    |
-| `collection_schedules`  | Stores waste collection schedules                                          |
-| `reports`               | Stores environmental reports submitted by residents                        |
-| `report_comments`       | Stores report processing history and comments                              |
-| `invoices`              | Stores sanitation fee invoices                                             |
-| `payments`              | Stores payment transaction records                                         |
-| `notifications`         | Stores user notifications                                                  |
-| `notification_settings` | Stores user notification preferences                                       |
-| `system_logs`           | Stores important system actions                                            |
-
+| Collection              | Mục đích                                                   |
+| ----------------------- | ---------------------------------------------------------- |
+| `users`                 | Tài khoản và hồ sơ người dùng                              |
+| `areas`                 | Khu vực hành chính (city → district → ward → neighborhood) |
+| `waste_types`           | Loại rác thải                                              |
+| `collection_companies`  | Công ty thu gom                                            |
+| `routes`                | Tuyến thu gom                                              |
+| `route_assignments`     | Phân công collector theo tuyến                             |
+| `collection_schedules`  | Lịch thu gom theo khu vực                                  |
+| `reports`               | Phản ánh môi trường                                        |
+| `report_comments`       | Lịch sử xử lý phản ánh                                     |
+| `invoices`              | Hóa đơn phí vệ sinh                                        |
+| `payments`              | Giao dịch thanh toán                                       |
+| `notifications`         | Thông báo người dùng                                       |
+| `notification_settings` | Cài đặt nhận thông báo                                     |
+| `system_logs`           | Nhật ký hệ thống                                           |
 
 ---
 
 ## 4. Collection Schemas
 
----
+### 4.1 `users`
 
-## 4.1. `users`
-
-Purpose: Store all user accounts and profile information.
-
-
-| Field         | Type        | Description                                |
-| ------------- | ----------- | ------------------------------------------ |
-| uid           | string      | Firebase user ID, used as document ID      |
-| fullName      | string      | User full name                             |
-| email         | string      | User email address                         |
-| phone         | string      | User phone number                          |
-| role          | string      | User role                                  |
-| status        | string      | Account status                             |
-| emailVerified | boolean     | Whether the user has verified email        |
-| city          | string      | User city                                  |
-| district      | string      | User district                              |
-| ward          | string      | User ward                                  |
-| neighborhood  | string      | User neighborhood                          |
-| address       | string      | Full user address                          |
-| companyId     | string/null | Company ID if user is collector or manager |
-| avatarUrl     | string      | User avatar URL                            |
-| createdAt     | timestamp   | Created time                               |
-| updatedAt     | timestamp   | Last updated time                          |
-
+| Field         | Type        | Description                                       |
+| ------------- | ----------- | ------------------------------------------------- |
+| uid           | string (PK) | Firebase Auth UID, document ID                    |
+| fullName      | string      | Họ tên                                            |
+| email         | string      | Email                                             |
+| phone         | string      | Số điện thoại                                     |
+| role          | string      | `resident` \| `collector` \| `manager` \| `admin` |
+| status        | string      | `active` \| `blocked` \| `inactive`               |
+| emailVerified | boolean     | Email đã xác minh                                 |
+| city          | string      | Thành phố                                         |
+| district      | string      | Quận/huyện                                        |
+| ward          | string      | Phường/xã                                         |
+| neighborhood  | string      | Tổ dân phố                                        |
+| address       | string      | Địa chỉ đầy đủ (tùy chọn)                         |
+| companyId     | string/null | FK → `collection_companies` (collector, manager)  |
+| avatarUrl     | string      | URL ảnh đại diện (tùy chọn)                       |
+| createdAt     | timestamp   |                                                   |
+| updatedAt     | timestamp   |                                                   |
 
 Example:
 
 ```json
 {
-  "uid": "resident_001",
+  "uid": "user_resident_001",
   "fullName": "Nguyễn Văn A",
-  "email": "resident@example.com",
+  "email": "resident@ecoschedule.test",
   "phone": "0909123456",
   "role": "resident",
   "status": "active",
@@ -121,66 +119,52 @@ Example:
   "address": "Tổ 12, Phường Thọ Quang, Quận Sơn Trà, Đà Nẵng",
   "companyId": null,
   "avatarUrl": "",
-  "createdAt": "2026-06-04T10:00:00Z",
-  "updatedAt": "2026-06-04T10:00:00Z"
+  "createdAt": "2026-06-01T08:00:00Z",
+  "updatedAt": "2026-06-01T08:00:00Z"
 }
 ```
 
----
+### 4.2 `areas`
 
-## 4.2. `areas`
-
-Purpose: Store administrative area data.
-
-
-| Field        | Type        | Description                           |
-| ------------ | ----------- | ------------------------------------- |
-| areaId       | string      | Area document ID                      |
-| name         | string      | Area name                             |
-| type         | string      | city, district, ward, or neighborhood |
-| parentId     | string/null | Parent area ID                        |
-| city         | string      | City name                             |
-| district     | string      | District name                         |
-| ward         | string      | Ward name                             |
-| neighborhood | string      | Neighborhood name                     |
-| isActive     | boolean     | Whether the area is active            |
-| createdAt    | timestamp   | Created time                          |
-
+| Field     | Type        | Description                                      |
+| --------- | ----------- | ------------------------------------------------ |
+| areaId    | string (PK) |                                                  |
+| name      | string      | Tên khu vực                                      |
+| type      | string      | `city` \| `district` \| `ward` \| `neighborhood` |
+| parentId  | string/null | FK → `areas.areaId`                              |
+| city      | string      |                                                  |
+| district  | string      |                                                  |
+| ward      | string      |                                                  |
+| isActive  | boolean     |                                                  |
+| createdAt | timestamp   |                                                  |
 
 Example:
 
 ```json
 {
-  "areaId": "area_to_12",
+  "areaId": "area_neighborhood_tho_quang_to_12",
   "name": "Tổ 12",
   "type": "neighborhood",
-  "parentId": "ward_tho_quang",
+  "parentId": "area_ward_tho_quang",
   "city": "Thành phố Đà Nẵng",
   "district": "Quận Sơn Trà",
   "ward": "Phường Thọ Quang",
-  "neighborhood": "Tổ 12",
   "isActive": true,
-  "createdAt": "2026-06-04T10:00:00Z"
+  "createdAt": "2026-06-01T00:00:00Z"
 }
 ```
 
----
+### 4.3 `waste_types`
 
-## 4.3. `waste_types`
-
-Purpose: Store different waste categories.
-
-
-| Field       | Type      | Description                      |
-| ----------- | --------- | -------------------------------- |
-| wasteTypeId | string    | Waste type document ID           |
-| name        | string    | Waste type name                  |
-| code        | string    | Waste type code                  |
-| description | string    | Waste type description           |
-| color       | string    | UI display color                 |
-| isActive    | boolean   | Whether the waste type is active |
-| createdAt   | timestamp | Created time                     |
-
+| Field       | Type        | Description                           |
+| ----------- | ----------- | ------------------------------------- |
+| wasteTypeId | string (PK) |                                       |
+| name        | string      |                                       |
+| code        | string      | ORGANIC, RECYCLABLE, HAZARDOUS, BULKY |
+| description | string      |                                       |
+| color       | string      | Màu UI                                |
+| isActive    | boolean     |                                       |
+| createdAt   | timestamp   |                                       |
 
 Example:
 
@@ -192,518 +176,336 @@ Example:
   "description": "Rác dễ phân hủy như thức ăn thừa, rau củ.",
   "color": "green",
   "isActive": true,
-  "createdAt": "2026-06-04T10:00:00Z"
+  "createdAt": "2026-06-01T00:00:00Z"
 }
 ```
 
----
+### 4.4 `collection_companies`
 
-## 4.4. `collection_companies`
-
-Purpose: Store waste collection company information.
-
-
-| Field        | Type      | Description                 |
-| ------------ | --------- | --------------------------- |
-| companyId    | string    | Company document ID         |
-| companyName  | string    | Company name                |
-| phone        | string    | Company phone number        |
-| email        | string    | Company email               |
-| address      | string    | Company address             |
-| managerId    | string    | User ID of company manager  |
-| serviceAreas | array     | Areas served by the company |
-| status       | string    | Company status              |
-| createdAt    | timestamp | Created time                |
-| updatedAt    | timestamp | Last updated time           |
-
+| Field        | Type        | Description                                 |
+| ------------ | ----------- | ------------------------------------------- |
+| companyId    | string (PK) |                                             |
+| companyName  | string      |                                             |
+| phone        | string      |                                             |
+| email        | string      |                                             |
+| address      | string      |                                             |
+| managerId    | string      | FK → `users.uid`                            |
+| serviceAreas | array       | Danh sách phường phục vụ (7 phường Sơn Trà) |
+| status       | string      | `active` \| `inactive`                      |
+| createdAt    | timestamp   |                                             |
+| updatedAt    | timestamp   |                                             |
 
 Example:
 
 ```json
 {
   "companyId": "company_001",
-  "companyName": "Công ty Môi Trường Đô Thị Đà Nẵng",
-  "phone": "0236xxxxxxx",
-  "email": "contact@company.com",
-  "address": "Đà Nẵng",
-  "managerId": "manager_uid_001",
-  "serviceAreas": ["Phường Thọ Quang", "Phường Mân Thái"],
+  "companyName": "Công ty Môi Trường Đô Thị Sơn Trà",
+  "phone": "02363888888",
+  "email": "contact@moitruongsontra.vn",
+  "address": "123 Võ Văn Kiệt, Quận Sơn Trà, Đà Nẵng",
+  "managerId": "user_manager_001",
+  "serviceAreas": [
+    "Phường An Hải Bắc",
+    "Phường An Hải Đông",
+    "Phường An Hải Tây",
+    "Phường Mân Thái",
+    "Phường Nại Hiên Đông",
+    "Phường Phước Mỹ",
+    "Phường Thọ Quang"
+  ],
   "status": "active",
-  "createdAt": "2026-06-04T10:00:00Z",
-  "updatedAt": "2026-06-04T10:00:00Z"
+  "createdAt": "2026-06-01T00:00:00Z",
+  "updatedAt": "2026-06-01T00:00:00Z"
 }
 ```
 
----
+### 4.5 `routes`
 
-## 4.5. `routes`
-
-Purpose: Store waste collection routes.
-
-
-| Field         | Type      | Description                        |
-| ------------- | --------- | ---------------------------------- |
-| routeId       | string    | Route document ID                  |
-| routeName     | string    | Route name                         |
-| companyId     | string    | Related collection company ID      |
-| city          | string    | City name                          |
-| district      | string    | District name                      |
-| wards         | array     | List of wards in the route         |
-| neighborhoods | array     | List of neighborhoods in the route |
-| startPoint    | map       | Start point location               |
-| endPoint      | map       | End point location                 |
-| status        | string    | Route status                       |
-| createdBy     | string    | User ID who created the route      |
-| createdAt     | timestamp | Created time                       |
-| updatedAt     | timestamp | Last updated time                  |
-
+| Field         | Type        | Description                 |
+| ------------- | ----------- | --------------------------- |
+| routeId       | string (PK) |                             |
+| routeName     | string      |                             |
+| companyId     | string      | FK → `collection_companies` |
+| city          | string      |                             |
+| district      | string      |                             |
+| wards         | array       |                             |
+| neighborhoods | array       |                             |
+| startPoint    | map         | `{ lat, lng, address }`     |
+| endPoint      | map         | `{ lat, lng, address }`     |
+| status        | string      | `active` \| `inactive`      |
+| createdBy     | string      | FK → `users.uid`            |
+| createdAt     | timestamp   |                             |
+| updatedAt     | timestamp   |                             |
 
 Example:
 
 ```json
 {
-  "routeId": "route_001",
-  "routeName": "Tuyến Sơn Trà 01",
+  "routeId": "route_son_tra_nam",
+  "routeName": "Tuyến Nam Sơn Trà",
   "companyId": "company_001",
   "city": "Thành phố Đà Nẵng",
   "district": "Quận Sơn Trà",
-  "wards": ["Phường Thọ Quang", "Phường Mân Thái"],
-  "neighborhoods": ["Tổ 12", "Tổ 7"],
+  "wards": ["Phường Thọ Quang"],
+  "neighborhoods": ["Tổ 7", "Tổ 12", "Tổ 15"],
   "startPoint": {
     "lat": 16.1123,
     "lng": 108.2456,
-    "address": "Điểm bắt đầu"
+    "address": "Điểm bắt đầu - Thọ Quang"
   },
   "endPoint": {
-    "lat": 16.1199,
-    "lng": 108.2500,
-    "address": "Điểm kết thúc"
+    "lat": 16.1179,
+    "lng": 108.2496,
+    "address": "Điểm kết thúc - Thọ Quang"
   },
   "status": "active",
-  "createdBy": "manager_uid_001",
-  "createdAt": "2026-06-04T10:00:00Z",
-  "updatedAt": "2026-06-04T10:00:00Z"
+  "createdBy": "user_manager_001",
+  "createdAt": "2026-06-02T00:00:00Z",
+  "updatedAt": "2026-06-02T00:00:00Z"
 }
 ```
 
----
+### 4.6 `route_assignments`
 
-## 4.6. `route_assignments`
+| Field        | Type           | Description                                                            |
+| ------------ | -------------- | ---------------------------------------------------------------------- |
+| assignmentId | string (PK)    |                                                                        |
+| routeId      | string         | FK → `routes`                                                          |
+| collectorId  | string         | FK → `users.uid`                                                       |
+| companyId    | string         | FK → `collection_companies`                                            |
+| assignedDate | timestamp      |                                                                        |
+| startTime    | string         | VD: `17:00`                                                            |
+| endTime      | string         |                                                                        |
+| vehicleCode  | string         |                                                                        |
+| status       | string         | `assigned` \| `in_progress` \| `completed` \| `delayed` \| `cancelled` |
+| startedAt    | timestamp/null |                                                                        |
+| completedAt  | timestamp/null |                                                                        |
+| createdBy    | string         | manager hoặc admin                                                     |
+| createdAt    | timestamp      |                                                                        |
+| updatedAt    | timestamp      |                                                                        |
 
-Purpose: Store collector assignments for collection routes.
+### 4.7 `collection_schedules`
 
+| Field        | Type        | Description                                         |
+| ------------ | ----------- | --------------------------------------------------- |
+| scheduleId   | string (PK) |                                                     |
+| areaId       | string      | FK → `areas`                                        |
+| routeId      | string      | FK → `routes`                                       |
+| wasteTypeId  | string      | FK → `waste_types`                                  |
+| city         | string      |                                                     |
+| district     | string      |                                                     |
+| ward         | string      |                                                     |
+| neighborhood | string      |                                                     |
+| scheduleDate | timestamp   |                                                     |
+| startTime    | string      |                                                     |
+| endTime      | string      |                                                     |
+| repeatType   | string      | `none` \| `daily` \| `weekly` \| `monthly`          |
+| repeatDays   | array       |                                                     |
+| status       | string      | `active` \| `delayed` \| `cancelled` \| `completed` |
+| note         | string      |                                                     |
+| createdBy    | string      |                                                     |
+| updatedBy    | string      |                                                     |
+| createdAt    | timestamp   |                                                     |
+| updatedAt    | timestamp   |                                                     |
 
-| Field        | Type           | Description                             |
-| ------------ | -------------- | --------------------------------------- |
-| assignmentId | string         | Assignment document ID                  |
-| routeId      | string         | Related route ID                        |
-| collectorId  | string         | Assigned collector user ID              |
-| companyId    | string         | Related company ID                      |
-| assignedDate | date           | Assigned date                           |
-| startTime    | string         | Start time                              |
-| endTime      | string         | End time                                |
-| vehicleCode  | string         | Vehicle code                            |
-| status       | string         | Assignment status                       |
-| startedAt    | timestamp/null | Time when collector starts route        |
-| completedAt  | timestamp/null | Time when collector completes route     |
-| createdBy    | string         | manager or admin who created assignment |
-| createdAt    | timestamp      | Created time                            |
-| updatedAt    | timestamp      | Last updated time                       |
-
-
-Example:
-
-```json
-{
-  "assignmentId": "assignment_001",
-  "routeId": "route_001",
-  "collectorId": "collector_uid_001",
-  "companyId": "company_001",
-  "assignedDate": "2026-06-10",
-  "startTime": "17:00",
-  "endTime": "19:00",
-  "vehicleCode": "DN-TRUCK-01",
-  "status": "assigned",
-  "startedAt": null,
-  "completedAt": null,
-  "createdBy": "manager_uid_001",
-  "createdAt": "2026-06-04T10:00:00Z",
-  "updatedAt": "2026-06-04T10:00:00Z"
-}
-```
-
----
-
-## 4.7. `collection_schedules`
-
-Purpose: Store waste collection schedules by area, route, and waste type.
-
-
-| Field        | Type      | Description                           |
-| ------------ | --------- | ------------------------------------- |
-| scheduleId   | string    | Schedule document ID                  |
-| areaId       | string    | Related area ID                       |
-| routeId      | string    | Related route ID                      |
-| wasteTypeId  | string    | Related waste type ID                 |
-| city         | string    | City name                             |
-| district     | string    | District name                         |
-| ward         | string    | Ward name                             |
-| neighborhood | string    | Neighborhood name                     |
-| scheduleDate | date      | Collection date                       |
-| startTime    | string    | Collection start time                 |
-| endTime      | string    | Collection end time                   |
-| repeatType   | string    | none, daily, weekly, monthly          |
-| repeatDays   | array     | Repeated days                         |
-| status       | string    | Schedule status                       |
-| note         | string    | Schedule note                         |
-| createdBy    | string    | User ID who created the schedule      |
-| updatedBy    | string    | User ID who last updated the schedule |
-| createdAt    | timestamp | Created time                          |
-| updatedAt    | timestamp | Last updated time                     |
-
+**Legacy fields** (tương thích `scheduleService` hiện tại): `schedule_date`, `trash_type`, `time_slot`.
 
 Example:
 
 ```json
 {
   "scheduleId": "schedule_001",
-  "areaId": "area_to_12",
-  "routeId": "route_001",
+  "areaId": "area_neighborhood_tho_quang_to_12",
+  "routeId": "route_son_tra_nam",
   "wasteTypeId": "waste_organic",
   "city": "Thành phố Đà Nẵng",
   "district": "Quận Sơn Trà",
   "ward": "Phường Thọ Quang",
   "neighborhood": "Tổ 12",
-  "scheduleDate": "2026-06-10",
+  "scheduleDate": "2026-06-10T17:00:00Z",
   "startTime": "17:00",
   "endTime": "19:00",
   "repeatType": "weekly",
   "repeatDays": ["Monday", "Wednesday", "Friday"],
   "status": "active",
   "note": "Đặt rác trước cổng trước 17:00",
-  "createdBy": "manager_uid_001",
-  "updatedBy": "manager_uid_001",
+  "schedule_date": "2026-06-10T17:00:00.000Z",
+  "trash_type": "Rác hữu cơ (Sinh hoạt)",
+  "time_slot": "17:00 - 19:00",
+  "createdBy": "user_manager_001",
+  "updatedBy": "user_manager_001",
   "createdAt": "2026-06-04T10:00:00Z",
   "updatedAt": "2026-06-04T10:00:00Z"
 }
 ```
 
----
+### 4.8 `reports`
 
-## 4.8. `reports`
-
-Purpose: Store environmental reports submitted by residents.
-
-
-| Field        | Type           | Description                                      |
-| ------------ | -------------- | ------------------------------------------------ |
-| reportId     | string         | Report document ID                               |
-| residentId   | string         | User ID of the resident who submitted the report |
-| title        | string         | Report title                                     |
-| description  | string         | Report description                               |
-| category     | string         | Report category                                  |
-| severity     | string         | Report severity                                  |
-| imageUrls    | array          | Uploaded image URLs                              |
-| location     | map            | Report location                                  |
-| city         | string         | City name                                        |
-| district     | string         | District name                                    |
-| ward         | string         | Ward name                                        |
-| neighborhood | string         | Neighborhood name                                |
-| assignedTo   | string/null    | Collector assigned to handle the report          |
-| assignedBy   | string/null    | manager or admin who assigned the report         |
-| status       | string         | Report status                                    |
-| createdAt    | timestamp      | Created time                                     |
-| updatedAt    | timestamp      | Last updated time                                |
-| resolvedAt   | timestamp/null | Resolved time                                    |
-
+| Field        | Type           | Description                                                                                         |
+| ------------ | -------------- | --------------------------------------------------------------------------------------------------- |
+| reportId     | string (PK)    |                                                                                                     |
+| citizenId    | string         | FK → `users.uid` (người gửi phản ánh)                                                               |
+| title        | string         |                                                                                                     |
+| description  | string         |                                                                                                     |
+| category     | string         | `garbage_overflow`, `illegal_dumping`, ...                                                          |
+| severity     | string         | `low` \| `medium` \| `high` \| `urgent`                                                             |
+| imageUrls    | array          |                                                                                                     |
+| location     | map            | `{ lat, lng, address }`                                                                             |
+| city         | string         |                                                                                                     |
+| district     | string         |                                                                                                     |
+| ward         | string         |                                                                                                     |
+| neighborhood | string         |                                                                                                     |
+| assignedTo   | string/null    | FK → `users.uid` (collector)                                                                        |
+| assignedBy   | string/null    | manager hoặc admin                                                                                  |
+| status       | string         | `submitted` \| `received` \| `assigned` \| `in_progress` \| `resolved` \| `rejected` \| `cancelled` |
+| createdAt    | timestamp      |                                                                                                     |
+| updatedAt    | timestamp      |                                                                                                     |
+| resolvedAt   | timestamp/null |                                                                                                     |
 
 Example:
 
 ```json
 {
   "reportId": "report_001",
-  "residentId": "resident_uid_001",
+  "citizenId": "user_resident_001",
   "title": "Rác tồn đọng trước cổng trường",
-  "description": "Rác chưa được thu gom trong 2 ngày, gây mùi hôi.",
+  "description": "Rác chưa được thu gom trong 2 ngày tại Tổ 12, Thọ Quang.",
   "category": "garbage_overflow",
   "severity": "medium",
   "imageUrls": [],
   "location": {
     "lat": 16.1123,
     "lng": 108.2456,
-    "address": "Tổ 12, Phường Thọ Quang, Sơn Trà, Đà Nẵng"
+    "address": "Tổ 12, Phường Thọ Quang, Quận Sơn Trà, Đà Nẵng"
   },
   "city": "Thành phố Đà Nẵng",
   "district": "Quận Sơn Trà",
   "ward": "Phường Thọ Quang",
   "neighborhood": "Tổ 12",
-  "assignedTo": "collector_uid_001",
-  "assignedBy": "manager_uid_001",
-  "status": "submitted",
+  "assignedTo": "user_collector_001",
+  "assignedBy": "user_manager_001",
+  "status": "assigned",
   "createdAt": "2026-06-04T10:00:00Z",
-  "updatedAt": "2026-06-04T10:00:00Z",
+  "updatedAt": "2026-06-05T09:00:00Z",
   "resolvedAt": null
 }
 ```
 
----
+### 4.9 `report_comments`
 
-## 4.9. `report_comments`
+| Field     | Type        | Description                                |
+| --------- | ----------- | ------------------------------------------ |
+| commentId | string (PK) |                                            |
+| reportId  | string      | FK → `reports`                             |
+| userId    | string      | FK → `users.uid`                           |
+| role      | string      | Role tại thời điểm comment                 |
+| message   | string      |                                            |
+| imageUrls | array       |                                            |
+| action    | string      | `assigned`, `in_progress`, `resolved`, ... |
+| createdAt | timestamp   |                                            |
 
-Purpose: Store processing history and comments for reports.
+### 4.10 `invoices`
 
+| Field        | Type           | Description                                                  |
+| ------------ | -------------- | ------------------------------------------------------------ |
+| invoiceId    | string (PK)    |                                                              |
+| userId       | string         | FK → `users.uid`                                             |
+| billingMonth | number         |                                                              |
+| billingYear  | number         |                                                              |
+| amount       | number         |                                                              |
+| currency     | string         | `VND`                                                        |
+| feeType      | string         |                                                              |
+| status       | string         | `unpaid` \| `paid` \| `overdue` \| `cancelled` \| `refunded` |
+| dueDate      | timestamp      |                                                              |
+| createdBy    | string         |                                                              |
+| createdAt    | timestamp      |                                                              |
+| updatedAt    | timestamp      |                                                              |
+| paidAt       | timestamp/null |                                                              |
 
-| Field     | Type      | Description                   |
-| --------- | --------- | ----------------------------- |
-| commentId | string    | Comment document ID           |
-| reportId  | string    | Related report ID             |
-| userId    | string    | User who commented or updated |
-| role      | string    | User role                     |
-| message   | string    | Comment message               |
-| imageUrls | array     | Attached image URLs           |
-| action    | string    | Action type                   |
-| createdAt | timestamp | Created time                  |
+### 4.11 `payments`
 
+| Field           | Type           | Description                                                     |
+| --------------- | -------------- | --------------------------------------------------------------- |
+| paymentId       | string (PK)    |                                                                 |
+| invoiceId       | string         | FK → `invoices`                                                 |
+| userId          | string         | FK → `users.uid`                                                |
+| amount          | number         |                                                                 |
+| currency        | string         |                                                                 |
+| method          | string         | `VNPay` \| `MoMo` \| `BankTransfer` \| `Cash`                   |
+| transactionCode | string         |                                                                 |
+| status          | string         | `pending` \| `success` \| `failed` \| `cancelled` \| `refunded` |
+| gatewayResponse | map            |                                                                 |
+| createdAt       | timestamp      |                                                                 |
+| paidAt          | timestamp/null |                                                                 |
 
-Example:
+### 4.12 `notifications`
 
-```json
-{
-  "commentId": "comment_001",
-  "reportId": "report_001",
-  "userId": "manager_uid_001",
-  "role": "manager",
-  "message": "Đã tiếp nhận phản ánh và giao cho nhân viên xử lý.",
-  "imageUrls": [],
-  "action": "assigned",
-  "createdAt": "2026-06-04T10:00:00Z"
-}
-```
+| Field          | Type           | Description                                                  |
+| -------------- | -------------- | ------------------------------------------------------------ |
+| notificationId | string (PK)    |                                                              |
+| userId         | string         | FK → `users.uid`                                             |
+| title          | string         |                                                              |
+| content        | string         |                                                              |
+| type           | string         | `schedule` \| `payment` \| `report` \| `system` \| `warning` |
+| link           | string         | Route frontend                                               |
+| isRead         | boolean        |                                                              |
+| senderId       | string         |                                                              |
+| senderRole     | string         |                                                              |
+| senderName     | string         |                                                              |
+| createdAt      | timestamp      |                                                              |
+| readAt         | timestamp/null |                                                              |
 
----
+**Legacy fields** (tương thích code hiện tại): `user_id`, `is_read`, `sent_at`, `sender_role`, `sender_name`.
 
-## 4.10. `invoices`
+### 4.13 `notification_settings`
 
-Purpose: Store sanitation fee invoices.
+| Field            | Type        | Description      |
+| ---------------- | ----------- | ---------------- |
+| userId           | string (PK) | FK → `users.uid` |
+| email            | boolean     |                  |
+| sms              | boolean     |                  |
+| push             | boolean     |                  |
+| scheduleReminder | boolean     |                  |
+| paymentReminder  | boolean     |                  |
+| reportUpdate     | boolean     |                  |
+| systemNews       | boolean     |                  |
+| updatedAt        | timestamp   |                  |
 
+### 4.14 `system_logs`
 
-| Field        | Type           | Description              |
-| ------------ | -------------- | ------------------------ |
-| invoiceId    | string         | Invoice document ID      |
-| userId       | string         | Related user ID          |
-| billingMonth | number         | Billing month            |
-| billingYear  | number         | Billing year             |
-| amount       | number         | Invoice amount           |
-| currency     | string         | Currency                 |
-| feeType      | string         | Fee type                 |
-| status       | string         | Invoice status           |
-| dueDate      | date           | Payment due date         |
-| createdBy    | string         | User who created invoice |
-| createdAt    | timestamp      | Created time             |
-| updatedAt    | timestamp      | Last updated time        |
-| paidAt       | timestamp/null | Paid time                |
-
-
-Example:
-
-```json
-{
-  "invoiceId": "invoice_001",
-  "userId": "resident_uid_001",
-  "billingMonth": 6,
-  "billingYear": 2026,
-  "amount": 50000,
-  "currency": "VND",
-  "feeType": "monthly_sanitation_fee",
-  "status": "unpaid",
-  "dueDate": "2026-06-25",
-  "createdBy": "admin_uid_001",
-  "createdAt": "2026-06-01T00:00:00Z",
-  "updatedAt": "2026-06-01T00:00:00Z",
-  "paidAt": null
-}
-```
-
----
-
-## 4.11. `payments`
-
-Purpose: Store payment transactions.
-
-
-| Field           | Type           | Description                      |
-| --------------- | -------------- | -------------------------------- |
-| paymentId       | string         | Payment document ID              |
-| invoiceId       | string         | Related invoice ID               |
-| userId          | string         | Related user ID                  |
-| amount          | number         | Payment amount                   |
-| currency        | string         | Currency                         |
-| method          | string         | Payment method                   |
-| transactionCode | string         | Payment gateway transaction code |
-| status          | string         | Payment status                   |
-| gatewayResponse | map            | Response from payment gateway    |
-| createdAt       | timestamp      | Created time                     |
-| paidAt          | timestamp/null | Paid time                        |
-
-
-Example:
-
-```json
-{
-  "paymentId": "payment_001",
-  "invoiceId": "invoice_001",
-  "userId": "resident_uid_001",
-  "amount": 50000,
-  "currency": "VND",
-  "method": "VNPay",
-  "transactionCode": "VNPAY_123456789",
-  "status": "success",
-  "gatewayResponse": {
-    "code": "00",
-    "message": "Success"
-  },
-  "createdAt": "2026-06-10T09:58:00Z",
-  "paidAt": "2026-06-10T10:00:00Z"
-}
-```
-
----
-
-## 4.12. `notifications`
-
-Purpose: Store notifications sent to users.
-
-
-| Field          | Type           | Description                      |
-| -------------- | -------------- | -------------------------------- |
-| notificationId | string         | Notification document ID         |
-| userId         | string         | Receiver user ID                 |
-| title          | string         | Notification title               |
-| content        | string         | Notification content             |
-| type           | string         | Notification type                |
-| link           | string         | Related frontend page            |
-| isRead         | boolean        | Whether the notification is read |
-| senderId       | string         | Sender user ID                   |
-| senderRole     | string         | Sender role                      |
-| senderName     | string         | Sender display name              |
-| createdAt      | timestamp      | Created time                     |
-| readAt         | timestamp/null | Read time                        |
-
-
-Example:
-
-```json
-{
-  "notificationId": "noti_001",
-  "userId": "resident_uid_001",
-  "title": "Lịch thu gom rác ngày mai",
-  "content": "Ngày mai xe sẽ thu gom rác hữu cơ tại Tổ 12.",
-  "type": "schedule",
-  "link": "/tra-cuu",
-  "isRead": false,
-  "senderId": "manager_uid_001",
-  "senderRole": "manager",
-  "senderName": "Công ty Môi Trường",
-  "createdAt": "2026-06-04T10:00:00Z",
-  "readAt": null
-}
-```
-
----
-
-## 4.13. `notification_settings`
-
-Purpose: Store notification preferences for each user.
-
-
-| Field            | Type      | Description                       |
-| ---------------- | --------- | --------------------------------- |
-| userId           | string    | User document ID                  |
-| email            | boolean   | Enable email notification         |
-| sms              | boolean   | Enable SMS notification           |
-| push             | boolean   | Enable push notification          |
-| scheduleReminder | boolean   | Enable schedule reminder          |
-| paymentReminder  | boolean   | Enable payment reminder           |
-| reportUpdate     | boolean   | Enable report update notification |
-| systemNews       | boolean   | Enable system news                |
-| updatedAt        | timestamp | Last updated time                 |
-
-
-Example:
-
-```json
-{
-  "userId": "resident_uid_001",
-  "email": true,
-  "sms": false,
-  "push": true,
-  "scheduleReminder": true,
-  "paymentReminder": true,
-  "reportUpdate": true,
-  "systemNews": true,
-  "updatedAt": "2026-06-04T10:00:00Z"
-}
-```
-
----
-
-## 4.14. `system_logs`
-
-Purpose: Store important system activities for auditing.
-
-
-| Field            | Type      | Description                   |
-| ---------------- | --------- | ----------------------------- |
-| logId            | string    | Log document ID               |
-| userId           | string    | User who performed the action |
-| role             | string    | User role                     |
-| action           | string    | Action name                   |
-| targetCollection | string    | Affected collection           |
-| targetId         | string    | Affected document ID          |
-| description      | string    | Action description            |
-| createdAt        | timestamp | Created time                  |
-
-
-Example:
-
-```json
-{
-  "logId": "log_001",
-  "userId": "admin_uid_001",
-  "role": "admin",
-  "action": "CREATE_SCHEDULE",
-  "targetCollection": "collection_schedules",
-  "targetId": "schedule_001",
-  "description": "admin created a schedule for Tổ 12, Phường Thọ Quang.",
-  "createdAt": "2026-06-04T10:00:00Z"
-}
-```
+| Field            | Type        | Description      |
+| ---------------- | ----------- | ---------------- |
+| logId            | string (PK) |                  |
+| userId           | string      | FK → `users.uid` |
+| role             | string      |                  |
+| action           | string      |                  |
+| targetCollection | string      |                  |
+| targetId         | string      |                  |
+| description      | string      |                  |
+| createdAt        | timestamp   |                  |
 
 ---
 
 ## 5. Database Relationships
 
-Although Firestore is NoSQL, the system still uses reference IDs to represent relationships between collections.
-
-
-| Relationship                                                   | Description                                    |
-| -------------------------------------------------------------- | ---------------------------------------------- |
-| `users.companyId` → `collection_companies.companyId`           | A collector or manager belongs to one company  |
-| `collection_companies.managerId` → `users.uid`                 | A company has one manager                      |
-| `routes.companyId` → `collection_companies.companyId`          | One company has many routes                    |
-| `route_assignments.routeId` → `routes.routeId`                 | One route can have many assignments            |
-| `route_assignments.collectorId` → `users.uid`                  | One collector can have many assignments        |
-| `collection_schedules.areaId` → `areas.areaId`                 | One area can have many schedules               |
-| `collection_schedules.routeId` → `routes.routeId`              | One route can have many schedules              |
-| `collection_schedules.wasteTypeId` → `waste_types.wasteTypeId` | One waste type can appear in many schedules    |
-| `reports.residentId` → `users.uid`                             | One resident can submit many reports           |
-| `reports.assignedTo` → `users.uid`                             | One collector can handle many reports          |
-| `report_comments.reportId` → `reports.reportId`                | One report can have many comments              |
-| `invoices.userId` → `users.uid`                                | One user can have many invoices                |
-| `payments.invoiceId` → `invoices.invoiceId`                    | One invoice can have many payment attempts     |
-| `notifications.userId` → `users.uid`                           | One user can receive many notifications        |
-| `notification_settings.userId` → `users.uid`                   | One user has one notification setting document |
-
+| Relationship                                                   | Description                         |
+| -------------------------------------------------------------- | ----------------------------------- |
+| `users.companyId` → `collection_companies.companyId`           | collector/manager thuộc một công ty |
+| `collection_companies.managerId` → `users.uid`                 | Một công ty có một manager          |
+| `routes.companyId` → `collection_companies.companyId`          | Một công ty có nhiều tuyến          |
+| `route_assignments.routeId` → `routes.routeId`                 | Một tuyến có nhiều phân công        |
+| `route_assignments.collectorId` → `users.uid`                  | Một collector có nhiều phân công    |
+| `collection_schedules.areaId` → `areas.areaId`                 | Một khu vực có nhiều lịch           |
+| `collection_schedules.routeId` → `routes.routeId`              | Một tuyến có nhiều lịch             |
+| `collection_schedules.wasteTypeId` → `waste_types.wasteTypeId` | Một loại rác xuất hiện ở nhiều lịch |
+| `reports.citizenId` → `users.uid`                              | Một resident gửi nhiều phản ánh     |
+| `reports.assignedTo` → `users.uid`                             | Một collector xử lý nhiều phản ánh  |
+| `report_comments.reportId` → `reports.reportId`                | Một phản ánh có nhiều comment       |
+| `invoices.userId` → `users.uid`                                | Một user có nhiều hóa đơn           |
+| `payments.invoiceId` → `invoices.invoiceId`                    | Một hóa đơn có nhiều giao dịch      |
+| `notifications.userId` → `users.uid`                           | Một user nhận nhiều thông báo       |
+| `notification_settings.userId` → `users.uid`                   | Một user có một cài đặt thông báo   |
 
 ---
 
@@ -714,7 +516,7 @@ Although Firestore is NoSQL, the system still uses reference IDs to represent re
 ```text
 resident
 collector
-manager 
+manager
 admin
 ```
 
@@ -818,11 +620,39 @@ warning
 
 ---
 
-## 7. Notes for Frontend Team
+## 7. Seed Database
 
-Frontend should not directly depend on Firestore collection details when possible. Instead, frontend should call backend APIs.
+Script: `.src/backend/scripts/seedDatabase.js`
 
-General API response format:
+```bash
+cd .src/backend
+npm run seed:full
+```
+
+Tài khoản demo (mật khẩu: `EcoSchedule@2026`):
+
+| Role      | Email                         |
+| --------- | ----------------------------- |
+| resident  | `resident@ecoschedule.test`   |
+| resident  | `resident2@ecoschedule.test`  |
+| collector | `collector@ecoschedule.test`  |
+| collector | `collector2@ecoschedule.test` |
+| manager   | `manager@ecoschedule.test`    |
+| admin     | `admin@ecoschedule.test`      |
+
+Triển khai rules và indexes (chạy từ **thư mục gốc repo**):
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes
+```
+
+Chi tiết: xem `docs/DATABASE_SEED.md`.
+
+---
+
+## 8. Notes for Frontend Team
+
+Frontend nên gọi Backend API thay vì truy cập Firestore trực tiếp khi có thể.
 
 Success response:
 
@@ -843,89 +673,29 @@ Error response:
 }
 ```
 
-Important rules for frontend:
+Quy tắc quan trọng:
 
-1. Use exact role values defined in this document.
-2. Use exact status values defined in this document.
-3. Do not create new status strings without confirming with backend.
-4. For authenticated APIs, send Firebase token in the Authorization header.
-5. Display user-friendly Vietnamese labels on the UI, but send English enum values to backend.
+1. Dùng đúng role values trong tài liệu này.
+2. Dùng đúng status/enum values đã định nghĩa.
+3. Không tự tạo status string mới nếu chưa thống nhất với backend.
+4. API cần auth: gửi Firebase token trong header `Authorization`.
+5. UI hiển thị tiếng Việt, nhưng gửi enum tiếng Anh/snake_case lên backend.
 
-Example:
-
-Frontend displays:
-
-```text
-Đang xử lý
-```
-
-But sends to backend:
-
-```text
-in_progress
-```
+Ví dụ: UI hiển thị `Đang xử lý`, backend nhận `in_progress`.
 
 ---
 
-## 8. Naming Convention
+## 9. Naming Conventions
 
-Collection names use lowercase snake_case:
-
-```text
-collection_schedules
-route_assignments
-report_comments
-notification_settings
-system_logs
-```
-
-Document ID fields use camelCase:
-
-```text
-scheduleId
-routeId
-reportId
-notificationId
-```
-
-Status and enum values use lowercase snake_case:
-
-```text
-in_progress
-garbage_overflow
-missed_collection
-```
-
-Role values use lowercase:
-
-```text
-resident
-collector
-manager
-admin
-```
+- Collection: `snake_case` (`collection_schedules`, `route_assignments`)
+- Document ID field: `camelCase` (`scheduleId`, `reportId`)
+- Role values: lowercase (`resident`, `collector`, `manager`, `admin`)
+- Status/enum: `snake_case` (`in_progress`, `garbage_overflow`)
 
 ---
 
-## 9. Important Notes
+## 10. Important Notes
 
-The current project should use only one user collection:
-
-```text
-users
-```
-
-The collection named:
-
-```text
-người dùng
-```
-
-should not be used in the final database design because using Vietnamese collection names can cause inconsistency and maintenance issues.
-
-The recommended final user collection is:
-
-```text
-users
-```
-
+- Chỉ dùng collection `users` cho người dùng. Không dùng collection `người dùng`.
+- Phạm vi dữ liệu hiện tại: **Quận Sơn Trà, Đà Nẵng** trên project `swp391-database`.
+- Trường `reports.citizenId` tham chiếu user có `role = resident` (giữ tên theo ERD gốc).
