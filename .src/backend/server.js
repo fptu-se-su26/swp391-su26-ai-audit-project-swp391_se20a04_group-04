@@ -214,6 +214,67 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 /**
+ * Endpoint đăng nhập bằng Google
+ */
+app.post('/api/auth/google-login', async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return res.status(400).json({ error: 'Missing idToken for Google login.' });
+  }
+
+  try {
+    const decodedToken = await auth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const email = decodedToken.email || '';
+    const emailVerified = decodedToken.email_verified ?? true;
+
+    console.log(`[GoogleLogin] Verifying Google token for uid: ${uid}`);
+
+    const userRecord = await auth.getUser(uid);
+
+    let userDoc = await db.collection('users').doc(uid).get();
+    if (!userDoc.exists) {
+      userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
+    }
+
+    let userData = {};
+    if (userDoc.exists) {
+      userData = normalizeUser(userDoc.data(), uid);
+      if (!userDoc.data().emailVerified && emailVerified) {
+        await db.collection('users').doc(uid).update({ emailVerified: true });
+        await db.collection(USERS_COLLECTION).doc(uid).update({ emailVerified: true });
+        userData.emailVerified = true;
+      }
+    } else {
+      userData = {
+        uid,
+        fullName: userRecord.displayName || email.split('@')[0],
+        email,
+        phone: userRecord.phoneNumber || '',
+        address: '',
+        role: ROLES.RESIDENT,
+        area: 'Quận Sơn Trà, Đà Nẵng',
+        emailVerified,
+        createdAt: new Date().toISOString(),
+      };
+
+      await db.collection(USERS_COLLECTION).doc(uid).set(userData);
+      await db.collection('users').doc(uid).set(userData);
+    }
+
+    console.log(`[GoogleLogin] Đăng nhập Google thành công: ${email}`);
+    return res.status(200).json({ user: userData, token: idToken });
+  } catch (error) {
+    console.error('[GoogleLogin] Lỗi hệ thống khi đăng nhập bằng Google:', error);
+    if (error.code === 'auth/argument-error' || error.code === 'auth/id-token-expired' || error.code === 'auth/invalid-id-token') {
+      return res.status(401).json({ error: 'Invalid Google token. Please sign in again.' });
+    }
+    return res.status(500).json({ error: 'Đã xảy ra lỗi hệ thống khi đăng nhập bằng Google. Vui lòng thử lại sau.' });
+  }
+});
+
+/**
  * Endpoint lấy danh sách Tỉnh/Thành phố
  */
 app.get('/api/address/provinces', async (req, res) => {
@@ -283,6 +344,26 @@ async function ensureManager(req, res, next) {
   }
 }
 
+async function ensureCollector(req, res, next) {
+  try {
+    const userDoc = await db.collection(USERS_COLLECTION).doc(req.uid).get();
+    if (!userDoc.exists) {
+      return res.status(403).json({ error: 'Không tìm thấy thông tin người dùng để xác thực vai trò.' });
+    }
+
+    const userData = normalizeUser(userDoc.data(), req.uid);
+    if (userData.role !== ROLES.COLLECTOR) {
+      return res.status(403).json({ error: 'Chỉ có nhân viên thu gom mới được phép xác nhận tuyến.' });
+    }
+
+    req.userProfile = userData;
+    next();
+  } catch (error) {
+    console.error('[Auth] Lỗi kiểm tra vai trò Collector:', error.message);
+    return res.status(500).json({ error: 'Lỗi hệ thống khi xác thực vai trò collector.' });
+  }
+}
+
 app.get('/api/manager/schedules', verifyToken, ensureManager, async (req, res) => {
   try {
     const snapshot = await db.collection('collection_schedules').orderBy('schedule_date', 'asc').get();
@@ -306,11 +387,17 @@ app.post('/api/manager/schedules', verifyToken, ensureManager, async (req, res) 
     neighborhood,
     assignedTruck,
     assignedDriver,
+    assignedCollector,
     notes,
+    routePoints,
   } = req.body;
 
   if (!routeName || !serviceType || !date || !time || !city || !ward) {
     return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin lịch thu gom.' });
+  }
+
+  if (routePoints && !Array.isArray(routePoints)) {
+    return res.status(400).json({ error: 'routePoints phải là một mảng các điểm tọa độ.' });
   }
 
   try {
@@ -328,8 +415,11 @@ app.post('/api/manager/schedules', verifyToken, ensureManager, async (req, res) 
       neighborhood: neighborhood || '',
       assigned_truck: assignedTruck || '',
       assigned_driver: assignedDriver || '',
+      assigned_collector: assignedCollector || '',
+      collector_confirmed: false,
       status: assignedTruck && assignedDriver ? 'Assigned' : 'Planned',
       notes: notes || '',
+      route_points: routePoints || [],
       created_by: req.userProfile.fullName || req.uid,
       created_at: new Date().toISOString(),
     };
@@ -343,7 +433,7 @@ app.post('/api/manager/schedules', verifyToken, ensureManager, async (req, res) 
 });
 
 app.post('/api/manager/assign-route', verifyToken, ensureManager, async (req, res) => {
-  const { scheduleId, assignedTruck, assignedDriver } = req.body;
+  const { scheduleId, assignedTruck, assignedDriver, assignedCollector } = req.body;
   if (!scheduleId || !assignedTruck || !assignedDriver) {
     return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch, xe và tài xế để gán tuyến.' });
   }
@@ -355,9 +445,15 @@ app.post('/api/manager/assign-route', verifyToken, ensureManager, async (req, re
       return res.status(404).json({ error: 'Không tìm thấy lịch cần gán tuyến.' });
     }
 
+    const scheduleData = snapshot.data();
+    if (scheduleData?.collector_confirmed) {
+      return res.status(400).json({ error: 'Tuyến đã được nhân viên xác nhận, không thể chỉnh sửa nữa.' });
+    }
+
     await docRef.update({
       assigned_truck: assignedTruck,
       assigned_driver: assignedDriver,
+      assigned_collector: assignedCollector || '',
       status: 'Assigned',
       updated_at: new Date().toISOString(),
     });
@@ -366,6 +462,94 @@ app.post('/api/manager/assign-route', verifyToken, ensureManager, async (req, re
   } catch (error) {
     console.error('[API] Lỗi gán tuyến cho lịch thu gom:', error.message);
     return res.status(500).json({ error: 'Không thể gán tuyến cho lịch. Vui lòng thử lại sau.' });
+  }
+});
+
+app.post('/api/manager/confirm-route', verifyToken, ensureManager, async (req, res) => {
+  const { scheduleId } = req.body;
+  if (!scheduleId) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch để xác nhận tuyến.' });
+  }
+
+  try {
+    const docRef = db.collection('collection_schedules').doc(scheduleId);
+    const snapshot = await docRef.get();
+    if (!snapshot.exists) {
+      return res.status(404).json({ error: 'Không tìm thấy lịch để xác nhận.' });
+    }
+
+    await docRef.update({
+      collector_confirmed: true,
+      status: 'Confirmed',
+      updated_at: new Date().toISOString(),
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[API] Lỗi xác nhận tuyến của nhân viên thu gom:', error.message);
+    return res.status(500).json({ error: 'Không thể xác nhận tuyến. Vui lòng thử lại sau.' });
+  }
+});
+
+app.post('/api/collector/confirm-route', verifyToken, ensureCollector, async (req, res) => {
+  const { scheduleId } = req.body;
+  if (!scheduleId) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch để xác nhận tuyến.' });
+  }
+
+  try {
+    const docRef = db.collection('collection_schedules').doc(scheduleId);
+    const snapshot = await docRef.get();
+    if (!snapshot.exists) {
+      return res.status(404).json({ error: 'Không tìm thấy lịch để xác nhận.' });
+    }
+
+    await docRef.update({
+      collector_confirmed: true,
+      status: 'Confirmed',
+      updated_at: new Date().toISOString(),
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[API] Lỗi xác nhận tuyến của nhân viên thu gom:', error.message);
+    return res.status(500).json({ error: 'Không thể xác nhận tuyến. Vui lòng thử lại sau.' });
+  }
+});
+
+app.put('/api/manager/schedules/:scheduleId', verifyToken, ensureManager, async (req, res) => {
+  const { scheduleId } = req.params;
+  const { routePoints } = req.body;
+
+  if (!scheduleId) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch để cập nhật.' });
+  }
+
+  if (routePoints && !Array.isArray(routePoints)) {
+    return res.status(400).json({ error: 'routePoints phải là một mảng các điểm tọa độ.' });
+  }
+
+  try {
+    const docRef = db.collection('collection_schedules').doc(scheduleId);
+    const snapshot = await docRef.get();
+    if (!snapshot.exists) {
+      return res.status(404).json({ error: 'Không tìm thấy lịch cần cập nhật.' });
+    }
+
+    const scheduleData = snapshot.data();
+    if (scheduleData?.collector_confirmed) {
+      return res.status(400).json({ error: 'Tuyến đã được nhân viên xác nhận, không thể chỉnh sửa nữa.' });
+    }
+
+    await docRef.update({
+      route_points: routePoints || [],
+      updated_at: new Date().toISOString(),
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[API] Lỗi cập nhật tuyến cho lịch thu gom:', error.message);
+    return res.status(500).json({ error: 'Không thể cập nhật tuyến cho lịch. Vui lòng thử lại sau.' });
   }
 });
 
