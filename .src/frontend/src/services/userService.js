@@ -11,8 +11,14 @@ const getHeaders = () => {
 };
 
 export const userService = {
-  getUsers: async (search = '', role = '') => {
-    const response = await fetch(`${API_BASE}?search=${encodeURIComponent(search)}&role=${encodeURIComponent(role)}`, {
+  getUsers: async (search = '', role = '', page = 1, limit = 10) => {
+    const queryParams = new URLSearchParams({
+      search,
+      role,
+      page: page.toString(),
+      limit: limit.toString(),
+    }).toString();
+    const response = await fetch(`${API_BASE}?${queryParams}`, {
       headers: getHeaders(),
     });
     if (!response.ok) throw new Error('Không thể lấy danh sách người dùng');

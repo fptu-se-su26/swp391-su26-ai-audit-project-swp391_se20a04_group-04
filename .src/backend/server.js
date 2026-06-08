@@ -340,6 +340,9 @@ app.get('/api/admin/users', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const search = req.query.search || '';
     const roleFilter = req.query.role || '';
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
     try {
       const snapshot = await db.collection('users').get();
       let users = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
@@ -355,7 +358,19 @@ app.get('/api/admin/users', verifyToken, verifyAdmin, async (req, res) => {
       if (roleFilter) {
         users = users.filter(u => u.role === roleFilter);
       }
-      return res.status(200).json(users);
+
+      const total = users.length;
+      const totalPages = Math.ceil(total / limit);
+      const startIndex = (page - 1) * limit;
+      const paginatedUsers = users.slice(startIndex, startIndex + limit);
+      
+      return res.status(200).json({
+        users: paginatedUsers,
+        total,
+        page,
+        limit,
+        totalPages
+      });
     } catch (dbError) {
       console.error('[Admin] Lấy users thất bại do DB:', dbError.message);
       return res.status(500).json({ error: 'Lỗi khi lấy dữ liệu từ Firebase: ' + dbError.message });
@@ -364,6 +379,7 @@ app.get('/api/admin/users', verifyToken, verifyAdmin, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
 
 app.post('/api/admin/users', verifyToken, verifyAdmin, async (req, res) => {
   try {
