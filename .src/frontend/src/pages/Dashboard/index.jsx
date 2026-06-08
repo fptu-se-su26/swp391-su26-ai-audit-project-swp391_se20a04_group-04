@@ -345,7 +345,7 @@ export default function Dashboard() {
     );
   }
 
-  const isManager = user.role === 'Collection Company Manager';
+  const isManager = normalizeRole(user.role) === ROLES.MANAGER;
 
   if (!isManager) {
     return (
@@ -400,13 +400,23 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-lg">logout</span>
-            <span>Đăng xuất</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/invoices/new')}
+              className="py-2.5 px-4 bg-primary text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined">receipt_long</span>
+              Tạo hóa đơn
+            </button>
+            <button
+              onClick={handleLogout}
+              className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-lg">logout</span>
+              <span>Đăng xuất</span>
+            </button>
+          </div>
         </div>
 
         {managerError && (

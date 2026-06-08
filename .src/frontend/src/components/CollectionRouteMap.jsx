@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
 const defaultRoutePoints = [
@@ -27,6 +28,23 @@ function ClickToAddPoint({ onAddPoint }) {
       onAddPoint([e.latlng.lat, e.latlng.lng]);
     },
   });
+  return null;
+}
+
+function MapResizeHandler({ center }) {
+  const map = useMap();
+  useEffect(() => {
+    // Ensure the map correctly sizes and recenters when container becomes visible or points change
+    const t = setTimeout(() => {
+      try {
+        map.invalidateSize();
+        if (center) map.setView(center, map.getZoom());
+      } catch (e) {
+        // ignore
+      }
+    }, 120);
+    return () => clearTimeout(t);
+  }, [map, center]);
   return null;
 }
 
@@ -80,6 +98,7 @@ export default function CollectionRouteMap({
 
       <div className="h-96">
         <MapContainer center={center} zoom={14} scrollWheelZoom className="h-full w-full">
+          <MapResizeHandler center={center} />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

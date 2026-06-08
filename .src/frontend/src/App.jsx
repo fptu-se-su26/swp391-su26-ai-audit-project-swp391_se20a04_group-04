@@ -9,6 +9,7 @@ import Notifications from './pages/Notifications';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import Dashboard from './pages/Dashboard';
+import ManagerInvoice from './pages/ManagerInvoice';
 import ResidentSchedules from './resident/ResidentSchedules';
 
 
@@ -27,6 +28,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard/invoices/new" element={<ManagerInvoice />} />
           </Routes>
         </div>
         <Footer />
