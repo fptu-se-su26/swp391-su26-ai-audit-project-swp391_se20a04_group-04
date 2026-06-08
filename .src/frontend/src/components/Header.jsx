@@ -145,6 +145,7 @@ export default function Header() {
           <Link className={navLinkClass('/thong-bao')} to="/thong-bao">Thông báo</Link>
           <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
           <Link className={navLinkClass('/huong-dan')} to="/huong-dan">Hướng dẫn phân loại</Link>
+          <Link className={navLinkClass('/phan-anh')} to="/phan-anh">Gửi phản ánh</Link>
         </nav>
 
         <div className="flex items-center gap-4">

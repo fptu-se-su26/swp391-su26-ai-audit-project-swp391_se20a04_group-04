@@ -9,6 +9,7 @@ const addressService = require('./services/addressService');
 const scheduleService = require('./services/scheduleService');
 const notificationService = require('./services/notificationService');
 const invoiceService = require('./services/invoiceService');
+const complaintService = require('./services/complaintService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -911,6 +912,42 @@ async function verifyToken(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized: Token không hợp lệ hoặc đã hết hạn.' });
   }
 }
+
+// ============================================================
+// ROUTES: Phản ánh Cư dân (/api/complaints)
+// ============================================================
+
+/**
+ * POST /api/complaints
+ * Cư dân gửi phản ánh mới.
+ */
+app.post('/api/complaints', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const result = await complaintService.createComplaint(
+      req.uid,
+      req.userProfile.fullName,
+      req.body
+    );
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi gửi phản ánh cư dân:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/complaints
+ * Lấy danh sách các phản ánh của cư dân đang đăng nhập.
+ */
+app.get('/api/complaints', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const result = await complaintService.getUserComplaints(req.uid);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi lấy danh sách phản ánh cư dân:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
 
 // ============================================================
 // ROUTES: Thông báo Cư dân (/api/notifications)
