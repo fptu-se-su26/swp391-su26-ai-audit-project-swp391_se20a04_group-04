@@ -23,6 +23,12 @@ app.use(express.json());
 // Tên collection chính trên Firestore
 const USERS_COLLECTION = 'users';
 
+const ROLES = {
+  RESIDENT: 'Resident',
+  MANAGER: 'Collection Company Manager',
+  COLLECTOR: 'Collector',
+};
+
 /**
  * Chuẩn hóa dữ liệu user từ Firestore
  */
