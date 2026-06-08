@@ -47,7 +47,7 @@ function normalizeUser(data, uid) {
     phone:    data.phone    || data['điện thoại']   || data['dien_thoai']|| '',
     address:  data.address  || data['Địa chỉ']      || data['dia_chi']   || '',
     area:     data.area     || data['khu vực']      || data['khu_vuc']   || '',
-    role:     data.role     || data['vai trò']      || data['Vai trò']   || 'Citizen',
+    role:     data.role     || data['vai trò']      || data['Vai trò']   || 'Resident',
     emailVerified: data.emailVerified ?? true,
   };
 }
@@ -127,7 +127,7 @@ app.post('/api/auth/register', async (req, res) => {
       email,
       phone: phone || '',
       address: address || '',
-      role: role || 'Citizen',
+      role: role || 'Resident',
       emailVerified: false,
       createdAt: new Date().toISOString(),
       area: 'Quận Sơn Trà, Đà Nẵng',
@@ -220,7 +220,7 @@ app.post('/api/auth/login', async (req, res) => {
         uid: uid,
         fullName: userRecord.displayName || email.split('@')[0],
         email: email,
-        role: 'Citizen',
+        role: 'Resident',
         area: 'Quận Sơn Trà, Đà Nẵng',
         emailVerified: true,
       };
@@ -399,9 +399,9 @@ async function ensureResident(req, res, next) {
     }
 
     const userData = normalizeUser(userDoc.data(), req.uid);
-    const normalizedRole = (userData.role || '').toLowerCase();
-    if (!normalizedRole.includes('resident') && !normalizedRole.includes('citizen')) {
-      return res.status(403).json({ error: 'Chỉ cư dân mới được phép truy cập chức năng thanh toán.' });
+    const role = normalizeRole(userData.role);
+    if (role !== ROLES.RESIDENT) {
+      return res.status(403).json({ error: 'Chỉ cư dân mới được phép truy cập chức năng này.' });
     }
 
     req.userProfile = userData;
