@@ -2,7 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const { db, auth } = require('./firebaseAdmin');
 const addressService = require('./services/addressService');
