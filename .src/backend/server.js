@@ -14,7 +14,7 @@ const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
 
 // CORS configuration - Allow frontend server
 app.use(cors({
-  origin: '*', // Hỗ trợ tất cả nguồn hoặc tùy chỉnh thành frontend URL (e.g., http://localhost:5173)
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Hỗ trợ frontend URL
   credentials: true,
 }));
 
@@ -555,6 +555,61 @@ app.post('/api/notifications/seed', verifyToken, async (req, res) => {
     return res.status(201).json({ success: true, ...result });
   } catch (error) {
     console.error('[API] Lỗi seed dữ liệu thông báo:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================
+// ROUTES: Quản lý Thông báo (Admin)
+// ============================================================
+
+/**
+ * GET /api/admin/notifications
+ * Lấy lịch sử tất cả các thông báo do Admin tạo ra
+ */
+app.get('/api/admin/notifications', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const notifications = await notificationService.getAdminNotifications();
+    return res.status(200).json(notifications);
+  } catch (error) {
+    console.error('[Admin] Lỗi lấy lịch sử thông báo:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/notifications
+ * Tạo thông báo tổng hoặc tới một role cụ thể
+ */
+app.post('/api/admin/notifications', verifyToken, verifyAdmin, async (req, res) => {
+  const { title, content, type, recipientType, link, senderName } = req.body;
+  try {
+    const result = await notificationService.createAdminNotification({
+      title,
+      content,
+      type,
+      recipientType,
+      link,
+      senderName,
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    console.error('[Admin] Lỗi tạo thông báo:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/admin/notifications/:id
+ * Xóa thông báo master và các bản sao gửi cho người dùng
+ */
+app.delete('/api/admin/notifications/:id', verifyToken, verifyAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await notificationService.deleteAdminNotification(id);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error(`[Admin] Lỗi xóa thông báo ${id}:`, error.message);
     return res.status(500).json({ error: error.message });
   }
 });

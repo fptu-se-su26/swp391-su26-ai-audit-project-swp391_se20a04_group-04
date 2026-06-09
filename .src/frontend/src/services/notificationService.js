@@ -104,6 +104,49 @@ const notificationService = {
     if (!response.ok) throw new Error(data.error || 'Không thể tạo dữ liệu mẫu.');
     return data;
   },
+
+  /**
+   * Lấy lịch sử thông báo đã phát đi bởi Admin
+   */
+  async getAdminNotifications() {
+    const adminUrl = BASE_URL.replace('/api/notifications', '/api/admin/notifications');
+    const response = await fetch(adminUrl, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Không thể tải lịch sử thông báo.');
+    return data;
+  },
+
+  /**
+   * Tạo thông báo mới (Admin)
+   */
+  async createAdminNotification(notificationData) {
+    const adminUrl = BASE_URL.replace('/api/notifications', '/api/admin/notifications');
+    const response = await fetch(adminUrl, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(notificationData),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Không thể tạo thông báo.');
+    return data;
+  },
+
+  /**
+   * Xóa thông báo (Admin)
+   */
+  async deleteAdminNotification(id) {
+    const adminUrl = BASE_URL.replace('/api/notifications', `/api/admin/notifications/${id}`);
+    const response = await fetch(adminUrl, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Không thể xóa thông báo.');
+    return data;
+  },
 };
 
 export default notificationService;

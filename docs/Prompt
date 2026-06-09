@@ -20,3 +20,20 @@ TÓM TẮT HƯỚNG DẪN PHÂN LOẠI RÁC TẠI NGUỒN
 - Chuẩn bị: Mỗi hộ gia đình nên trang bị sẵn 2-3 thùng/túi rác khác màu.
 - Lưu trữ: Phải buộc kín miệng túi rác hữu cơ để tránh mùi hôi và côn trùng.
 - Bàn giao: Đưa rác đến đúng nơi quy định, tuân thủ đúng khung giờ và lịch thu gom của khu dân cư.
+
+Prompt Admin
+Thêm 1 chức năng quản lí các user . Tức là Admin có thể xem danh sách user , cập nhật thông tin user(bao gồm cả role), thêm mới user và xóa user .  Cụ thể: 
+Trong chức năng quản lí có thể thanh tìm kiếm các User theo tên  
+Đặt lại tên chức thành quản lý
+Tại sao trong dánh sách quản lí lại không có ai nếu không có thể lấy trong danh sách trong Firebase
+Mục chỉnh sửa có thể đổi 3 role citizen,Garbage Collector,Collection Company Manager hoặc xóa và lưu lại trên Firebase
+Có chức năng lọc theo role Citizen,Garbage Collector,Collection Company Manager và Admin 
+
+Thông báo Admin:
+Admin có chức năng tạo thông báo tổng hoặc thông báo đến từng role riêng lẻ 
+Thêm nút chọn loại thông báo là tổng hoặc đến từng role riêng lẻ 
+Có thể xóa thông báo.
+Thông báo được lưu vào trên database và hiển thị thông báo cho user 
+Đọc lại format thông báo trên code để review lại trước khi nhận yêu cầu mới 
+
+Func view detail user: khi nhấn vào 1 user thì có thể xem chi tiết thông tin của user đó . Các trường thông tin bao gồm :fullName, email, role, address, phone 

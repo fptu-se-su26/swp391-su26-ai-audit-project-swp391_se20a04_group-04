@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import userService from '../../services/userService';
+import notificationService from '../../services/notificationService';
 
 export default function AdminUsers() {
+  const [activeTab, setActiveTab] = useState('users'); // 'users' or 'notifications'
+  
+  // Users states
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -23,13 +27,33 @@ export default function AdminUsers() {
   const [currentUser, setCurrentUser] = useState(null);
   const [formData, setFormData] = useState({ fullName: '', email: '', password: '', role: 'Citizen', area: '' });
   
-  // Error / Loading
+  // Error / Loading for Users
   const [submitLoading, setSubmitLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Notifications states
+  const [notifications, setNotifications] = useState([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
+  const [notifErrorMsg, setNotifErrorMsg] = useState('');
+  const [notifFormData, setNotifFormData] = useState({
+    title: '',
+    content: '',
+    type: 'system',
+    recipientType: 'all',
+    link: '',
+    senderName: 'Hệ thống EcoSchedule',
+  });
 
   useEffect(() => {
     fetchUsers();
   }, [search, roleFilter, page, limit]);
+
+  useEffect(() => {
+    if (activeTab === 'notifications') {
+      fetchAdminNotifications();
+    }
+  }, [activeTab]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -43,6 +67,20 @@ export default function AdminUsers() {
       setErrorMsg(err.message || 'Lỗi khi tải danh sách người dùng.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAdminNotifications = async () => {
+    setNotifLoading(true);
+    setNotifErrorMsg('');
+    try {
+      const data = await notificationService.getAdminNotifications();
+      setNotifications(data || []);
+    } catch (err) {
+      console.error(err);
+      setNotifErrorMsg(err.message || 'Lỗi khi tải lịch sử thông báo.');
+    } finally {
+      setNotifLoading(false);
     }
   };
 
@@ -76,6 +114,16 @@ export default function AdminUsers() {
     }
   };
 
+  const handleDeleteNotification = async (id) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo này và tất cả các bản sao đã gửi cho người dùng?')) return;
+    try {
+      await notificationService.deleteAdminNotification(id);
+      setNotifications(notifications.filter(n => n.id !== id));
+    } catch (err) {
+      alert(err.message || 'Lỗi khi xóa thông báo');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitLoading(true);
@@ -95,6 +143,30 @@ export default function AdminUsers() {
     }
   };
 
+  const handleNotifSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitLoading(true);
+    setNotifErrorMsg('');
+    try {
+      await notificationService.createAdminNotification(notifFormData);
+      setIsNotifModalOpen(false);
+      fetchAdminNotifications();
+      // Reset form
+      setNotifFormData({
+        title: '',
+        content: '',
+        type: 'system',
+        recipientType: 'all',
+        link: '',
+        senderName: 'Hệ thống EcoSchedule',
+      });
+    } catch (err) {
+      setNotifErrorMsg(err.message || 'Lỗi khi gửi thông báo');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-6 min-h-screen">
       <div className="flex justify-between items-center mb-6">
@@ -102,223 +174,333 @@ export default function AdminUsers() {
           <span className="material-symbols-outlined text-3xl text-emerald-600">manage_accounts</span>
           Quản lý
         </h1>
+        {activeTab === 'users' ? (
+          <button
+            onClick={openAddModal}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined">person_add</span>
+            Thêm người dùng
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setNotifErrorMsg('');
+              setIsNotifModalOpen(true);
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined">send</span>
+            Tạo thông báo mới
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200 dark:border-slate-700 mb-6">
         <button
-          onClick={openAddModal}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+          onClick={() => setActiveTab('users')}
+          className={`px-5 py-3 font-semibold text-sm transition-all border-b-2 ${
+            activeTab === 'users'
+              ? 'border-emerald-600 text-emerald-600 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
         >
-          <span className="material-symbols-outlined">person_add</span>
-          Thêm người dùng
+          Quản lý Người dùng
+        </button>
+        <button
+          onClick={() => setActiveTab('notifications')}
+          className={`px-5 py-3 font-semibold text-sm transition-all border-b-2 ${
+            activeTab === 'notifications'
+              ? 'border-emerald-600 text-emerald-600 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
+        >
+          Trung tâm Thông báo
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-        {/* Thanh tìm kiếm */}
-        <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row gap-4 items-center bg-slate-50 dark:bg-slate-800/50">
-          <div className="relative flex-1 w-full max-w-md">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-            <input
-              type="text"
-              placeholder="Tìm kiếm theo tên..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-            />
-          </div>
-          
-          <div className="w-full sm:w-auto">
-            <select
-              value={roleFilter}
-              onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
-              className="w-full sm:w-64 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-            >
-              <option value="">Tất cả Vai trò</option>
-              <option value="Admin">Admin</option>
-              <option value="Citizen">Citizen</option>
-              <option value="Garbage Collector">Garbage Collector</option>
-              <option value="Collection Company Manager">Collection Company Manager</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Bảng danh sách */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-100 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 text-sm border-b border-slate-200 dark:border-slate-700">
-                <th className="px-6 py-4 font-semibold">Họ tên</th>
-                <th className="px-6 py-4 font-semibold">Email</th>
-                <th className="px-6 py-4 font-semibold">Vai trò</th>
-                <th className="px-6 py-4 font-semibold">Khu vực</th>
-                <th className="px-6 py-4 font-semibold text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {errorMsg ? (
-                <tr>
-                  <td colSpan="5" className="px-6 py-10 text-center text-rose-500 font-medium">
-                    Lỗi: {errorMsg}
-                  </td>
-                </tr>
-              ) : loading ? (
-                <tr>
-                  <td colSpan="5" className="px-6 py-10 text-center text-slate-500">Đang tải dữ liệu...</td>
-                </tr>
-              ) : users.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="px-6 py-10 text-center text-slate-500">Không tìm thấy người dùng nào.</td>
-                </tr>
-              ) : (
-                users.map((u) => (
-                  <tr key={u.uid} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold">
-                          {u.fullName?.charAt(0).toUpperCase() || '?'}
-                        </div>
-                        <span 
-                          onClick={() => openDetailModal(u)} 
-                          className="cursor-pointer hover:underline hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
-                          title="Xem chi tiết"
-                        >
-                          {u.fullName}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{u.email}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        u.role === 'Admin' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' : 
-                        u.role === 'Garbage Collector' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                        u.role === 'Collection Company Manager' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
-                        'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
-                      }`}>
-                        {u.role || 'Citizen'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{u.area || '-'}</td>
-                    <td className="px-6 py-4 text-right">
-                      <button onClick={() => openDetailModal(u)} className="p-2 text-sky-600 hover:bg-sky-50 rounded-lg transition-colors" title="Xem chi tiết">
-                        <span className="material-symbols-outlined text-sm">visibility</span>
-                      </button>
-                      <button onClick={() => openEditModal(u)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors ml-2" title="Sửa">
-                        <span className="material-symbols-outlined text-sm">edit</span>
-                      </button>
-                      <button onClick={() => handleDelete(u.uid)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-2" title="Xóa">
-                        <span className="material-symbols-outlined text-sm">delete</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Thanh phân trang (Pagination Bar) */}
-        <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 gap-4">
-          {/* Trái: Thông tin hiển thị */}
-          <div className="text-sm text-slate-500 dark:text-slate-400">
-            Hiển thị <span className="font-semibold text-slate-700 dark:text-slate-200">{totalUsers === 0 ? 0 : (page - 1) * limit + 1}</span> - <span className="font-semibold text-slate-700 dark:text-slate-200">{Math.min(page * limit, totalUsers)}</span> trong tổng số <span className="font-semibold text-slate-700 dark:text-slate-200">{totalUsers}</span> người dùng
-          </div>
-
-          {/* Phải: Chọn số dòng & Các nút chuyển trang */}
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-500 dark:text-slate-400">Số dòng:</span>
+      {activeTab === 'users' ? (
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {/* Thanh tìm kiếm */}
+          <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row gap-4 items-center bg-slate-50 dark:bg-slate-800/50">
+            <div className="relative flex-1 w-full max-w-md">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+              <input
+                type="text"
+                placeholder="Tìm kiếm theo tên..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+            </div>
+            
+            <div className="w-full sm:w-auto">
               <select
-                value={limit}
-                onChange={(e) => {
-                  setLimit(parseInt(e.target.value));
-                  setPage(1);
-                }}
-                className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={roleFilter}
+                onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+                className="w-full sm:w-64 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
               >
-                <option value="5">5</option>
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
+                <option value="">Tất cả Vai trò</option>
+                <option value="Admin">Admin</option>
+                <option value="Citizen">Citizen</option>
+                <option value="Garbage Collector">Garbage Collector</option>
+                <option value="Collection Company Manager">Collection Company Manager</option>
               </select>
             </div>
+          </div>
 
-            <div className="flex items-center gap-1.5">
-              {/* Trang đầu */}
-              <button
-                disabled={page === 1 || loading}
-                onClick={() => setPage(1)}
-                className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors flex items-center justify-center text-slate-600 dark:text-slate-300"
-                title="Trang đầu"
-              >
-                <span className="material-symbols-outlined text-lg">first_page</span>
-              </button>
-
-              {/* Trang trước */}
-              <button
-                disabled={page === 1 || loading}
-                onClick={() => setPage(page - 1)}
-                className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors flex items-center justify-center text-slate-600 dark:text-slate-300"
-                title="Trang trước"
-              >
-                <span className="material-symbols-outlined text-lg">chevron_left</span>
-              </button>
-
-              {/* Các số trang */}
-              <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter((p) => {
-                    return p === 1 || p === totalPages || Math.abs(p - page) <= 1;
-                  })
-                  .map((p, index, arr) => {
-                    const elements = [];
-                    if (index > 0 && p - arr[index - 1] > 1) {
-                      elements.push(
-                        <span key={`dots-${p}`} className="px-1.5 text-slate-400 dark:text-slate-500 text-sm select-none">
-                          ...
+          {/* Bảng danh sách */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 text-sm border-b border-slate-200 dark:border-slate-700">
+                  <th className="px-6 py-4 font-semibold">Họ tên</th>
+                  <th className="px-6 py-4 font-semibold">Email</th>
+                  <th className="px-6 py-4 font-semibold">Vai trò</th>
+                  <th className="px-6 py-4 font-semibold">Khu vực</th>
+                  <th className="px-6 py-4 font-semibold text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {errorMsg ? (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-10 text-center text-rose-500 font-medium">
+                      Lỗi: {errorMsg}
+                    </td>
+                  </tr>
+                ) : loading ? (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-10 text-center text-slate-500">Đang tải dữ liệu...</td>
+                  </tr>
+                ) : users.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-10 text-center text-slate-500">Không tìm thấy người dùng nào.</td>
+                  </tr>
+                ) : (
+                  users.map((u) => (
+                    <tr key={u.uid} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold">
+                            {u.fullName?.charAt(0).toUpperCase() || '?'}
+                          </div>
+                          <span 
+                            onClick={() => openDetailModal(u)} 
+                            className="cursor-pointer hover:underline hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                            title="Xem chi tiết"
+                          >
+                            {u.fullName}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{u.email}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          u.role === 'Admin' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' : 
+                          u.role === 'Garbage Collector' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                          u.role === 'Collection Company Manager' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                          'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
+                        }`}>
+                          {u.role || 'Citizen'}
                         </span>
-                      );
-                    }
-                    elements.push(
-                      <button
-                        key={p}
-                        disabled={loading}
-                        onClick={() => setPage(p)}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all ${
-                          page === p
-                            ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/20'
-                            : 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                    return elements;
-                  })}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{u.area || '-'}</td>
+                      <td className="px-6 py-4 text-right">
+                        <button onClick={() => openDetailModal(u)} className="p-2 text-sky-600 hover:bg-sky-50 rounded-lg transition-colors" title="Xem chi tiết">
+                          <span className="material-symbols-outlined text-sm">visibility</span>
+                        </button>
+                        <button onClick={() => openEditModal(u)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors ml-2" title="Sửa">
+                          <span className="material-symbols-outlined text-sm">edit</span>
+                        </button>
+                        <button onClick={() => handleDelete(u.uid)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-2" title="Xóa">
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Thanh phân trang (Pagination Bar) */}
+          <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 gap-4">
+            {/* Trái: Thông tin hiển thị */}
+            <div className="text-sm text-slate-500 dark:text-slate-400">
+              Hiển thị <span className="font-semibold text-slate-700 dark:text-slate-200">{totalUsers === 0 ? 0 : (page - 1) * limit + 1}</span> - <span className="font-semibold text-slate-700 dark:text-slate-200">{Math.min(page * limit, totalUsers)}</span> trong tổng số <span className="font-semibold text-slate-700 dark:text-slate-200">{totalUsers}</span> người dùng
+            </div>
+
+            {/* Phải: Chọn số dòng & Các nút chuyển trang */}
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-500 dark:text-slate-400">Số dòng:</span>
+                <select
+                  value={limit}
+                  onChange={(e) => {
+                    setLimit(parseInt(e.target.value));
+                    setPage(1);
+                  }}
+                  className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                >
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                </select>
               </div>
 
-              {/* Trang sau */}
-              <button
-                disabled={page === totalPages || loading}
-                onClick={() => setPage(page + 1)}
-                className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors flex items-center justify-center text-slate-600 dark:text-slate-300"
-                title="Trang sau"
-              >
-                <span className="material-symbols-outlined text-lg">chevron_right</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                {/* Trang đầu */}
+                <button
+                  disabled={page === 1 || loading}
+                  onClick={() => setPage(1)}
+                  className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors flex items-center justify-center text-slate-600 dark:text-slate-300"
+                  title="Trang đầu"
+                >
+                  <span className="material-symbols-outlined text-lg">first_page</span>
+                </button>
 
-              {/* Trang cuối */}
-              <button
-                disabled={page === totalPages || loading}
-                onClick={() => setPage(totalPages)}
-                className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors flex items-center justify-center text-slate-600 dark:text-slate-300"
-                title="Trang cuối"
-              >
-                <span className="material-symbols-outlined text-lg">last_page</span>
-              </button>
+                {/* Trang trước */}
+                <button
+                  disabled={page === 1 || loading}
+                  onClick={() => setPage(page - 1)}
+                  className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors flex items-center justify-center text-slate-600 dark:text-slate-300"
+                  title="Trang trước"
+                >
+                  <span className="material-symbols-outlined text-lg">chevron_left</span>
+                </button>
+
+                {/* Các số trang */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => {
+                      return p === 1 || p === totalPages || Math.abs(p - page) <= 1;
+                    })
+                    .map((p, index, arr) => {
+                      const elements = [];
+                      if (index > 0 && p - arr[index - 1] > 1) {
+                        elements.push(
+                          <span key={`dots-${p}`} className="px-1.5 text-slate-400 dark:text-slate-500 text-sm select-none">
+                            ...
+                          </span>
+                        );
+                      }
+                      elements.push(
+                        <button
+                          key={p}
+                          disabled={loading}
+                          onClick={() => setPage(p)}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all ${
+                            page === p
+                              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/20'
+                              : 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                      return elements;
+                    })}
+                </div>
+
+                {/* Trang sau */}
+                <button
+                  disabled={page === totalPages || loading}
+                  onClick={() => setPage(page + 1)}
+                  className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors flex items-center justify-center text-slate-600 dark:text-slate-300"
+                  title="Trang sau"
+                >
+                  <span className="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
+
+                {/* Trang cuối */}
+                <button
+                  disabled={page === totalPages || loading}
+                  onClick={() => setPage(totalPages)}
+                  className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors flex items-center justify-center text-slate-600 dark:text-slate-300"
+                  title="Trang cuối"
+                >
+                  <span className="material-symbols-outlined text-lg">last_page</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in duration-200">
+          {notifErrorMsg && (
+            <div className="p-4 bg-rose-50 text-rose-600 border-b border-rose-200 text-sm">
+              Lỗi: {notifErrorMsg}
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 text-sm border-b border-slate-200 dark:border-slate-700">
+                  <th className="px-6 py-4 font-semibold">Người gửi</th>
+                  <th className="px-6 py-4 font-semibold">Tiêu đề / Nội dung</th>
+                  <th className="px-6 py-4 font-semibold">Loại</th>
+                  <th className="px-6 py-4 font-semibold">Đối tượng nhận</th>
+                  <th className="px-6 py-4 font-semibold">Thời gian</th>
+                  <th className="px-6 py-4 font-semibold text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {notifLoading ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-10 text-center text-slate-500">Đang tải lịch sử thông báo...</td>
+                  </tr>
+                ) : notifications.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-10 text-center text-slate-500">Chưa phát đi thông báo nào.</td>
+                  </tr>
+                ) : (
+                  notifications.map((n) => (
+                    <tr key={n.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
+                        <div className="flex flex-col">
+                          <span>{n.sender_name}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">{n.sender_role}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 max-w-xs sm:max-w-md">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{n.title}</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{n.content}</span>
+                          {n.link && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 font-mono">Link: {n.link}</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          n.type === 'schedule' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                          n.type === 'payment' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                          'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
+                        }`}>
+                          {n.type === 'schedule' ? 'Lịch trình' : n.type === 'payment' ? 'Thanh toán' : 'Hệ thống'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-xs font-medium text-slate-600 dark:text-slate-300">
+                        {n.recipient_type === 'all' ? 'Tất cả' : n.recipient_type}
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(n.sent_at).toLocaleString('vi-VN')}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button onClick={() => handleDeleteNotification(n.id)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Xóa thông báo">
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-      {/* Modal */}
+      {/* Modal User Add/Edit */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -455,6 +637,77 @@ export default function AdminUsers() {
           </div>
         </div>
       )}
+
+      {/* Create Notification Modal */}
+      {isNotifModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-600">notifications_active</span>
+                Tạo thông báo mới
+              </h2>
+              <button onClick={() => setIsNotifModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <form onSubmit={handleNotifSubmit} className="p-6">
+              {notifErrorMsg && (
+                <div className="mb-4 p-3 bg-rose-50 text-rose-600 rounded-lg text-sm border border-rose-200">
+                  {notifErrorMsg}
+                </div>
+              )}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Loại thông báo</label>
+                  <select value={notifFormData.type} onChange={e => setNotifFormData({...notifFormData, type: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-900 dark:border-slate-700">
+                    <option value="system">Hệ thống</option>
+                    <option value="schedule">Lịch thu gom</option>
+                    <option value="payment">Thanh toán</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Đối tượng nhận</label>
+                  <select value={notifFormData.recipientType} onChange={e => setNotifFormData({...notifFormData, recipientType: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-900 dark:border-slate-700">
+                    <option value="all">Tất cả người dùng (Thông báo tổng)</option>
+                    <option value="Citizen">Citizen (Cư dân)</option>
+                    <option value="Garbage Collector">Garbage Collector (Nhân viên thu gom)</option>
+                    <option value="Collection Company Manager">Collection Company Manager (Quản lý công ty)</option>
+                    <option value="Admin">Admin (Quản trị viên)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tiêu đề</label>
+                  <input required type="text" placeholder="Nhập tiêu đề thông báo" value={notifFormData.title} onChange={e => setNotifFormData({...notifFormData, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-900 dark:border-slate-700" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nội dung</label>
+                  <textarea required rows="4" placeholder="Nhập nội dung thông báo chi tiết..." value={notifFormData.content} onChange={e => setNotifFormData({...notifFormData, content: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-900 dark:border-slate-700 resize-none"></textarea>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Đường dẫn liên kết (Tùy chọn)</label>
+                  <input type="text" placeholder="Ví dụ: /tra-cuu, /thanh-toan" value={notifFormData.link} onChange={e => setNotifFormData({...notifFormData, link: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-900 dark:border-slate-700" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tên người gửi (Tùy chọn)</label>
+                  <input type="text" placeholder="Mặc định: Hệ thống EcoSchedule" value={notifFormData.senderName} onChange={e => setNotifFormData({...notifFormData, senderName: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-900 dark:border-slate-700" />
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsNotifModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                  Hủy
+                </button>
+                <button disabled={submitLoading} type="submit" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-70 flex items-center gap-2">
+                  {submitLoading && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
+                  Gửi thông báo
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

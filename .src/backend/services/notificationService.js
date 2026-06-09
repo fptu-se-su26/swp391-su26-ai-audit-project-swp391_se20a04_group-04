@@ -182,6 +182,102 @@ async function seedNotificationsForUser(userId) {
   return { seeded: sampleNotifications.length };
 }
 
+/**
+ * Lấy toàn bộ thông báo đã phát đi bởi Admin
+ */
+async function getAdminNotifications() {
+  const snapshot = await db.collection('admin_notifications').get();
+  if (snapshot.empty) return [];
+  const results = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+    sent_at: doc.data().sent_at?.toDate?.()?.toISOString() || doc.data().sent_at,
+  }));
+  return results.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+}
+
+/**
+ * Tạo thông báo tổng hoặc đến từng role riêng lẻ
+ */
+async function createAdminNotification({ title, content, type, recipientType, link, senderName }) {
+  if (!title || !content || !type || !recipientType) {
+    throw new Error('Thiếu thông tin bắt buộc để tạo thông báo.');
+  }
+
+  const sentAt = new Date();
+  
+  const masterData = {
+    title,
+    content,
+    type,
+    recipient_type: recipientType,
+    link: link || '',
+    sender_name: senderName || 'Hệ thống EcoSchedule',
+    sender_role: 'Admin',
+    sent_at: sentAt,
+  };
+  
+  const masterDocRef = await db.collection('admin_notifications').add(masterData);
+  const masterId = masterDocRef.id;
+
+  let userQuery = db.collection(USERS_COLLECTION);
+  if (recipientType !== 'all') {
+    const targetRoles = [recipientType];
+    if (recipientType === 'Garbage Collector') targetRoles.push('collector');
+    if (recipientType === 'Collection Company Manager') targetRoles.push('manager');
+    if (recipientType === 'Citizen') targetRoles.push('resident');
+    if (recipientType === 'Admin') targetRoles.push('admin');
+    
+    userQuery = userQuery.where('role', 'in', targetRoles);
+  }
+  
+  const usersSnapshot = await userQuery.get();
+  if (usersSnapshot.empty) {
+    return { masterId, sentCount: 0 };
+  }
+
+  const batch = db.batch();
+  usersSnapshot.docs.forEach(userDoc => {
+    const userNotifRef = db.collection(NOTIFICATIONS_COLLECTION).doc();
+    batch.set(userNotifRef, {
+      user_id: userDoc.id,
+      master_id: masterId,
+      title,
+      content,
+      type,
+      is_read: false,
+      link: link || '',
+      sender_name: senderName || 'Hệ thống EcoSchedule',
+      sender_role: 'Admin',
+      sent_at: sentAt,
+    });
+  });
+
+  await batch.commit();
+  return { masterId, sentCount: usersSnapshot.size };
+}
+
+/**
+ * Xóa thông báo của Admin và tất cả các bản sao đã gửi cho User
+ */
+async function deleteAdminNotification(masterId) {
+  await db.collection('admin_notifications').doc(masterId).delete();
+
+  const userNotificationsSnapshot = await db
+    .collection(NOTIFICATIONS_COLLECTION)
+    .where('master_id', '==', masterId)
+    .get();
+
+  if (!userNotificationsSnapshot.empty) {
+    const batch = db.batch();
+    userNotificationsSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+  }
+  return { success: true };
+}
+
 module.exports = {
   getNotifications,
   markAsRead,
@@ -189,4 +285,7 @@ module.exports = {
   getNotificationSettings,
   updateNotificationSettings,
   seedNotificationsForUser,
+  getAdminNotifications,
+  createAdminNotification,
+  deleteAdminNotification,
 };
