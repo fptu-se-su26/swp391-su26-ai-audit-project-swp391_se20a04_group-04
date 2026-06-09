@@ -2,13 +2,14 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const { db, auth } = require('./firebaseAdmin');
 const addressService = require('./services/addressService');
 const scheduleService = require('./services/scheduleService');
 const notificationService = require('./services/notificationService');
 const invoiceService = require('./services/invoiceService');
+const complaintService = require('./services/complaintService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -30,6 +31,7 @@ app.use(express.json());
 const USERS_COLLECTION = 'users';
 
 const ROLES = {
+  ADMIN: 'Admin',
   RESIDENT: 'Resident',
   MANAGER: 'Collection Company Manager',
   COLLECTOR: 'Collector',
@@ -46,7 +48,7 @@ function normalizeUser(data, uid) {
     phone:    data.phone    || data['điện thoại']   || data['dien_thoai']|| '',
     address:  data.address  || data['Địa chỉ']      || data['dia_chi']   || '',
     area:     data.area     || data['khu vực']      || data['khu_vuc']   || '',
-    role:     data.role     || data['vai trò']      || data['Vai trò']   || 'Citizen',
+    role:     data.role     || data['vai trò']      || data['Vai trò']   || 'Resident',
     emailVerified: data.emailVerified ?? true,
   };
 }
@@ -57,6 +59,7 @@ function normalizeUser(data, uid) {
 function normalizeRole(role = '') {
   if (typeof role !== 'string') return ROLES.RESIDENT;
   const normalized = role.trim().toLowerCase();
+  if (normalized.includes('admin')) return ROLES.ADMIN;
   if (normalized.includes('manager')) return ROLES.MANAGER;
   if (normalized.includes('collector')) return ROLES.COLLECTOR;
   if (normalized.includes('resident') || normalized.includes('citizen')) return ROLES.RESIDENT;
@@ -126,7 +129,7 @@ app.post('/api/auth/register', async (req, res) => {
       email,
       phone: phone || '',
       address: address || '',
-      role: role || 'Citizen',
+      role: role || 'Resident',
       emailVerified: false,
       createdAt: new Date().toISOString(),
       area: 'Quận Sơn Trà, Đà Nẵng',
@@ -219,7 +222,7 @@ app.post('/api/auth/login', async (req, res) => {
         uid: uid,
         fullName: userRecord.displayName || email.split('@')[0],
         email: email,
-        role: 'Citizen',
+        role: 'Resident',
         area: 'Quận Sơn Trà, Đà Nẵng',
         emailVerified: true,
       };
@@ -398,9 +401,9 @@ async function ensureResident(req, res, next) {
     }
 
     const userData = normalizeUser(userDoc.data(), req.uid);
-    const normalizedRole = (userData.role || '').toLowerCase();
-    if (!normalizedRole.includes('resident') && !normalizedRole.includes('citizen')) {
-      return res.status(403).json({ error: 'Chỉ cư dân mới được phép truy cập chức năng thanh toán.' });
+    const role = normalizeRole(userData.role);
+    if (role !== ROLES.RESIDENT) {
+      return res.status(403).json({ error: 'Chỉ cư dân mới được phép truy cập chức năng này.' });
     }
 
     req.userProfile = userData;
@@ -911,6 +914,42 @@ async function verifyToken(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized: Token không hợp lệ hoặc đã hết hạn.' });
   }
 }
+
+// ============================================================
+// ROUTES: Phản ánh Cư dân (/api/complaints)
+// ============================================================
+
+/**
+ * POST /api/complaints
+ * Cư dân gửi phản ánh mới.
+ */
+app.post('/api/complaints', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const result = await complaintService.createComplaint(
+      req.uid,
+      req.userProfile.fullName,
+      req.body
+    );
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi gửi phản ánh cư dân:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/complaints
+ * Lấy danh sách các phản ánh của cư dân đang đăng nhập.
+ */
+app.get('/api/complaints', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const result = await complaintService.getUserComplaints(req.uid);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi lấy danh sách phản ánh cư dân:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
 
 // ============================================================
 // ROUTES: Thông báo Cư dân (/api/notifications)

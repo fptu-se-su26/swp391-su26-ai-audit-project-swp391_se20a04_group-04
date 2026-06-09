@@ -4,13 +4,13 @@ import authService from '../../services/authService';
 import './Register.css';
 
 const ROLES = [
-  { value: 'Citizen', label: 'Citizen (Cư dân)', desc: 'Người dân sinh sống tại khu vực' },
+  { value: 'Resident', label: 'Resident (Cư dân)', desc: 'Người dân sinh sống tại khu vực' },
   { value: 'Garbage Collector', label: 'Garbage Collector (Nhân viên thu gom)', desc: 'Nhân viên thu gom rác thải' },
   { value: 'Collection Company Manager', label: 'Collection Company Manager (Quản lý công ty)', desc: 'Quản lý công ty thu gom rác' },
 ];
 
 const ADDRESS_LABELS = {
-  Citizen: { label: 'Tên hộ gia đình', placeholder: 'VD: Hộ gia đình Nguyễn Văn A' },
+  Resident: { label: 'Tên hộ gia đình', placeholder: 'VD: Hộ gia đình Nguyễn Văn A' },
   'Garbage Collector': { label: 'Tên tổ dân phố', placeholder: 'VD: Tổ dân phố số 5, P. Mân Thái' },
   'Collection Company Manager': { label: 'Tên công ty', placeholder: 'VD: Công ty TNHH Môi Trường Xanh Đà Nẵng' },
 };
@@ -25,7 +25,7 @@ export default function Register() {
     password: '',
     confirmPassword: '',
     address: '',
-    role: 'Citizen',
+    role: 'Resident',
     agreeTerms: false,
   });
 
@@ -131,7 +131,7 @@ export default function Register() {
     }
   };
 
-  const addrConfig = ADDRESS_LABELS[formData.role] || ADDRESS_LABELS['Citizen'];
+  const addrConfig = ADDRESS_LABELS[formData.role] || ADDRESS_LABELS['Resident'];
 
   return (
     <div className="register-container py-12 px-4 flex items-center justify-center min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900">
