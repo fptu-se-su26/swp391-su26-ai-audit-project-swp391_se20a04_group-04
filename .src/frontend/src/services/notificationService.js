@@ -6,7 +6,7 @@ import authService from './authService';
 
 const BASE_URL = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace('/api/auth', '/api/notifications')
-  : 'http://localhost:5000/api/notifications';
+  : 'http://localhost:5001/api/notifications';
 
 /**
  * Tạo header Authorization đính kèm token xác thực.

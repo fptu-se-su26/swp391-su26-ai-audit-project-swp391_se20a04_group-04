@@ -54,7 +54,7 @@ export default function ManagerInvoice() {
     }
 
     const role = normalizeRole(currentUser.role);
-    if (role !== ROLES.MANAGER) {
+    if (role !== ROLES.MANAGER && role !== ROLES.ADMIN) {
       navigate('/dashboard');
       return;
     }

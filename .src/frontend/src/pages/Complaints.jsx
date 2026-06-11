@@ -5,7 +5,7 @@ import complaintService from '../services/complaintService';
 // Xác định base API URL động từ config authService
 const API_BASE = import.meta.env.VITE_API_URL 
   ? import.meta.env.VITE_API_URL.replace('/auth', '') 
-  : 'http://localhost:5000/api';
+  : 'http://localhost:5001/api';
 
 export default function Complaints() {
   const [user, setUser] = useState(authService.getCurrentUser());

@@ -25,6 +25,7 @@ function timeAgo(isoString) {
 
 function getRoleLabel(role) {
   const r = normalizeRole(role);
+  if (r === ROLES.ADMIN) return 'Quản trị hệ thống';
   if (r === ROLES.MANAGER) return 'Quản lý';
   if (r === ROLES.COLLECTOR) return 'Nhân viên thu gom';
   return 'Cư dân';
@@ -141,7 +142,7 @@ export default function Header() {
 
   const previewNotifications = notifications.slice(0, 5);
   const userRole = user ? normalizeRole(user.role) : null;
-  const isManagerOrCollector = userRole === ROLES.MANAGER || userRole === ROLES.COLLECTOR;
+  const isManagerOrCollector = userRole === ROLES.MANAGER || userRole === ROLES.COLLECTOR || userRole === ROLES.ADMIN;
 
   return (
     <header className="header bg-surface dark:bg-inverse-surface shadow-sm docked full-width">
