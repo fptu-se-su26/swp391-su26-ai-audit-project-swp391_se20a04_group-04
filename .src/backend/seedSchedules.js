@@ -1,5 +1,6 @@
 /**
- * Script gieo dữ liệu mẫu (seeding) lịch thu gom rác lên Firestore
+ * @deprecated Dùng `npm run seed:full` thay thế (scripts/seedDatabase.js).
+ * Script cũ - chỉ seed collection_schedules, phạm vi Quận Sơn Trà.
  */
 const { db } = require('./firebaseAdmin');
 

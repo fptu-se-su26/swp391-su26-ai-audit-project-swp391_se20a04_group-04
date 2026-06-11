@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {  Link } from 'react-router-dom';
 import authService from '../../services/authService';
+import { ROLES, REGISTER_ROLES, ADDRESS_LABELS } from '../../constants/roles';
 import './Register.css';
 
 const ROLES = [
@@ -25,6 +26,7 @@ export default function Register() {
     password: '',
     confirmPassword: '',
     address: '',
+    role: ROLES.RESIDENT,
     role: 'Resident',
     agreeTerms: false,
   });
@@ -131,6 +133,7 @@ export default function Register() {
     }
   };
 
+  const addrConfig = ADDRESS_LABELS[formData.role] || ADDRESS_LABELS[ROLES.RESIDENT];
   const addrConfig = ADDRESS_LABELS[formData.role] || ADDRESS_LABELS['Resident'];
 
   return (
@@ -150,7 +153,7 @@ export default function Register() {
           </div>
 
           <div className="z-10 my-6 hidden md:flex flex-col gap-3">
-            {ROLES.map((r) => (
+            {REGISTER_ROLES.map((r) => (
               <div
                 key={r.value}
                 className={`rounded-xl p-3 text-left transition-all cursor-default border ${
@@ -204,7 +207,7 @@ export default function Register() {
                   Vai trò <span className="text-rose-500">*</span>
                 </label>
                 <div className="grid grid-cols-1 gap-2">
-                  {ROLES.map((r) => (
+                  {REGISTER_ROLES.map((r) => (
                     <label
                       key={r.value}
                       className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
@@ -364,7 +367,7 @@ export default function Register() {
                 </label>
                 <div className="input-wrapper relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
-                    {formData.role === 'Collection Company Manager' ? 'business' : formData.role === 'Garbage Collector' ? 'location_on' : 'home'}
+                    {formData.role === ROLES.MANAGER ? 'business' : formData.role === ROLES.COLLECTOR ? 'location_on' : 'home'}
                   </span>
                   <input
                     type="text"

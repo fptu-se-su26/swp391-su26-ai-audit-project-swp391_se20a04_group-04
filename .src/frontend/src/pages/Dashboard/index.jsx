@@ -83,6 +83,7 @@ export default function Dashboard() {
   }, [navigate]);
 
   useEffect(() => {
+    if (normalizeRole(user?.role) === ROLES.MANAGER) {
     if (user === null) {
       return;
     }

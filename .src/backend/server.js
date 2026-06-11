@@ -5,6 +5,7 @@ const crypto = require('crypto');
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const { db, auth } = require('./firebaseAdmin');
+const { ROLES, normalizeRole } = require('./constants/roles');
 const addressService = require('./services/addressService');
 const scheduleService = require('./services/scheduleService');
 const notificationService = require('./services/notificationService');
@@ -48,6 +49,7 @@ function normalizeUser(data, uid) {
     phone:    data.phone    || data['điện thoại']   || data['dien_thoai']|| '',
     address:  data.address  || data['Địa chỉ']      || data['dia_chi']   || '',
     area:     data.area     || data['khu vực']      || data['khu_vuc']   || '',
+    role:     normalizeRole(data.role || data['vai trò'] || data['Vai trò']),
     role:     data.role     || data['vai trò']      || data['Vai trò']   || 'Resident',
     emailVerified: data.emailVerified ?? true,
   };
@@ -129,6 +131,7 @@ app.post('/api/auth/register', async (req, res) => {
       email,
       phone: phone || '',
       address: address || '',
+      role: normalizeRole(role),
       role: role || 'Resident',
       emailVerified: false,
       createdAt: new Date().toISOString(),
@@ -222,6 +225,7 @@ app.post('/api/auth/login', async (req, res) => {
         uid: uid,
         fullName: userRecord.displayName || email.split('@')[0],
         email: email,
+        role: ROLES.RESIDENT,
         role: 'Resident',
         area: 'Quận Sơn Trà, Đà Nẵng',
         emailVerified: true,
@@ -359,6 +363,8 @@ async function ensureManager(req, res, next) {
     }
 
     const userData = normalizeUser(userDoc.data(), req.uid);
+    if (userData.role !== ROLES.MANAGER) {
+      return res.status(403).json({ error: 'Chỉ có manager mới được phép truy cập chức năng này.' });
     const role = normalizeRole(userData.role);
     if (role !== ROLES.MANAGER) {
       return res.status(403).json({ error: 'Chỉ có Collection Company Manager mới được phép truy cập chức năng này.' });
