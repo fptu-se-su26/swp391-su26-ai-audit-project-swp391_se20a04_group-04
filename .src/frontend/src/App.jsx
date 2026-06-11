@@ -11,6 +11,8 @@ import Register from './pages/Register/Register';
 import Dashboard from './pages/Dashboard';
 import ManagerInvoice from './pages/ManagerInvoice';
 import ResidentSchedules from './resident/ResidentSchedules';
+import Complaints from './pages/Complaints';
+import UserManagement from './pages/Admin/UserManagement';
 
 
 function App() {
@@ -29,6 +31,8 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/invoices/new" element={<ManagerInvoice />} />
+            <Route path="/phan-anh" element={<Complaints />} />
+            <Route path="/admin/users" element={<UserManagement />} />
           </Routes>
         </div>
         <Footer />

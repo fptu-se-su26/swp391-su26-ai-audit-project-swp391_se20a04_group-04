@@ -1,19 +1,10 @@
 import { useState } from 'react';
 import {  Link } from 'react-router-dom';
 import authService from '../../services/authService';
+import { ROLES, REGISTER_ROLES, ADDRESS_LABELS } from '../../constants/roles';
 import './Register.css';
 
-const ROLES = [
-  { value: 'Citizen', label: 'Citizen (Cư dân)', desc: 'Người dân sinh sống tại khu vực' },
-  { value: 'Garbage Collector', label: 'Garbage Collector (Nhân viên thu gom)', desc: 'Nhân viên thu gom rác thải' },
-  { value: 'Collection Company Manager', label: 'Collection Company Manager (Quản lý công ty)', desc: 'Quản lý công ty thu gom rác' },
-];
 
-const ADDRESS_LABELS = {
-  Citizen: { label: 'Tên hộ gia đình', placeholder: 'VD: Hộ gia đình Nguyễn Văn A' },
-  'Garbage Collector': { label: 'Tên tổ dân phố', placeholder: 'VD: Tổ dân phố số 5, P. Mân Thái' },
-  'Collection Company Manager': { label: 'Tên công ty', placeholder: 'VD: Công ty TNHH Môi Trường Xanh Đà Nẵng' },
-};
 
 export default function Register() {
   
@@ -25,7 +16,7 @@ export default function Register() {
     password: '',
     confirmPassword: '',
     address: '',
-    role: 'Citizen',
+    role: ROLES.RESIDENT,
     agreeTerms: false,
   });
 
@@ -131,7 +122,7 @@ export default function Register() {
     }
   };
 
-  const addrConfig = ADDRESS_LABELS[formData.role] || ADDRESS_LABELS['Citizen'];
+  const addrConfig = ADDRESS_LABELS[formData.role] || ADDRESS_LABELS[ROLES.RESIDENT];
 
   return (
     <div className="register-container py-12 px-4 flex items-center justify-center min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900">
@@ -150,7 +141,7 @@ export default function Register() {
           </div>
 
           <div className="z-10 my-6 hidden md:flex flex-col gap-3">
-            {ROLES.map((r) => (
+            {REGISTER_ROLES.map((r) => (
               <div
                 key={r.value}
                 className={`rounded-xl p-3 text-left transition-all cursor-default border ${
@@ -204,7 +195,7 @@ export default function Register() {
                   Vai trò <span className="text-rose-500">*</span>
                 </label>
                 <div className="grid grid-cols-1 gap-2">
-                  {ROLES.map((r) => (
+                  {REGISTER_ROLES.map((r) => (
                     <label
                       key={r.value}
                       className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
@@ -364,7 +355,7 @@ export default function Register() {
                 </label>
                 <div className="input-wrapper relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
-                    {formData.role === 'Collection Company Manager' ? 'business' : formData.role === 'Garbage Collector' ? 'location_on' : 'home'}
+                    {formData.role === ROLES.MANAGER ? 'business' : formData.role === ROLES.COLLECTOR ? 'location_on' : 'home'}
                   </span>
                   <input
                     type="text"

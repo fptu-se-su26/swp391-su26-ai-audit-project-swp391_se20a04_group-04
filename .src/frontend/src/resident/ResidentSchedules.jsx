@@ -4,7 +4,7 @@ import authService from '../services/authService';
 // Xác định base API URL động từ config authService
 const API_BASE = import.meta.env.VITE_API_URL 
   ? import.meta.env.VITE_API_URL.replace('/auth', '') 
-  : 'http://localhost:5000/api';
+  : 'http://localhost:5001/api';
 
 export default function ResidentSchedules() {
   // Form State
@@ -423,7 +423,7 @@ export default function ResidentSchedules() {
                           <div className="flex justify-between items-start">
                             <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
                               <span className="material-symbols-outlined text-xs font-bold">delete</span>
-                              {schedule.trash_type || 'Rác sinh hoạt'}
+                              {schedule.trash_type || (schedule.service_type === 'Recycling' ? 'Rác tái chế (Nhựa, kim loại)' : schedule.service_type === 'Organic' ? 'Rác hữu cơ (Sinh hoạt)' : schedule.service_type === 'General' ? 'Rác thải sinh hoạt (Khác)' : schedule.service_type) || 'Rác sinh hoạt'}
                             </span>
                             {getStatusBadge(schedule.status)}
                           </div>
@@ -448,7 +448,7 @@ export default function ResidentSchedules() {
                         <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
                           <div className="flex items-center gap-1">
                             <span className="material-symbols-outlined text-sm">schedule</span>
-                            <span>{schedule.time_slot || '17:00 - 19:00'}</span>
+                            <span>{schedule.time_slot || (schedule.schedule_date ? new Date(schedule.schedule_date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '17:00 - 19:00')}</span>
                           </div>
                           
                           {schedule.neighborhood && (

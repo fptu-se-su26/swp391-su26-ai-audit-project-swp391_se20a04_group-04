@@ -10,11 +10,12 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { ROLES, normalizeRole } from '../constants/roles';
 
 // Tên collection chính trên Firestore
 const USERS_COLLECTION = 'users';
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/auth';
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api/auth';
 
 /**
  * Chuẩn hóa dữ liệu user từ Firestore (hỗ trợ cả tên trường tiếng Việt lẫn tiếng Anh)
@@ -27,7 +28,7 @@ function normalizeUser(data, uid) {
     phone:    data.phone    || data['điện thoại']   || data['dien_thoai']|| '',
     address:  data.address  || data['Địa chỉ']      || data['dia_chi']   || '',
     area:     data.area     || data['khu vực']      || data['khu_vuc']   || 'Quận Sơn Trà, Đà Nẵng',
-    role:     data.role     || data['vai trò']      || data['Vai trò']   || 'Citizen',
+    role:     normalizeRole(data.role || data['vai trò'] || data['Vai trò']),
     emailVerified: data.emailVerified ?? true,
   };
 }
@@ -87,6 +88,7 @@ const authService = {
       window.dispatchEvent(new Event('authChange'));
       return { user, token };
     } catch (error) {
+      // eslint-disable-next-line no-useless-catch
       throw error;
     }
   },
@@ -117,7 +119,7 @@ const authService = {
           email: firebaseUser.email,
           phone: firebaseUser.phoneNumber || '',
           address: '',
-          role: 'Citizen',
+          role: ROLES.RESIDENT,
           area: 'Quận Sơn Trà, Đà Nẵng',
           emailVerified: true,
           createdAt: new Date().toISOString(),

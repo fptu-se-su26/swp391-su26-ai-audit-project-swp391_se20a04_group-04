@@ -4,7 +4,7 @@ import authService from '../../services/authService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 function getStatusBadge(status) {
   const state = (status || '').toLowerCase();
@@ -93,7 +93,7 @@ export default function Dashboard() {
       return;
     }
 
-    if (role === ROLES.MANAGER) {
+    if (role === ROLES.MANAGER || role === ROLES.ADMIN) {
       loadManagerData();
     }
   }, [user, navigate]);
@@ -345,7 +345,7 @@ export default function Dashboard() {
     );
   }
 
-  const isManager = normalizeRole(user.role) === ROLES.MANAGER;
+  const isManager = normalizeRole(user.role) === ROLES.MANAGER || normalizeRole(user.role) === ROLES.ADMIN;
 
   if (!isManager) {
     return (
@@ -409,6 +409,16 @@ export default function Dashboard() {
               <span className="material-symbols-outlined">receipt_long</span>
               Tạo hóa đơn
             </button>
+            {normalizeRole(user.role) === ROLES.ADMIN && (
+              <button
+                type="button"
+                onClick={() => navigate('/admin/users')}
+                className="py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined">manage_accounts</span>
+                Quản lý người dùng
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"

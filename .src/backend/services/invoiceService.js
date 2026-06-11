@@ -7,6 +7,32 @@ function getTimestampMillis(value) {
   return new Date(value).getTime();
 }
 
+function serializeInvoice(invoice) {
+  if (!invoice) return null;
+  const serialized = { ...invoice };
+  const dateFields = ['createdAt', 'dueDate', 'paidAt', 'updatedAt'];
+  
+  dateFields.forEach((field) => {
+    if (serialized[field]) {
+      if (typeof serialized[field].toDate === 'function') {
+        serialized[field] = serialized[field].toDate().toISOString();
+      } else if (serialized[field] instanceof Date) {
+        serialized[field] = serialized[field].toISOString();
+      } else if (typeof serialized[field] === 'object' && (serialized[field]._seconds !== undefined || serialized[field].seconds !== undefined)) {
+        const seconds = serialized[field]._seconds !== undefined ? serialized[field]._seconds : serialized[field].seconds;
+        serialized[field] = new Date(seconds * 1000).toISOString();
+      } else {
+        const d = new Date(serialized[field]);
+        if (!Number.isNaN(d.getTime())) {
+          serialized[field] = d.toISOString();
+        }
+      }
+    }
+  });
+  
+  return serialized;
+}
+
 async function getLatestInvoiceForUser(userId) {
   const snapshot = await db.collection('invoices')
     .where('userId', '==', userId)
@@ -18,7 +44,7 @@ async function getLatestInvoiceForUser(userId) {
 
   const invoices = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   invoices.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
-  return invoices[0] || null;
+  return serializeInvoice(invoices[0]) || null;
 }
 
 async function getInvoiceById(invoiceId) {
@@ -26,7 +52,7 @@ async function getInvoiceById(invoiceId) {
   if (!doc.exists) {
     return null;
   }
-  return { id: doc.id, ...doc.data() };
+  return serializeInvoice({ id: doc.id, ...doc.data() });
 }
 
 async function createOrUpdateInvoice(invoiceData) {

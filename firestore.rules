@@ -1,0 +1,121 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return userDoc().data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userRole() == 'admin';
+    }
+
+    function isManager() {
+      return isSignedIn() && userRole() == 'manager';
+    }
+
+    function isCollector() {
+      return isSignedIn() && userRole() == 'collector';
+    }
+
+    function isResident() {
+      return isSignedIn() && userRole() == 'resident';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // users
+    match /users/{userId} {
+      allow read: if isSignedIn() && (isOwner(userId) || isAdmin() || isManager());
+      allow create: if false; // chỉ tạo qua Backend Admin SDK
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // areas, waste_types - public read
+    match /areas/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /waste_types/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /collection_companies/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isManager();
+    }
+
+    match /routes/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isManager();
+    }
+
+    match /route_assignments/{docId} {
+      allow read: if isSignedIn() && (isAdmin() || isManager() || isCollector());
+      allow write: if isAdmin() || isManager();
+    }
+
+    match /collection_schedules/{docId} {
+      allow read: if true;
+      allow write: if isAdmin() || isManager();
+    }
+
+    match /reports/{docId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || isManager() || isCollector() ||
+        resource.data.citizenId == request.auth.uid
+      );
+      allow create: if isResident();
+      allow update: if isAdmin() || isManager() || isCollector();
+      allow delete: if isAdmin();
+    }
+
+    match /report_comments/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || isManager();
+    }
+
+    match /invoices/{docId} {
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /payments/{docId} {
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isResident() || isAdmin();
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /notifications/{docId} {
+      allow read: if isSignedIn() && isOwner(resource.data.userId);
+      allow update: if isSignedIn() && isOwner(resource.data.userId);
+      allow create, delete: if isAdmin() || isManager();
+    }
+
+    match /notification_settings/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    match /system_logs/{docId} {
+      allow read: if isAdmin();
+      allow create: if false; // chỉ Backend ghi log
+      allow update, delete: if false;
+    }
+  }
+}

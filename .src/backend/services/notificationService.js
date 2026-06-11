@@ -134,7 +134,7 @@ async function seedNotificationsForUser(userId) {
       sent_at: new Date(),
       is_read: false,
       link: '/tra-cuu',
-      sender_role: 'Manager',
+      sender_role: 'manager',
       sender_name: 'Công ty Môi Trường Đô Thị Đà Nẵng',
     },
     {
@@ -145,7 +145,7 @@ async function seedNotificationsForUser(userId) {
       sent_at: new Date(Date.now() - 3600 * 1000 * 5), // 5 giờ trước
       is_read: false,
       link: '/thanh-toan',
-      sender_role: 'Admin',
+      sender_role: 'admin',
       sender_name: 'Hệ thống EcoSchedule',
     },
     {
@@ -156,7 +156,7 @@ async function seedNotificationsForUser(userId) {
       sent_at: new Date(Date.now() - 3600 * 1000 * 24 * 2), // 2 ngày trước
       is_read: true,
       link: '/huong-dan',
-      sender_role: 'Admin',
+      sender_role: 'admin',
       sender_name: 'Hệ thống EcoSchedule',
     },
     {
@@ -167,7 +167,7 @@ async function seedNotificationsForUser(userId) {
       sent_at: new Date(Date.now() - 3600 * 1000 * 2), // 2 giờ trước
       is_read: false,
       link: '/tra-cuu',
-      sender_role: 'Manager',
+      sender_role: 'manager',
       sender_name: 'Công ty Môi Trường Đô Thị Đà Nẵng',
     },
   ];
