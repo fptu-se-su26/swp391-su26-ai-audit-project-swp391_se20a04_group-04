@@ -31,21 +31,5 @@ export const ADDRESS_LABELS = {
   [ROLES.COLLECTOR]: { label: 'Tên tổ dân phố', placeholder: 'VD: Tổ dân phố số 5, P. Mân Thái' },
   [ROLES.MANAGER]: { label: 'Tên công ty', placeholder: 'VD: Công ty TNHH Môi Trường Xanh Đà Nẵng' },
 };
-  ADMIN: 'Admin',
-  RESIDENT: 'Resident',
-  MANAGER: 'Collection Company Manager',
-  COLLECTOR: 'Collector',
-};
 
-export function normalizeRole(role = '') {
-  if (typeof role !== 'string') return ROLES.RESIDENT;
-  const normalized = role.trim().toLowerCase();
-
-  if (normalized.includes('admin')) return ROLES.ADMIN;
-  if (normalized.includes('manager')) return ROLES.MANAGER;
-  if (normalized.includes('collector')) return ROLES.COLLECTOR;
-  if (normalized.includes('resident') || normalized.includes('citizen')) return ROLES.RESIDENT;
-
-  return role;
-}
 
