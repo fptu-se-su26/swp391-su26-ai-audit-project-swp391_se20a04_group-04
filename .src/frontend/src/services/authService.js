@@ -29,6 +29,7 @@ function normalizeUser(data, uid) {
     address:  data.address  || data['Địa chỉ']      || data['dia_chi']   || '',
     area:     data.area     || data['khu vực']      || data['khu_vuc']   || 'Quận Sơn Trà, Đà Nẵng',
     role:     normalizeRole(data.role || data['vai trò'] || data['Vai trò']),
+    role:     data.role     || data['vai trò']      || data['Vai trò']   || 'Resident',
     emailVerified: data.emailVerified ?? true,
   };
 }
@@ -119,6 +120,7 @@ const authService = {
           phone: firebaseUser.phoneNumber || '',
           address: '',
           role: ROLES.RESIDENT,
+          role: 'Resident',
           area: 'Quận Sơn Trà, Đà Nẵng',
           emailVerified: true,
           createdAt: new Date().toISOString(),

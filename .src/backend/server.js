@@ -1,17 +1,24 @@
 // Trigger reload of .env configuration
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+const crypto = require('crypto');
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const { db, auth } = require('./firebaseAdmin');
 const { ROLES, normalizeRole } = require('./constants/roles');
 const addressService = require('./services/addressService');
 const scheduleService = require('./services/scheduleService');
 const notificationService = require('./services/notificationService');
+const invoiceService = require('./services/invoiceService');
+const complaintService = require('./services/complaintService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
+const PAYOS_API_BASE_URL = process.env.PAYOS_API_BASE_URL || '';
+const PAYOS_CLIENT_ID = process.env.PAYOS_CLIENT_ID || '';
+const PAYOS_API_KEY = process.env.PAYOS_API_KEY || '';
+const PAYOS_CHECKSUM_KEY = process.env.PAYOS_CHECKSUM_KEY || '';
 
 // CORS configuration - Allow frontend server
 app.use(cors({
@@ -23,6 +30,13 @@ app.use(express.json());
 
 // Tên collection chính trên Firestore
 const USERS_COLLECTION = 'users';
+
+const ROLES = {
+  ADMIN: 'Admin',
+  RESIDENT: 'Resident',
+  MANAGER: 'Collection Company Manager',
+  COLLECTOR: 'Collector',
+};
 
 /**
  * Chuẩn hóa dữ liệu user từ Firestore
@@ -36,8 +50,22 @@ function normalizeUser(data, uid) {
     address:  data.address  || data['Địa chỉ']      || data['dia_chi']   || '',
     area:     data.area     || data['khu vực']      || data['khu_vuc']   || '',
     role:     normalizeRole(data.role || data['vai trò'] || data['Vai trò']),
+    role:     data.role     || data['vai trò']      || data['Vai trò']   || 'Resident',
     emailVerified: data.emailVerified ?? true,
   };
+}
+
+/**
+ * Chuẩn hóa vai trò sang hằng số trong ROLES
+ */
+function normalizeRole(role = '') {
+  if (typeof role !== 'string') return ROLES.RESIDENT;
+  const normalized = role.trim().toLowerCase();
+  if (normalized.includes('admin')) return ROLES.ADMIN;
+  if (normalized.includes('manager')) return ROLES.MANAGER;
+  if (normalized.includes('collector')) return ROLES.COLLECTOR;
+  if (normalized.includes('resident') || normalized.includes('citizen')) return ROLES.RESIDENT;
+  return role;
 }
 
 /**
@@ -104,6 +132,7 @@ app.post('/api/auth/register', async (req, res) => {
       phone: phone || '',
       address: address || '',
       role: normalizeRole(role),
+      role: role || 'Resident',
       emailVerified: false,
       createdAt: new Date().toISOString(),
       area: 'Quận Sơn Trà, Đà Nẵng',
@@ -197,6 +226,7 @@ app.post('/api/auth/login', async (req, res) => {
         fullName: userRecord.displayName || email.split('@')[0],
         email: email,
         role: ROLES.RESIDENT,
+        role: 'Resident',
         area: 'Quận Sơn Trà, Đà Nẵng',
         emailVerified: true,
       };
@@ -211,6 +241,67 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (error) {
     console.error('[Login] Lỗi hệ thống khi đăng nhập:', error);
     return res.status(500).json({ error: 'Đã xảy ra lỗi hệ thống khi đăng nhập. Vui lòng thử lại sau.' });
+  }
+});
+
+/**
+ * Endpoint đăng nhập bằng Google
+ */
+app.post('/api/auth/google-login', async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return res.status(400).json({ error: 'Missing idToken for Google login.' });
+  }
+
+  try {
+    const decodedToken = await auth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const email = decodedToken.email || '';
+    const emailVerified = decodedToken.email_verified ?? true;
+
+    console.log(`[GoogleLogin] Verifying Google token for uid: ${uid}`);
+
+    const userRecord = await auth.getUser(uid);
+
+    let userDoc = await db.collection('users').doc(uid).get();
+    if (!userDoc.exists) {
+      userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
+    }
+
+    let userData = {};
+    if (userDoc.exists) {
+      userData = normalizeUser(userDoc.data(), uid);
+      if (!userDoc.data().emailVerified && emailVerified) {
+        await db.collection('users').doc(uid).update({ emailVerified: true });
+        await db.collection(USERS_COLLECTION).doc(uid).update({ emailVerified: true });
+        userData.emailVerified = true;
+      }
+    } else {
+      userData = {
+        uid,
+        fullName: userRecord.displayName || email.split('@')[0],
+        email,
+        phone: userRecord.phoneNumber || '',
+        address: '',
+        role: ROLES.RESIDENT,
+        area: 'Quận Sơn Trà, Đà Nẵng',
+        emailVerified,
+        createdAt: new Date().toISOString(),
+      };
+
+      await db.collection(USERS_COLLECTION).doc(uid).set(userData);
+      await db.collection('users').doc(uid).set(userData);
+    }
+
+    console.log(`[GoogleLogin] Đăng nhập Google thành công: ${email}`);
+    return res.status(200).json({ user: userData, token: idToken });
+  } catch (error) {
+    console.error('[GoogleLogin] Lỗi hệ thống khi đăng nhập bằng Google:', error);
+    if (error.code === 'auth/argument-error' || error.code === 'auth/id-token-expired' || error.code === 'auth/invalid-id-token') {
+      return res.status(401).json({ error: 'Invalid Google token. Please sign in again.' });
+    }
+    return res.status(500).json({ error: 'Đã xảy ra lỗi hệ thống khi đăng nhập bằng Google. Vui lòng thử lại sau.' });
   }
 });
 
@@ -274,6 +365,9 @@ async function ensureManager(req, res, next) {
     const userData = normalizeUser(userDoc.data(), req.uid);
     if (userData.role !== ROLES.MANAGER) {
       return res.status(403).json({ error: 'Chỉ có manager mới được phép truy cập chức năng này.' });
+    const role = normalizeRole(userData.role);
+    if (role !== ROLES.MANAGER) {
+      return res.status(403).json({ error: 'Chỉ có Collection Company Manager mới được phép truy cập chức năng này.' });
     }
 
     req.userProfile = userData;
@@ -281,6 +375,48 @@ async function ensureManager(req, res, next) {
   } catch (error) {
     console.error('[Auth] Lỗi kiểm tra vai trò Manager:', error.message);
     return res.status(500).json({ error: 'Lỗi hệ thống khi xác thực vai trò manager.' });
+  }
+}
+
+async function ensureCollector(req, res, next) {
+  try {
+    const userDoc = await db.collection(USERS_COLLECTION).doc(req.uid).get();
+    if (!userDoc.exists) {
+      return res.status(403).json({ error: 'Không tìm thấy thông tin người dùng để xác thực vai trò.' });
+    }
+
+    const userData = normalizeUser(userDoc.data(), req.uid);
+    const role = normalizeRole(userData.role);
+    if (role !== ROLES.COLLECTOR) {
+      return res.status(403).json({ error: 'Chỉ có nhân viên thu gom mới được phép xác nhận tuyến.' });
+    }
+
+    req.userProfile = userData;
+    next();
+  } catch (error) {
+    console.error('[Auth] Lỗi kiểm tra vai trò Collector:', error.message);
+    return res.status(500).json({ error: 'Lỗi hệ thống khi xác thực vai trò collector.' });
+  }
+}
+
+async function ensureResident(req, res, next) {
+  try {
+    const userDoc = await db.collection(USERS_COLLECTION).doc(req.uid).get();
+    if (!userDoc.exists) {
+      return res.status(403).json({ error: 'Không tìm thấy thông tin người dùng để xác thực vai trò.' });
+    }
+
+    const userData = normalizeUser(userDoc.data(), req.uid);
+    const role = normalizeRole(userData.role);
+    if (role !== ROLES.RESIDENT) {
+      return res.status(403).json({ error: 'Chỉ cư dân mới được phép truy cập chức năng này.' });
+    }
+
+    req.userProfile = userData;
+    next();
+  } catch (error) {
+    console.error('[Auth] Lỗi kiểm tra vai trò Resident:', error.message);
+    return res.status(500).json({ error: 'Lỗi hệ thống khi xác thực vai trò resident.' });
   }
 }
 
@@ -307,11 +443,17 @@ app.post('/api/manager/schedules', verifyToken, ensureManager, async (req, res) 
     neighborhood,
     assignedTruck,
     assignedDriver,
+    assignedCollector,
     notes,
+    routePoints,
   } = req.body;
 
   if (!routeName || !serviceType || !date || !time || !city || !ward) {
     return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin lịch thu gom.' });
+  }
+
+  if (routePoints && !Array.isArray(routePoints)) {
+    return res.status(400).json({ error: 'routePoints phải là một mảng các điểm tọa độ.' });
   }
 
   try {
@@ -329,8 +471,11 @@ app.post('/api/manager/schedules', verifyToken, ensureManager, async (req, res) 
       neighborhood: neighborhood || '',
       assigned_truck: assignedTruck || '',
       assigned_driver: assignedDriver || '',
+      assigned_collector: assignedCollector || '',
+      collector_confirmed: false,
       status: assignedTruck && assignedDriver ? 'Assigned' : 'Planned',
       notes: notes || '',
+      route_points: routePoints || [],
       created_by: req.userProfile.fullName || req.uid,
       created_at: new Date().toISOString(),
     };
@@ -344,7 +489,7 @@ app.post('/api/manager/schedules', verifyToken, ensureManager, async (req, res) 
 });
 
 app.post('/api/manager/assign-route', verifyToken, ensureManager, async (req, res) => {
-  const { scheduleId, assignedTruck, assignedDriver } = req.body;
+  const { scheduleId, assignedTruck, assignedDriver, assignedCollector } = req.body;
   if (!scheduleId || !assignedTruck || !assignedDriver) {
     return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch, xe và tài xế để gán tuyến.' });
   }
@@ -356,9 +501,15 @@ app.post('/api/manager/assign-route', verifyToken, ensureManager, async (req, re
       return res.status(404).json({ error: 'Không tìm thấy lịch cần gán tuyến.' });
     }
 
+    const scheduleData = snapshot.data();
+    if (scheduleData?.collector_confirmed) {
+      return res.status(400).json({ error: 'Tuyến đã được nhân viên xác nhận, không thể chỉnh sửa nữa.' });
+    }
+
     await docRef.update({
       assigned_truck: assignedTruck,
       assigned_driver: assignedDriver,
+      assigned_collector: assignedCollector || '',
       status: 'Assigned',
       updated_at: new Date().toISOString(),
     });
@@ -367,6 +518,94 @@ app.post('/api/manager/assign-route', verifyToken, ensureManager, async (req, re
   } catch (error) {
     console.error('[API] Lỗi gán tuyến cho lịch thu gom:', error.message);
     return res.status(500).json({ error: 'Không thể gán tuyến cho lịch. Vui lòng thử lại sau.' });
+  }
+});
+
+app.post('/api/manager/confirm-route', verifyToken, ensureManager, async (req, res) => {
+  const { scheduleId } = req.body;
+  if (!scheduleId) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch để xác nhận tuyến.' });
+  }
+
+  try {
+    const docRef = db.collection('collection_schedules').doc(scheduleId);
+    const snapshot = await docRef.get();
+    if (!snapshot.exists) {
+      return res.status(404).json({ error: 'Không tìm thấy lịch để xác nhận.' });
+    }
+
+    await docRef.update({
+      collector_confirmed: true,
+      status: 'Confirmed',
+      updated_at: new Date().toISOString(),
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[API] Lỗi xác nhận tuyến của nhân viên thu gom:', error.message);
+    return res.status(500).json({ error: 'Không thể xác nhận tuyến. Vui lòng thử lại sau.' });
+  }
+});
+
+app.post('/api/collector/confirm-route', verifyToken, ensureCollector, async (req, res) => {
+  const { scheduleId } = req.body;
+  if (!scheduleId) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch để xác nhận tuyến.' });
+  }
+
+  try {
+    const docRef = db.collection('collection_schedules').doc(scheduleId);
+    const snapshot = await docRef.get();
+    if (!snapshot.exists) {
+      return res.status(404).json({ error: 'Không tìm thấy lịch để xác nhận.' });
+    }
+
+    await docRef.update({
+      collector_confirmed: true,
+      status: 'Confirmed',
+      updated_at: new Date().toISOString(),
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[API] Lỗi xác nhận tuyến của nhân viên thu gom:', error.message);
+    return res.status(500).json({ error: 'Không thể xác nhận tuyến. Vui lòng thử lại sau.' });
+  }
+});
+
+app.put('/api/manager/schedules/:scheduleId', verifyToken, ensureManager, async (req, res) => {
+  const { scheduleId } = req.params;
+  const { routePoints } = req.body;
+
+  if (!scheduleId) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch để cập nhật.' });
+  }
+
+  if (routePoints && !Array.isArray(routePoints)) {
+    return res.status(400).json({ error: 'routePoints phải là một mảng các điểm tọa độ.' });
+  }
+
+  try {
+    const docRef = db.collection('collection_schedules').doc(scheduleId);
+    const snapshot = await docRef.get();
+    if (!snapshot.exists) {
+      return res.status(404).json({ error: 'Không tìm thấy lịch cần cập nhật.' });
+    }
+
+    const scheduleData = snapshot.data();
+    if (scheduleData?.collector_confirmed) {
+      return res.status(400).json({ error: 'Tuyến đã được nhân viên xác nhận, không thể chỉnh sửa nữa.' });
+    }
+
+    await docRef.update({
+      route_points: routePoints || [],
+      updated_at: new Date().toISOString(),
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[API] Lỗi cập nhật tuyến cho lịch thu gom:', error.message);
+    return res.status(500).json({ error: 'Không thể cập nhật tuyến cho lịch. Vui lòng thử lại sau.' });
   }
 });
 
@@ -423,6 +662,236 @@ app.get('/api/manager/reports', verifyToken, ensureManager, async (req, res) => 
 });
 
 // Health check endpoint
+app.post('/api/invoices', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const {
+      invoiceId,
+      amount,
+      billingMonth,
+      billingYear,
+      createdAt,
+      createdBy,
+      currency,
+      dueDate,
+      feeType,
+      paidAt,
+      status,
+      updatedAt,
+    } = req.body;
+
+    if (!invoiceId || !amount || !currency || !dueDate || !feeType) {
+      return res.status(400).json({ error: 'invoiceId, amount, currency, dueDate và feeType là bắt buộc.' });
+    }
+
+    const invoice = await invoiceService.createOrUpdateInvoice({
+      invoiceId,
+      amount,
+      billingMonth,
+      billingYear,
+      createdAt,
+      createdBy,
+      currency,
+      dueDate,
+      feeType,
+      paidAt: paidAt || null,
+      status: status || 'unpaid',
+      updatedAt: updatedAt || createdAt || new Date().toISOString(),
+      userId: req.uid,
+    });
+
+    return res.status(201).json(invoice);
+  } catch (error) {
+    console.error('[API] Lỗi tạo/cập nhật hóa đơn:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/invoices/current', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const invoice = await invoiceService.getLatestInvoiceForUser(req.uid);
+    if (!invoice) {
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn hiện tại.' });
+    }
+
+    if (invoice.status !== 'paid') {
+      try {
+        const { paymentUrl } = await createPayOSPaymentSession(invoice, req.uid);
+        invoice.paymentUrl = paymentUrl;
+      } catch (paymentError) {
+        console.warn('[API] Không thể tạo session PayOS tự động:', paymentError.message);
+      }
+    }
+
+    return res.status(200).json(invoice);
+  } catch (error) {
+    console.error('[API] Lỗi lấy hóa đơn hiện tại:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/invoices/:invoiceId', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const invoice = await invoiceService.getInvoiceById(req.params.invoiceId);
+    if (!invoice || invoice.userId !== req.uid) {
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn.' });
+    }
+    return res.status(200).json(invoice);
+  } catch (error) {
+    console.error('[API] Lỗi lấy hóa đơn theo ID:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+function buildPayOSChecksum(payload) {
+  return crypto.createHmac('sha256', PAYOS_CHECKSUM_KEY).update(JSON.stringify(payload)).digest('hex');
+}
+
+async function createPayOSPaymentSession(invoice, userId) {
+  const payload = {
+    clientId: PAYOS_CLIENT_ID,
+    apiKey: PAYOS_API_KEY,
+    invoiceId: invoice.invoiceId,
+    amount: invoice.amount,
+    currency: invoice.currency,
+    userId,
+    description: `Thanh toán ${invoice.feeType}`,
+  };
+
+  if (PAYOS_API_BASE_URL && PAYOS_CLIENT_ID && PAYOS_API_KEY && PAYOS_CHECKSUM_KEY) {
+    const checksum = buildPayOSChecksum(payload);
+    const response = await fetch(`${PAYOS_API_BASE_URL}/payments/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, checksum }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Không thể tạo yêu cầu PayOS.');
+    }
+    return { paymentUrl: data.paymentUrl || data.qrUrl || data.redirectUrl };
+  }
+
+  return {
+    paymentUrl: `https://payos.example.com/qr?client_id=${encodeURIComponent(PAYOS_CLIENT_ID || 'demo')}&invoice_id=${encodeURIComponent(invoice.invoiceId)}&amount=${invoice.amount}`,
+  };
+}
+
+async function verifyPayOSPayment(invoice) {
+  if (PAYOS_API_BASE_URL && PAYOS_CLIENT_ID && PAYOS_API_KEY && PAYOS_CHECKSUM_KEY) {
+    const payload = {
+      clientId: PAYOS_CLIENT_ID,
+      apiKey: PAYOS_API_KEY,
+      invoiceId: invoice.invoiceId,
+      amount: invoice.amount,
+    };
+    const checksum = buildPayOSChecksum(payload);
+    const response = await fetch(`${PAYOS_API_BASE_URL}/payments/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, checksum }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Không thể kiểm tra trạng thái PayOS.');
+    }
+    return data.status === 'PAID' || data.status === 'COMPLETED';
+  }
+
+  return true;
+}
+
+app.post('/api/invoices/:invoiceId/payment-request', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const invoice = await invoiceService.getInvoiceById(req.params.invoiceId);
+    if (!invoice || invoice.userId !== req.uid) {
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn để thanh toán.' });
+    }
+
+    if (invoice.status === 'paid') {
+      return res.status(400).json({ error: 'Hóa đơn đã được thanh toán.' });
+    }
+
+    const { paymentUrl } = await createPayOSPaymentSession(invoice, req.uid);
+    return res.status(200).json({ paymentUrl });
+  } catch (error) {
+    console.error('[API] Lỗi tạo yêu cầu thanh toán PayOS:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/invoices/:invoiceId/verify-payment', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const invoice = await invoiceService.getInvoiceById(req.params.invoiceId);
+    if (!invoice || invoice.userId !== req.uid) {
+      return res.status(404).json({ error: 'Không tìm thấy hóa đơn.' });
+    }
+
+    if (invoice.status === 'paid') {
+      return res.status(200).json({ invoice, paid: true });
+    }
+
+    const paid = await verifyPayOSPayment(invoice);
+    if (!paid) {
+      return res.status(402).json({ error: 'Thanh toán chưa hoàn tất.', invoice, paid: false });
+    }
+
+    const updatedInvoice = await invoiceService.updateInvoice(invoice.invoiceId, {
+      status: 'paid',
+      paidAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    return res.status(200).json({ invoice: updatedInvoice, paid: true });
+  } catch (error) {
+    console.error('[API] Lỗi kiểm tra thanh toán hóa đơn:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/manager/invoices', verifyToken, ensureManager, async (req, res) => {
+  try {
+    const {
+      invoiceId,
+      userId,
+      amount,
+      billingMonth,
+      billingYear,
+      createdAt,
+      createdBy,
+      currency,
+      dueDate,
+      feeType,
+      paidAt,
+      status,
+    } = req.body;
+
+    if (!invoiceId || !userId || !amount || !currency || !dueDate || !feeType) {
+      return res.status(400).json({ error: 'invoiceId, userId, amount, currency, dueDate và feeType là bắt buộc.' });
+    }
+
+    const invoice = await invoiceService.createOrUpdateInvoice({
+      invoiceId,
+      userId,
+      amount,
+      billingMonth,
+      billingYear,
+      createdAt,
+      createdBy: createdBy || req.userProfile.fullName || req.uid,
+      currency,
+      dueDate,
+      feeType,
+      paidAt: paidAt || null,
+      status: status || 'unpaid',
+      updatedAt: new Date().toISOString(),
+    });
+
+    return res.status(201).json(invoice);
+  } catch (error) {
+    console.error('[API] Lỗi tạo hóa đơn bởi manager:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date() });
 });
@@ -451,6 +920,42 @@ async function verifyToken(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized: Token không hợp lệ hoặc đã hết hạn.' });
   }
 }
+
+// ============================================================
+// ROUTES: Phản ánh Cư dân (/api/complaints)
+// ============================================================
+
+/**
+ * POST /api/complaints
+ * Cư dân gửi phản ánh mới.
+ */
+app.post('/api/complaints', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const result = await complaintService.createComplaint(
+      req.uid,
+      req.userProfile.fullName,
+      req.body
+    );
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi gửi phản ánh cư dân:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/complaints
+ * Lấy danh sách các phản ánh của cư dân đang đăng nhập.
+ */
+app.get('/api/complaints', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const result = await complaintService.getUserComplaints(req.uid);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi lấy danh sách phản ánh cư dân:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
 
 // ============================================================
 // ROUTES: Thông báo Cư dân (/api/notifications)

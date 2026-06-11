@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
 import { ROLES, normalizeRole } from '../../constants/roles';
+import CollectionRouteMap from '../../components/CollectionRouteMap';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 function getStatusBadge(status) {
   const state = (status || '').toLowerCase();
+  if (state.includes('confirmed')) return 'bg-emerald-200 text-emerald-800';
   if (state.includes('assigned')) return 'bg-emerald-100 text-emerald-700';
   if (state.includes('planned')) return 'bg-sky-100 text-sky-700';
   if (state.includes('delayed')) return 'bg-amber-100 text-amber-700';
@@ -52,7 +54,15 @@ export default function Dashboard() {
     scheduleId: '',
     assignedTruck: 'TRUCK-402',
     assignedDriver: 'Nguyễn Văn A',
+    assignedCollector: 'Collector placeholder',
   });
+
+  const [routePoints, setRoutePoints] = useState([
+    [16.0628, 108.2232],
+    [16.0685, 108.2197],
+    [16.0752, 108.2253],
+    [16.0818, 108.2322],
+  ]);
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
@@ -74,9 +84,20 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (normalizeRole(user?.role) === ROLES.MANAGER) {
+    if (user === null) {
+      return;
+    }
+
+    const role = normalizeRole(user.role);
+    if (role === ROLES.RESIDENT) {
+      navigate('/');
+      return;
+    }
+
+    if (role === ROLES.MANAGER) {
       loadManagerData();
     }
-  }, [user]);
+  }, [user, navigate]);
 
   const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
@@ -102,8 +123,19 @@ export default function Dashboard() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Không thể tải lịch thu gom.');
     setSchedules(data);
-    if (data.length > 0 && !assignment.scheduleId) {
-      setAssignment((prev) => ({ ...prev, scheduleId: data[0].id }));
+    if (data.length > 0) {
+      const selectedId = assignment.scheduleId || data[0].id;
+      const selectedSchedule = data.find((schedule) => schedule.id === selectedId);
+      if (selectedSchedule) {
+        setAssignment((prev) => ({
+          ...prev,
+          scheduleId: selectedId,
+          assignedTruck: selectedSchedule.assigned_truck || '',
+          assignedDriver: selectedSchedule.assigned_driver || '',
+          assignedCollector: selectedSchedule.assigned_collector || '',
+        }));
+        setRoutePoints(selectedSchedule.route_points || []);
+      }
     }
     return data;
   };
@@ -138,15 +170,54 @@ export default function Dashboard() {
       const response = await fetch(`${API_BASE}/api/manager/schedules`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(newSchedule),
+        body: JSON.stringify({
+          ...newSchedule,
+          routePoints,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Không thể tạo lịch thu gom mới.');
 
       setApiMessage('Lịch thu gom mới đã được tạo thành công.');
       await fetchSchedules();
+      if (data.schedule?.route_points) {
+        setRoutePoints(data.schedule.route_points);
+      }
     } catch (error) {
       setManagerError(error.message || 'Lỗi khi tạo lịch thu gom.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
+  const handleSaveRoute = async () => {
+    if (!assignment.scheduleId) {
+      setManagerError('Vui lòng chọn một lịch để lưu tuyến.');
+      return;
+    }
+    const selectedSchedule = schedules.find((schedule) => schedule.id === assignment.scheduleId);
+    if (selectedSchedule?.collector_confirmed) {
+      setManagerError('Tuyến đã được nhân viên xác nhận, không thể chỉnh sửa nữa.');
+      return;
+    }
+
+    setManagerLoading(true);
+    setApiMessage('');
+    setManagerError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/api/manager/schedules/${assignment.scheduleId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ routePoints }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Không thể lưu tuyến.');
+
+      setApiMessage('Tuyến đã được lưu thành công.');
+      await fetchSchedules();
+    } catch (error) {
+      setManagerError(error.message || 'Lỗi khi lưu tuyến.');
     } finally {
       setManagerLoading(false);
     }
@@ -158,6 +229,11 @@ export default function Dashboard() {
       setManagerError('Vui lòng chọn một lịch thu gom để gán tuyến.');
       return;
     }
+    const selectedSchedule = schedules.find((schedule) => schedule.id === assignment.scheduleId);
+    if (selectedSchedule?.collector_confirmed) {
+      setManagerError('Tuyến đã được nhân viên xác nhận, không thể chỉnh sửa nữa.');
+      return;
+    }
 
     setManagerLoading(true);
     setApiMessage('');
@@ -167,7 +243,12 @@ export default function Dashboard() {
       const response = await fetch(`${API_BASE}/api/manager/assign-route`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(assignment),
+        body: JSON.stringify({
+          scheduleId: assignment.scheduleId,
+          assignedTruck: assignment.assignedTruck,
+          assignedDriver: assignment.assignedDriver,
+          assignedCollector: assignment.assignedCollector,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Không thể gán tuyến.');
@@ -176,6 +257,34 @@ export default function Dashboard() {
       await fetchSchedules();
     } catch (error) {
       setManagerError(error.message || 'Lỗi khi gán tuyến.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
+  const handleConfirmRoute = async () => {
+    if (!assignment.scheduleId) {
+      setManagerError('Vui lòng chọn một lịch để xác nhận.');
+      return;
+    }
+
+    setManagerLoading(true);
+    setApiMessage('');
+    setManagerError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/api/manager/confirm-route`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ scheduleId: assignment.scheduleId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Không thể xác nhận tuyến.');
+
+      setApiMessage('Tuyến đã được xác nhận thành công.');
+      await fetchSchedules();
+    } catch (error) {
+      setManagerError(error.message || 'Lỗi khi xác nhận tuyến.');
     } finally {
       setManagerLoading(false);
     }
@@ -207,6 +316,22 @@ export default function Dashboard() {
 
   const handleChangeAssignment = (event) => {
     const { name, value } = event.target;
+
+    if (name === 'scheduleId') {
+      const selectedSchedule = schedules.find((schedule) => schedule.id === value);
+      if (selectedSchedule) {
+        setRoutePoints(selectedSchedule.route_points || []);
+        setAssignment((prev) => ({
+          ...prev,
+          scheduleId: value,
+          assignedTruck: selectedSchedule.assigned_truck || '',
+          assignedDriver: selectedSchedule.assigned_driver || '',
+          assignedCollector: selectedSchedule.assigned_collector || '',
+        }));
+        return;
+      }
+    }
+
     setAssignment((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -241,6 +366,9 @@ export default function Dashboard() {
     );
   }
 
+  const selectedSchedule = schedules.find((schedule) => schedule.id === assignment.scheduleId);
+  const isAssignmentLocked = !!selectedSchedule?.collector_confirmed;
+
   const totalSchedules = report?.summary?.total_schedules ?? schedules.length;
   const assignedRoutes = report?.summary?.assigned_routes ?? schedules.filter((item) => item.assigned_truck && item.assigned_driver).length;
   const summary = {
@@ -273,13 +401,23 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-lg">logout</span>
-            <span>Đăng xuất</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/invoices/new')}
+              className="py-2.5 px-4 bg-primary text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined">receipt_long</span>
+              Tạo hóa đơn
+            </button>
+            <button
+              onClick={handleLogout}
+              className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-lg">logout</span>
+              <span>Đăng xuất</span>
+            </button>
+          </div>
         </div>
 
         {managerError && (
@@ -482,13 +620,14 @@ export default function Dashboard() {
                   </select>
                 </label>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-3">
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Xe thu gom</span>
                     <input
                       name="assignedTruck"
                       value={assignment.assignedTruck}
                       onChange={handleChangeAssignment}
+                      disabled={managerLoading || isAssignmentLocked}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       placeholder="TRUCK-402"
                     />
@@ -499,20 +638,65 @@ export default function Dashboard() {
                       name="assignedDriver"
                       value={assignment.assignedDriver}
                       onChange={handleChangeAssignment}
+                      disabled={managerLoading || isAssignmentLocked}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       placeholder="Nguyễn Văn A"
                     />
                   </label>
+                  <label className="block">
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Nhân viên</span>
+                    <input
+                      name="assignedCollector"
+                      value={assignment.assignedCollector}
+                      onChange={handleChangeAssignment}
+                      disabled={managerLoading || isAssignmentLocked}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      placeholder="Collector placeholder"
+                    />
+                  </label>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={managerLoading || schedules.length === 0}
-                  className="w-full rounded-2xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {managerLoading ? 'Đang gán tuyến...' : 'Gán tuyến cho lịch'}
-                </button>
+                <div className="flex flex-col gap-3">
+                  <button
+                    type="submit"
+                    disabled={managerLoading || schedules.length === 0 || isAssignmentLocked}
+                    className="w-full rounded-2xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {managerLoading ? 'Đang gán tuyến...' : 'Gán tuyến cho lịch'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveRoute}
+                    disabled={managerLoading || !assignment.scheduleId || isAssignmentLocked}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100"
+                  >
+                    {managerLoading ? 'Đang lưu tuyến...' : 'Lưu route đã chỉnh sửa'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmRoute}
+                    disabled={managerLoading || !assignment.scheduleId || !selectedSchedule?.assigned_truck || !selectedSchedule?.assigned_driver || isAssignmentLocked}
+                    className="w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {managerLoading ? 'Đang xác nhận...' : 'Placeholder: Xác nhận tuyến'}
+                  </button>
+                </div>
               </form>
+              {isAssignmentLocked && (
+                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                  Tuyến này đã được nhân viên xác nhận, nên các chỉnh sửa tiếp theo bị khoá.
+                </div>
+              )}
+            </section>
+
+            <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-0 shadow-sm">
+              <CollectionRouteMap
+                title={assignment.scheduleId ? 'Route Planner' : 'Route Map'}
+                collectorName={assignment.assignedCollector || 'Chưa gán'}
+                routePoints={routePoints}
+                setRoutePoints={setRoutePoints}
+                readOnly={isAssignmentLocked}
+              />
             </section>
           </div>
 
