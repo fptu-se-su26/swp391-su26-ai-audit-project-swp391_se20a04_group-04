@@ -6,7 +6,7 @@
  *   - NotificationSettings → sidebar cài đặt kênh nhận thông báo
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import notificationService from '../../services/notificationService';
 import authService from '../../services/authService';
@@ -28,19 +28,15 @@ export default function Notifications() {
   const [error, setError]                   = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSaved, setSettingsSaved]   = useState(false);
-  const [seeding, setSeeding]               = useState(false); // [DEV] Xóa khi production
 
   // ─── Kiểm tra đăng nhập ───────────────────────────────────────────────────
   useEffect(() => {
     if (!authService.isAuthenticated()) navigate('/login');
   }, [navigate]);
 
-  if (currentUser && normalizeRole(currentUser.role) === ROLES.ADMIN) {
-    return <AdminNotifications />;
-  }
-
   // ─── Tải dữ liệu ──────────────────────────────────────────────────────────
-  const loadData = useCallback(async () => {
+  // Dùng useRef để giữ reference tới loadData mà không cần useCallback
+  const loadData = async () => {
     setLoading(true);
     setError('');
     try {
@@ -60,30 +56,21 @@ export default function Notifications() {
     } catch {
       // Im lặng: Dùng settings mặc định { email: true, sms: false, push: true }
     }
-  }, []);
+  };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
     window.addEventListener('notificationsUpdated', loadData);
     return () => window.removeEventListener('notificationsUpdated', loadData);
-  }, [loadData]);
+  }, []);
+
+  // ─── Kiểm tra quyền ADMIN sau khi tất cả Hooks đã được gọi ───────────────
+  if (currentUser && normalizeRole(currentUser.role) === ROLES.ADMIN) {
+    return <AdminNotifications />;
+  }
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
-
-  /** [DEV] Tạo dữ liệu mẫu để kiểm thử — Xóa khi production */
-  const handleSeed = async () => {
-    setSeeding(true);
-    try {
-      const result = await notificationService.seedNotifications();
-      alert(`✅ Đã tạo ${result.seeded} thông báo mẫu! Đang tải lại...`);
-      await loadData();
-      window.dispatchEvent(new Event('notificationsUpdated'));
-    } catch (err) {
-      alert(`❌ Lỗi: ${err.message}`);
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   /** Đánh dấu một thông báo đã đọc */
   const handleMarkAsRead = async (id) => {

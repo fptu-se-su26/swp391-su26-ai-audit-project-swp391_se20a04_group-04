@@ -31,15 +31,6 @@ export default function UserManagement({ hideHeader = false }) {
   });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser || normalizeRole(currentUser.role) !== ROLES.ADMIN) {
-      navigate('/');
-      return;
-    }
-    fetchData();
-  }, [page, search, roleFilter]);
-
   const fetchData = async () => {
     setLoading(true);
     setError('');
@@ -54,6 +45,17 @@ export default function UserManagement({ hideHeader = false }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser || normalizeRole(currentUser.role) !== ROLES.ADMIN) {
+      navigate('/');
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search, roleFilter]);
 
   const handleSearchChange = (e) => {
     setSearch(e.target.value);

@@ -1,0 +1,526 @@
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\fetchData.js
+  20:16  warning  'checkRealtimeDB' is defined but never used  no-unused-vars
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\components\CollectionRouteMap.jsx
+  42:16  warning  'e' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       no-unused-vars
+  61:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  59 |
+  60 |   useEffect(() => {
+> 61 |     setPoints(routePoints);
+     |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  62 |   }, [routePoints]);
+  63 |
+  64 |   const updatePoints = (nextPoints) => {  react-hooks/set-state-in-effect
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\components\Header.jsx
+  79:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  77 |     }, 3000);
+  78 |
+> 79 |     fetchNotifications();
+     |     ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  80 |
+  81 |     return () => {
+  82 |       window.removeEventListener('authChange', handleAuthChange);  react-hooks/set-state-in-effect
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\pages\Admin\AdminComplaints.jsx
+  21:5  error    Error: Cannot access variable before it is declared
+
+`fetchComplaints` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  19 |
+  20 |   useEffect(() => {
+> 21 |     fetchComplaints();
+     |     ^^^^^^^^^^^^^^^ `fetchComplaints` accessed before it is declared
+  22 |   }, [page, search, roleFilter]);
+  23 |
+  24 |   const fetchComplaints = async () => {
+
+  22 |   }, [page, search, roleFilter]);
+  23 |
+> 24 |   const fetchComplaints = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 25 |     setLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 26 |     setError(null);
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 36 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 37 |   };
+     | ^^^^^ `fetchComplaints` is declared here
+  38 |
+  39 |   const getStatusBadge = (status) => {
+  40 |     const s = status ? status.toLowerCase() : 'open';  react-hooks/immutability
+  22:6  warning  React Hook useEffect has a missing dependency: 'fetchComplaints'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        react-hooks/exhaustive-deps
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\pages\Admin\AdminManagement.jsx
+  24:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  22 |     const tab = searchParams.get('tab');
+  23 |     if (tab === 'complaints') {
+> 24 |       setActiveTab('complaints');
+     |       ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  25 |     } else {
+  26 |       setActiveTab('users');
+  27 |     }  react-hooks/set-state-in-effect
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\pages\Admin\AdminNotifications.jsx
+  34:5  error    Error: Cannot access variable before it is declared
+
+`fetchNotifications` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  32 |
+  33 |   useEffect(() => {
+> 34 |     fetchNotifications();
+     |     ^^^^^^^^^^^^^^^^^^ `fetchNotifications` accessed before it is declared
+  35 |     // Reset page when filter changes
+  36 |     setCurrentPage(1);
+  37 |   }, [roleFilter]);
+
+  37 |   }, [roleFilter]);
+  38 |
+> 39 |   const fetchNotifications = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 40 |     setLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 41 |     setError('');
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 49 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 50 |   };
+     | ^^^^^ `fetchNotifications` is declared here
+  51 |
+  52 |   const handleRoleFilterChange = (e) => {
+  53 |     setRoleFilter(e.target.value);                                                             react-hooks/immutability
+  36:5  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  34 |     fetchNotifications();
+  35 |     // Reset page when filter changes
+> 36 |     setCurrentPage(1);
+     |     ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  37 |   }, [roleFilter]);
+  38 |
+  39 |   const fetchNotifications = async () => {  react-hooks/set-state-in-effect
+  37:6  warning  React Hook useEffect has a missing dependency: 'fetchNotifications'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            react-hooks/exhaustive-deps
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\pages\Admin\AdminPaymentHistory.jsx
+  13:5  error    Error: Cannot access variable before it is declared
+
+`fetchData` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  11 |
+  12 |   useEffect(() => {
+> 13 |     fetchData();
+     |     ^^^^^^^^^ `fetchData` accessed before it is declared
+  14 |   }, [roleFilter]);
+  15 |
+  16 |   const fetchData = async () => {
+
+  14 |   }, [roleFilter]);
+  15 |
+> 16 |   const fetchData = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 17 |     setLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 18 |     setError('');
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 27 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 28 |   };
+     | ^^^^^ `fetchData` is declared here
+  29 |
+  30 |   const handleRoleChange = (e) => {
+  31 |     setRoleFilter(e.target.value);  react-hooks/immutability
+  14:6  warning  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\pages\Admin\UserManagement.jsx
+  40:5  error    Error: Cannot access variable before it is declared
+
+`fetchData` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  38 |       return;
+  39 |     }
+> 40 |     fetchData();
+     |     ^^^^^^^^^ `fetchData` accessed before it is declared
+  41 |   }, [page, search, roleFilter]);
+  42 |
+  43 |   const fetchData = async () => {
+
+  41 |   }, [page, search, roleFilter]);
+  42 |
+> 43 |   const fetchData = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 44 |     setLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 45 |     setError('');
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 55 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 56 |   };
+     | ^^^^^ `fetchData` is declared here
+  57 |
+  58 |   const handleSearchChange = (e) => {
+  59 |     setSearch(e.target.value);  react-hooks/immutability
+  41:6  warning  React Hook useEffect has missing dependencies: 'fetchData' and 'navigate'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   react-hooks/exhaustive-deps
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\pages\Complaints.jsx
+   6:8   warning  'AdminComplaints' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           no-unused-vars
+  14:16  warning  'setUser' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          no-unused-vars
+  58:5   error    Error: Cannot access variable before it is declared
+
+`fetchComplaintsHistory` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  56 |
+  57 |     fetchProvinces();
+> 58 |     fetchComplaintsHistory();
+     |     ^^^^^^^^^^^^^^^^^^^^^^ `fetchComplaintsHistory` accessed before it is declared
+  59 |
+  60 |     // Prefill tổ dân cư từ tài khoản
+  61 |     if (user && user.neighborhood) {
+
+   91 |
+   92 |   // Lấy lịch sử phản ánh của cư dân
+>  93 |   const fetchComplaintsHistory = async () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  94 |     if (!authService.isAuthenticated()) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  95 |     setLoadingHistory(true);
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 103 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 104 |   };
+      | ^^^^^ `fetchComplaintsHistory` is declared here
+  105 |
+  106 |   // Gửi biểu mẫu phản ánh
+  107 |   const handleSubmit = async (e) => {  react-hooks/immutability
+  62:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  60 |     // Prefill tổ dân cư từ tài khoản
+  61 |     if (user && user.neighborhood) {
+> 62 |       setNeighborhood(user.neighborhood);
+     |       ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  63 |     }
+  64 |   }, [user]);
+  65 |                                                                                                                 react-hooks/set-state-in-effect
+  69:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  67 |   useEffect(() => {
+  68 |     if (!selectedProvince) {
+> 69 |       setWards([]);
+     |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  70 |       setSelectedWard('');
+  71 |       return;
+  72 |     }                                                                                                                                             react-hooks/set-state-in-effect
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\pages\Dashboard\index.jsx
+  73:5  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  71 |       return;
+  72 |     }
+> 73 |     setUser(currentUser);
+     |     ^^^^^^^ Avoid calling setState() directly within an effect
+  74 |
+  75 |     const handleAuthChange = () => {
+  76 |       setUser(authService.getCurrentUser());                    react-hooks/set-state-in-effect
+  97:7  error    Error: Cannot access variable before it is declared
+
+`loadManagerData` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+   95 |
+   96 |     if (role === ROLES.MANAGER || role === ROLES.ADMIN) {
+>  97 |       loadManagerData();
+      |       ^^^^^^^^^^^^^^^ `loadManagerData` accessed before it is declared
+   98 |     }
+   99 |   }, [user, navigate]);
+  100 |
+
+  104 |   });
+  105 |
+> 106 |   const loadManagerData = async () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 107 |     setManagerLoading(true);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 108 |     setManagerError('');
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 115 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 116 |   };
+      | ^^^^^ `loadManagerData` is declared here
+  117 |
+  118 |   const fetchSchedules = async () => {
+  119 |     const response = await fetch(`${API_BASE}/api/manager/schedules`, {  react-hooks/immutability
+  99:6  warning  React Hook useEffect has a missing dependency: 'loadManagerData'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    react-hooks/exhaustive-deps
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\pages\ManagerInvoice.jsx
+  62:5  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  60 |     }
+  61 |
+> 62 |     setUser(currentUser);
+     |     ^^^^^^^ Avoid calling setState() directly within an effect
+  63 |     setInvoice((prev) => ({
+  64 |       ...prev,
+  65 |       createdAt: new Date().toISOString(),                                                                                                                                                                     react-hooks/set-state-in-effect
+  73:7  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  71 |     if (!invoice.userId) return;
+  72 |     if (!invoice.invoiceId || invoice.invoiceId.startsWith('invoice_')) {
+> 73 |       setInvoice((prev) => ({
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  74 |         ...prev,
+  75 |         invoiceId: `invoice_${prev.userId}_${prev.billingYear}_${String(prev.billingMonth).padStart(2, '0')}`,
+  76 |       }));  react-hooks/set-state-in-effect
+  78:6  warning  React Hook useEffect has a missing dependency: 'invoice.invoiceId'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\pages\Notifications\index.jsx
+  31:10  warning  'seeding' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             no-unused-vars
+  43:20  error    React Hook "useCallback" is called conditionally. React Hooks must be called in the exact same order in every component render                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           react-hooks/rules-of-hooks
+  43:32  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setLoading`, but the source dependencies were []. Inferred dependency not present in source.
+
+  41 |
+  42 |   // ─── Tải dữ liệu ──────────────────────────────────────────────────────────
+> 43 |   const loadData = useCallback(async () => {
+     |                                ^^^^^^^^^^^^^
+> 44 |     setLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 45 |     setError('');
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 62 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 63 |   }, []);
+     | ^^^^ Could not preserve existing manual memoization
+  64 |
+  65 |   useEffect(() => {
+  66 |     loadData();                                                  react-hooks/preserve-manual-memoization
+  43:32  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setError`, but the source dependencies were []. Inferred dependency not present in source.
+
+  41 |
+  42 |   // ─── Tải dữ liệu ──────────────────────────────────────────────────────────
+> 43 |   const loadData = useCallback(async () => {
+     |                                ^^^^^^^^^^^^^
+> 44 |     setLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 45 |     setError('');
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 62 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 63 |   }, []);
+     | ^^^^ Could not preserve existing manual memoization
+  64 |
+  65 |   useEffect(() => {
+  66 |     loadData();                                                    react-hooks/preserve-manual-memoization
+  43:32  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setNotifications`, but the source dependencies were []. Inferred dependency not present in source.
+
+  41 |
+  42 |   // ─── Tải dữ liệu ──────────────────────────────────────────────────────────
+> 43 |   const loadData = useCallback(async () => {
+     |                                ^^^^^^^^^^^^^
+> 44 |     setLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 45 |     setError('');
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 62 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 63 |   }, []);
+     | ^^^^ Could not preserve existing manual memoization
+  64 |
+  65 |   useEffect(() => {
+  66 |     loadData();                                            react-hooks/preserve-manual-memoization
+  43:32  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `setSettings`, but the source dependencies were []. Inferred dependency not present in source.
+
+  41 |
+  42 |   // ─── Tải dữ liệu ──────────────────────────────────────────────────────────
+> 43 |   const loadData = useCallback(async () => {
+     |                                ^^^^^^^^^^^^^
+> 44 |     setLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 45 |     setError('');
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 62 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 63 |   }, []);
+     | ^^^^ Could not preserve existing manual memoization
+  64 |
+  65 |   useEffect(() => {
+  66 |     loadData();                                                 react-hooks/preserve-manual-memoization
+  65:3   error    React Hook "useEffect" is called conditionally. React Hooks must be called in the exact same order in every component render                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/rules-of-hooks
+  66:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  64 |
+  65 |   useEffect(() => {
+> 66 |     loadData();
+     |     ^^^^^^^^ Avoid calling setState() directly within an effect
+  67 |     window.addEventListener('notificationsUpdated', loadData);
+  68 |     return () => window.removeEventListener('notificationsUpdated', loadData);
+  69 |   }, [loadData]);  react-hooks/set-state-in-effect
+  74:9   warning  'handleSeed' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          no-unused-vars
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\pages\Payment.jsx
+  62:3   error    React Hook "useEffect" is called conditionally. React Hooks must be called in the exact same order in every component render                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    react-hooks/rules-of-hooks
+  64:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  62 |   useEffect(() => {
+  63 |     if (!currentUser) {
+> 64 |       setLoading(false);
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  65 |       return;
+  66 |     }
+  67 |                                                                                                                                                                                react-hooks/set-state-in-effect
+  88:17  error    Error: Cannot access variable before it is declared
+
+`createDefaultInvoice` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  86 |         const message = buildErrorMessage(err);
+  87 |         if (message.includes('Không tìm thấy')) {
+> 88 |           await createDefaultInvoice();
+     |                 ^^^^^^^^^^^^^^^^^^^^ `createDefaultInvoice` accessed before it is declared
+  89 |         } else {
+  90 |           setError(message);
+  91 |         }
+
+   98 |   }, [currentUser?.uid, currentUser?.role]);
+   99 |
+> 100 |   const createDefaultInvoice = async () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 101 |     if (!currentUser) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^
+> 102 |       setError('Vui lòng đăng nhập trước khi thanh toán.');
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^
+> 114 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^
+> 115 |   };
+      | ^^^^^ `createDefaultInvoice` is declared here
+  116 |
+  117 |   const handleRequestPayment = async () => {
+  118 |     if (!invoice) {  react-hooks/immutability
+  98:6   warning  React Hook useEffect has missing dependencies: 'createDefaultInvoice' and 'currentUser'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     react-hooks/exhaustive-deps
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\resident\ResidentSchedules.jsx
+  53:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  51 |     const user = authService.getCurrentUser();
+  52 |     if (user) {
+> 53 |       setCurrentUser(user);
+     |       ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  54 |       // Điền sẵn tổ dân cư từ địa chỉ hoặc thông tin phụ của user nếu có
+  55 |       if (user.area) {
+  56 |         // Ví dụ: "Quận Sơn Trà, Đà Nẵng" -> chúng ta có thể trích xuất nếu có  react-hooks/set-state-in-effect
+  67:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  65 |   useEffect(() => {
+  66 |     if (!selectedProvince) {
+> 67 |       setWards([]);
+     |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  68 |       setSelectedWard('');
+  69 |       return;
+  70 |     }                                                                                                                                                               react-hooks/set-state-in-effect
+
+D:\swp391-su26-ai-audit-project-swp391_se20a04_group-04\.src\frontend\src\services\authService.js
+   58:7   error    There is no `cause` attached to the symptom error being thrown                       preserve-caught-error
+   66:5   error    Unnecessary try/catch wrapper                                                        no-useless-catch
+   91:7   warning  Unused eslint-disable directive (no problems were reported from 'no-useless-catch')
+  143:9   error    There is no `cause` attached to the symptom error being thrown                       preserve-caught-error
+  145:7   error    There is no `cause` attached to the symptom error being thrown                       preserve-caught-error
+  173:14  warning  'e' is defined but never used                                                        no-unused-vars
+
+✖ 46 problems (31 errors, 15 warnings)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
