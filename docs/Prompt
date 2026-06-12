@@ -20,3 +20,16 @@ TÓM TẮT HƯỚNG DẪN PHÂN LOẠI RÁC TẠI NGUỒN
 - Chuẩn bị: Mỗi hộ gia đình nên trang bị sẵn 2-3 thùng/túi rác khác màu.
 - Lưu trữ: Phải buộc kín miệng túi rác hữu cơ để tránh mùi hôi và côn trùng.
 - Bàn giao: Đưa rác đến đúng nơi quy định, tuân thủ đúng khung giờ và lịch thu gom của khu dân cư.
+
+Bây giờ ngoài  manager và collector thì tạo ra thêm role admin với có chức năng là quản lí người dùng 
+Chức năng quản lí người dùng(Tên hiện thị sẽ là: Quản lí): Hiển thị danh sách người dùng gồm các thông tin cơ bản như tên,mã,gmail và role 
+Có chức năng thêm xóa hoặc chỉnh sửa người dùng và chức năng này sẽ chỉnh sửa trực tiếp trên Database
+Danh sách nếu được hiển thị 10 người 1 trang nếu nhiều quá sẽ có thể có thể qua trang 
+Có chức năng tìm kiếm user theo tên và role 
+Các chức năng khác thì sẽ giống như manager 
+Phản ánh: Đối với admin thì không có chức năng gửi phản ánh cư dân
+Nhưng có chức năng tổng hợp danh sách các phản ảnh đã được gửi của user được phân ra như sau: tổng các phản ánh hoặc lọc phản ánh theo role 
+Tìm kiếm phản ánh
+ Các phản ánh được lấy từ Database
+ Đổi tên Gửi 
+ Chức năng quản lí

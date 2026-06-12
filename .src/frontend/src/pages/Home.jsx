@@ -1,8 +1,13 @@
 import { useNavigate } from 'react-router-dom';
+import authService from '../services/authService';
+import { ROLES, normalizeRole } from '../constants/roles';
 import './Home.css';
 
 export default function Home() {
   const navigate = useNavigate();
+  const currentUser = authService.getCurrentUser();
+  const isAdmin = currentUser && normalizeRole(currentUser.role) === ROLES.ADMIN;
+
   return (
     <main>
       {/* Hero Section */}
@@ -10,24 +15,43 @@ export default function Home() {
         <div className="max-w-container-max-width mx-auto px-margin-desktop grid md:grid-cols-2 gap-12 items-center">
           <div>
             <h1 className="font-display-hero text-display-hero text-on-surface mb-6 leading-tight">
-              Tra cứu lịch thu gom rác nhanh, <span className="text-primary">nhận nhắc lịch</span> đúng ngày
+              {isAdmin ? (
+                <>Quản trị hệ thống <span className="text-primary">nhanh chóng</span>, toàn diện</>
+              ) : (
+                <>Tra cứu lịch thu gom rác nhanh, <span className="text-primary">nhận nhắc lịch</span> đúng ngày</>
+              )}
             </h1>
             <p className="font-body-lg text-body-lg text-on-surface-variant mb-10 max-w-lg">
-              Theo dõi lịch theo khu vực, nhận thông báo tự động và thanh toán phí vệ sinh trực tuyến trong một nền tảng duy nhất.
+              {isAdmin ? (
+                'Quản lý thông tin tài khoản người dùng, theo dõi và xử lý các phản ánh, góp ý từ cư dân hiệu quả.'
+              ) : (
+                'Theo dõi lịch theo khu vực, nhận thông báo tự động và thanh toán phí vệ sinh trực tuyến trong một nền tảng duy nhất.'
+              )}
             </p>
             <div className="flex gap-4">
-              <button 
-                onClick={() => navigate('/tra-cuu')}
-                className="bg-primary text-on-primary px-8 py-4 rounded-xl font-label-md text-label-md hover:opacity-90 transition-all shadow-lg cursor-pointer"
-              >
-                Kiểm tra lịch
-              </button>
-              <button 
-                onClick={() => navigate('/thanh-toan')}
-                className="border-2 border-primary text-primary px-8 py-4 rounded-xl font-label-md text-label-md hover:bg-primary/5 transition-all cursor-pointer"
-              >
-                Thanh toán phí
-              </button>
+              {isAdmin ? (
+                <button 
+                  onClick={() => navigate('/quan-ly')}
+                  className="bg-primary text-on-primary px-8 py-4 rounded-xl font-label-md text-label-md hover:opacity-90 transition-all shadow-lg cursor-pointer"
+                >
+                  Quản lý ngay
+                </button>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => navigate('/tra-cuu')}
+                    className="bg-primary text-on-primary px-8 py-4 rounded-xl font-label-md text-label-md hover:opacity-90 transition-all shadow-lg cursor-pointer"
+                  >
+                    Kiểm tra lịch
+                  </button>
+                  <button 
+                    onClick={() => navigate('/thanh-toan')}
+                    className="border-2 border-primary text-primary px-8 py-4 rounded-xl font-label-md text-label-md hover:bg-primary/5 transition-all cursor-pointer"
+                  >
+                    Thanh toán phí
+                  </button>
+                </>
+              )}
             </div>
           </div>
           <div className="relative">

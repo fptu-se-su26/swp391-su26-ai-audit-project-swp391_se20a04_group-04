@@ -534,6 +534,55 @@ app.delete('/api/admin/users/:uid', verifyToken, ensureAdmin, async (req, res) =
   }
 });
 
+app.get('/api/admin/complaints', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const { search = '', role = '', page = 1, limit = 10 } = req.query;
+    
+    const snapshot = await db.collection('complaints').orderBy('created_at', 'desc').get();
+    let complaints = [];
+    snapshot.forEach(doc => complaints.push({ id: doc.id, ...doc.data() }));
+
+    const usersSnapshot = await db.collection(USERS_COLLECTION).get();
+    const usersMap = {};
+    usersSnapshot.forEach(doc => {
+      const u = normalizeUser(doc.data(), doc.id);
+      usersMap[doc.id] = normalizeRole(u.role);
+    });
+
+    complaints = complaints.map(c => ({
+      ...c,
+      userRole: usersMap[c.userId] || 'Unknown'
+    }));
+
+    if (role) {
+      complaints = complaints.filter(c => c.userRole === role);
+    }
+    if (search) {
+      const lowerSearch = search.toLowerCase();
+      complaints = complaints.filter(c => 
+        (c.title && c.title.toLowerCase().includes(lowerSearch)) || 
+        (c.description && c.description.toLowerCase().includes(lowerSearch)) ||
+        (c.userName && c.userName.toLowerCase().includes(lowerSearch))
+      );
+    }
+
+    const total = complaints.length;
+    const start = (page - 1) * limit;
+    const paginated = complaints.slice(start, start + parseInt(limit));
+
+    res.json({
+      data: paginated,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (error) {
+    console.error('[Admin] Lỗi lấy danh sách phản ánh:', error);
+    res.status(500).json({ error: 'Lỗi khi tải danh sách phản ánh.' });
+  }
+});
+
 app.get('/api/manager/schedules', verifyToken, ensureManager, async (req, res) => {
   try {
     const snapshot = await db.collection('collection_schedules').orderBy('schedule_date', 'asc').get();
@@ -1159,6 +1208,63 @@ app.post('/api/notifications/seed', verifyToken, async (req, res) => {
     return res.status(201).json({ success: true, ...result });
   } catch (error) {
     console.error('[API] Lỗi seed dữ liệu thông báo:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/notifications/admin
+ * [ADMIN] Lấy toàn bộ danh sách thông báo.
+ */
+app.get('/api/notifications/admin', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const { role } = req.query;
+    const notifications = await notificationService.getAdminNotifications(role);
+    return res.status(200).json(notifications);
+  } catch (error) {
+    console.error('[API] Lỗi lấy danh sách thông báo admin:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/notifications/admin
+ * [ADMIN] Tạo một thông báo mới.
+ */
+app.post('/api/notifications/admin', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const result = await notificationService.createAdminNotification(req.body);
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi tạo thông báo admin:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/notifications/admin/:id
+ * [ADMIN] Cập nhật thông báo.
+ */
+app.put('/api/notifications/admin/:id', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const result = await notificationService.updateAdminNotification(req.params.id, req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi cập nhật thông báo admin:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/notifications/admin/:id
+ * [ADMIN] Xóa thông báo.
+ */
+app.delete('/api/notifications/admin/:id', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const result = await notificationService.deleteAdminNotification(req.params.id);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi xóa thông báo admin:', error.message);
     return res.status(500).json({ error: error.message });
   }
 });
