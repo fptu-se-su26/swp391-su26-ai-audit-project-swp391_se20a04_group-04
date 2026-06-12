@@ -182,6 +182,90 @@ async function seedNotificationsForUser(userId) {
   return { seeded: sampleNotifications.length };
 }
 
+/**
+ * [ADMIN] Lấy toàn bộ thông báo từ hệ thống.
+ */
+async function getAdminNotifications(roleFilter) {
+  let query = db.collection(NOTIFICATIONS_COLLECTION).orderBy('sent_at', 'desc');
+  if (roleFilter && roleFilter !== 'all') {
+    query = query.where('targetRole', '==', roleFilter);
+  }
+  const snapshot = await query.get();
+  
+  if (snapshot.empty) return [];
+  
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    // Chuyển đổi an toàn kiểu dữ liệu thời gian về ISO String
+    let sentAtISO = data.sent_at;
+    if (data.sent_at?.toDate) {
+      sentAtISO = data.sent_at.toDate().toISOString();
+    } else if (data.sent_at instanceof Date) {
+      sentAtISO = data.sent_at.toISOString();
+    }
+
+    let createdAtISO = data.created_at || sentAtISO;
+    if (data.created_at?.toDate) {
+      createdAtISO = data.created_at.toDate().toISOString();
+    } else if (data.created_at instanceof Date) {
+      createdAtISO = data.created_at.toISOString();
+    }
+
+    return {
+      id: doc.id,
+      ...data,
+      sent_at: sentAtISO,
+      created_at: createdAtISO,
+    };
+  });
+}
+
+/**
+ * [ADMIN] Tạo một thông báo mới
+ */
+async function createAdminNotification(payload) {
+  const { title, message, type, targetRole } = payload;
+  const newNotification = {
+    title,
+    content: message,
+    type: type || 'system',
+    targetRole: targetRole || 'all',
+    sent_at: new Date(),
+    created_at: new Date().toISOString(),
+    is_read: false,
+    sender_role: 'admin',
+    sender_name: 'Hệ thống Admin',
+  };
+
+  const docRef = await db.collection(NOTIFICATIONS_COLLECTION).add(newNotification);
+  return { id: docRef.id, ...newNotification };
+}
+
+/**
+ * [ADMIN] Cập nhật một thông báo
+ */
+async function updateAdminNotification(id, payload) {
+  const { title, message, type, targetRole } = payload;
+  const updateData = {
+    title,
+    content: message,
+    type: type || 'system',
+    targetRole: targetRole || 'all',
+    updated_at: new Date().toISOString(),
+  };
+
+  await db.collection(NOTIFICATIONS_COLLECTION).doc(id).update(updateData);
+  return { id, ...updateData };
+}
+
+/**
+ * [ADMIN] Xóa một thông báo
+ */
+async function deleteAdminNotification(id) {
+  await db.collection(NOTIFICATIONS_COLLECTION).doc(id).delete();
+  return { id, deleted: true };
+}
+
 module.exports = {
   getNotifications,
   markAsRead,
@@ -189,4 +273,8 @@ module.exports = {
   getNotificationSettings,
   updateNotificationSettings,
   seedNotificationsForUser,
+  getAdminNotifications,
+  createAdminNotification,
+  updateAdminNotification,
+  deleteAdminNotification,
 };

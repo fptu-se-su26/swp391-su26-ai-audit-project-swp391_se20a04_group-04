@@ -10,12 +10,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import notificationService from '../../services/notificationService';
 import authService from '../../services/authService';
+import { ROLES, normalizeRole } from '../../constants/roles';
 import NotificationCard from './NotificationCard';
 import NotificationSettings from './NotificationSettings';
+import AdminNotifications from '../Admin/AdminNotifications';
 import { TABS } from './notificationUtils';
 
 export default function Notifications() {
   const navigate = useNavigate();
+  const currentUser = authService.getCurrentUser();
 
   // ─── State ────────────────────────────────────────────────────────────────
   const [notifications, setNotifications]   = useState([]);
@@ -31,6 +34,10 @@ export default function Notifications() {
   useEffect(() => {
     if (!authService.isAuthenticated()) navigate('/login');
   }, [navigate]);
+
+  if (currentUser && normalizeRole(currentUser.role) === ROLES.ADMIN) {
+    return <AdminNotifications />;
+  }
 
   // ─── Tải dữ liệu ──────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -161,17 +168,6 @@ export default function Notifications() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* [DEV] Xóa button này trước khi deploy production */}
-            <button
-              onClick={handleSeed}
-              disabled={seeding}
-              title="[DEV] Tạo 4 thông báo mẫu để kiểm thử"
-              className="flex items-center gap-2 px-4 py-3 bg-amber-500 text-white rounded-xl font-label-md hover:bg-amber-400 active:scale-95 transition-all shadow-sm disabled:opacity-60 text-sm"
-            >
-              <span className="material-symbols-outlined text-base">science</span>
-              {seeding ? 'Đang tạo...' : 'Tạo dữ liệu mẫu'}
-            </button>
-
             <button
               onClick={handleMarkAllAsRead}
               disabled={unreadCount === 0}

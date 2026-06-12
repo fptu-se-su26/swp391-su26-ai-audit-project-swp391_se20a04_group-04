@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import authService from '../services/authService';
 import complaintService from '../services/complaintService';
+import { ROLES, normalizeRole } from '../constants/roles';
+import AdminComplaints from './Admin/AdminComplaints';
 
 // Xác định base API URL động từ config authService
 const API_BASE = import.meta.env.VITE_API_URL 
@@ -193,6 +196,11 @@ export default function Complaints() {
       minute: '2-digit'
     });
   };
+
+  // Render luồng Admin
+  if (user && normalizeRole(user.role) === ROLES.ADMIN) {
+    return <Navigate to="/quan-ly?tab=complaints" replace />;
+  }
 
   return (
     <div className="min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-950 py-10 px-4 md:px-8">

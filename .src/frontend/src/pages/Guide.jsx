@@ -1,4 +1,13 @@
+import { Navigate } from 'react-router-dom';
+import authService from '../services/authService';
+import { ROLES, normalizeRole } from '../constants/roles';
+
 export default function Guide() {
+  const user = authService.getCurrentUser();
+  if (user && normalizeRole(user.role) === ROLES.ADMIN) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return (
     <main className="bg-slate-50 dark:bg-slate-900 min-h-screen">
       {/* Hero Section */}
