@@ -9,6 +9,8 @@ import {
   verifyPaymentStatus,
 } from '../services/paymentService';
 
+import AdminPaymentHistory from './Admin/AdminPaymentHistory';
+
 const SAMPLE_INVOICE_TEMPLATE = (userId) => ({
   invoiceId: `invoice_${userId}_2026_6`,
   amount: 50000,
@@ -52,6 +54,10 @@ export default function Payment() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  if (currentUser && normalizeRole(currentUser.role) === ROLES.ADMIN) {
+    return <AdminPaymentHistory />;
+  }
 
   useEffect(() => {
     if (!currentUser) {

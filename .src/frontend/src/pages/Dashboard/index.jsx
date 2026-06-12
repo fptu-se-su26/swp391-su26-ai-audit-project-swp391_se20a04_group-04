@@ -387,8 +387,16 @@ export default function Dashboard() {
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h1 className="text-xl font-bold text-slate-800 dark:text-white">{user.fullName || 'Manager'}</h1>
-                <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">Manager</span>
+                <h1 className="text-xl font-bold text-slate-800 dark:text-white">
+                  {user.fullName || (normalizeRole(user.role) === ROLES.ADMIN ? 'Admin' : 'Manager')}
+                </h1>
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                  normalizeRole(user.role) === ROLES.ADMIN 
+                    ? 'bg-rose-100 text-rose-700' 
+                    : 'bg-emerald-100 text-emerald-700'
+                }`}>
+                  {normalizeRole(user.role) === ROLES.ADMIN ? 'Admin' : 'Manager'}
+                </span>
               </div>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-base">mail</span> {user.email}
@@ -401,22 +409,14 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/dashboard/invoices/new')}
-              className="py-2.5 px-4 bg-primary text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
-            >
-              <span className="material-symbols-outlined">receipt_long</span>
-              Tạo hóa đơn
-            </button>
-            {normalizeRole(user.role) === ROLES.ADMIN && (
+            {normalizeRole(user.role) !== ROLES.ADMIN && (
               <button
                 type="button"
-                onClick={() => navigate('/admin/users')}
-                className="py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
+                onClick={() => navigate('/dashboard/invoices/new')}
+                className="py-2.5 px-4 bg-primary text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
               >
-                <span className="material-symbols-outlined">manage_accounts</span>
-                Quản lý người dùng
+                <span className="material-symbols-outlined">receipt_long</span>
+                Tạo hóa đơn
               </button>
             )}
             <button

@@ -8,6 +8,10 @@ const BASE_URL = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace('/api/auth', '/api/complaints')
   : 'http://localhost:5001/api/complaints';
 
+const ADMIN_BASE_URL = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace('/api/auth', '/api/admin/complaints')
+  : 'http://localhost:5001/api/admin/complaints';
+
 /**
  * Tạo header Authorization đính kèm token xác thực.
  * @returns {Object} Headers với Bearer token
@@ -51,6 +55,22 @@ const complaintService = {
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || 'Không thể gửi phản ánh.');
+    }
+    return data;
+  },
+
+  /**
+   * Lấy danh sách toàn bộ phản ánh cho Admin (hỗ trợ phân trang, tìm kiếm, lọc)
+   */
+  async getAdminComplaints(page = 1, limit = 10, search = '', role = '') {
+    const query = new URLSearchParams({ page, limit, search, role }).toString();
+    const response = await fetch(`${ADMIN_BASE_URL}?${query}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Không thể tải danh sách phản ánh.');
     }
     return data;
   },

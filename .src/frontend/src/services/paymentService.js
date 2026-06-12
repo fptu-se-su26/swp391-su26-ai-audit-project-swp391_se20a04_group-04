@@ -68,3 +68,14 @@ export async function fetchInvoiceById(invoiceId) {
   });
   return parseJsonResponse(response);
 }
+
+export async function getAdminTransactions(roleFilter = '') {
+  let url = `${API_BASE}/api/admin/transactions`;
+  if (roleFilter) {
+    url += `?role=${roleFilter}`;
+  }
+  const response = await fetch(url, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(response);
+}

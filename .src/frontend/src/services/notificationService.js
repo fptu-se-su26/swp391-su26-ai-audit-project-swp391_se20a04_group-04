@@ -92,6 +92,68 @@ const notificationService = {
   },
 
   /**
+   * [ADMIN] Lấy toàn bộ danh sách thông báo.
+   * @param {string} roleFilter - Lọc theo role (tùy chọn)
+   */
+  async getAdminNotifications(roleFilter = '') {
+    let url = `${BASE_URL}/admin`;
+    if (roleFilter) url += `?role=${roleFilter}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Không thể tải danh sách thông báo Admin.');
+    return data;
+  },
+
+  /**
+   * [ADMIN] Tạo thông báo mới.
+   * @param {Object} payload - { title, message, type, targetRole, channels }
+   */
+  async createNotification(payload) {
+    const response = await fetch(`${BASE_URL}/admin`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Không thể tạo thông báo.');
+    return data;
+  },
+
+  /**
+   * [ADMIN] Cập nhật thông báo.
+   * @param {string} id - ID của thông báo
+   * @param {Object} payload - { title, message, type, targetRole }
+   */
+  async updateAdminNotification(id, payload) {
+    const response = await fetch(`${BASE_URL}/admin/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Không thể cập nhật thông báo.');
+    return data;
+  },
+
+  /**
+   * [ADMIN] Xóa thông báo.
+   * @param {string} id - ID của thông báo
+   */
+  async deleteAdminNotification(id) {
+    const response = await fetch(`${BASE_URL}/admin/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Không thể xóa thông báo.');
+    return data;
+  },
+
+  /**
    * [DEV ONLY] Tạo dữ liệu thông báo mẫu để kiểm thử nhanh.
    * Chỉ dùng trong môi trường phát triển.
    */
