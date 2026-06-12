@@ -534,6 +534,55 @@ app.delete('/api/admin/users/:uid', verifyToken, ensureAdmin, async (req, res) =
   }
 });
 
+app.get('/api/admin/transactions', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const { role = '' } = req.query;
+
+    const paymentsSnapshot = await db.collection('payments').get();
+    const payments = [];
+    paymentsSnapshot.forEach(doc => {
+      payments.push({ id: doc.id, ...doc.data() });
+    });
+
+    const usersSnapshot = await db.collection(USERS_COLLECTION).get();
+    const usersMap = {};
+    usersSnapshot.forEach(doc => {
+      const u = normalizeUser(doc.data(), doc.id);
+      usersMap[doc.id] = {
+        fullName: u.fullName,
+        email: u.email,
+        role: normalizeRole(u.role),
+      };
+    });
+
+    let transactions = payments.map(pm => {
+      const user = usersMap[pm.userId] || {};
+      return {
+        ...pm,
+        transactionId: pm.transactionCode || pm.paymentId || pm.id,
+        userName: user.fullName || 'Ẩn danh',
+        userEmail: user.email || '',
+        userRole: user.role || 'Resident',
+      };
+    });
+
+    if (role) {
+      transactions = transactions.filter(t => t.userRole === role);
+    }
+
+    transactions.sort((a, b) => {
+      const dateA = a.createdAt || a.paidAt || '';
+      const dateB = b.createdAt || b.paidAt || '';
+      return dateB.localeCompare(dateA);
+    });
+
+    return res.status(200).json({ data: transactions });
+  } catch (error) {
+    console.error('[Admin] Lỗi lấy danh sách giao dịch:', error);
+    return res.status(500).json({ error: 'Lỗi khi tải lịch sử giao dịch.' });
+  }
+});
+
 app.get('/api/admin/complaints', verifyToken, ensureAdmin, async (req, res) => {
   try {
     const { search = '', role = '', page = 1, limit = 10 } = req.query;
@@ -1004,6 +1053,22 @@ app.post('/api/invoices/:invoiceId/verify-payment', verifyToken, ensureResident,
       updatedAt: new Date().toISOString(),
     });
 
+    // Tạo bản ghi giao dịch trong collection 'payments'
+    const paymentId = `payment_${Date.now()}`;
+    await db.collection('payments').doc(paymentId).set({
+      paymentId,
+      invoiceId: invoice.invoiceId,
+      userId: req.uid,
+      amount: invoice.amount,
+      currency: invoice.currency || 'VND',
+      method: 'PayOS',
+      transactionCode: `PAYOS_${invoice.invoiceId}`,
+      status: 'success',
+      gatewayResponse: { code: '00', message: 'Success' },
+      createdAt: new Date().toISOString(),
+      paidAt: new Date().toISOString(),
+    });
+
     return res.status(200).json({ invoice: updatedInvoice, paid: true });
   } catch (error) {
     console.error('[API] Lỗi kiểm tra thanh toán hóa đơn:', error.message);
@@ -1197,20 +1262,6 @@ app.post('/api/notifications/settings', verifyToken, async (req, res) => {
   }
 });
 
-/**
- * POST /api/notifications/seed
- * [DEV ONLY] Tạo dữ liệu thông báo mẫu cho cư dân đang đăng nhập để kiểm thử.
- * LƯU Ý: Xóa hoặc bảo vệ route này trước khi deploy lên production!
- */
-app.post('/api/notifications/seed', verifyToken, async (req, res) => {
-  try {
-    const result = await notificationService.seedNotificationsForUser(req.uid);
-    return res.status(201).json({ success: true, ...result });
-  } catch (error) {
-    console.error('[API] Lỗi seed dữ liệu thông báo:', error.message);
-    return res.status(500).json({ error: error.message });
-  }
-});
 
 /**
  * GET /api/notifications/admin

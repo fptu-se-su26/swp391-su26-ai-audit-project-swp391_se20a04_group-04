@@ -51,24 +51,37 @@ export default function Payment() {
   const [paymentMethod, setPaymentMethod] = useState('payos');
   const [paymentRequest, setPaymentRequest] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState('');
-  const [loading, setLoading] = useState(true);
+  // Khởi tạo loading dựa trên sự hiện diện của user để tránh setState trong useEffect
+  const [loading, setLoading] = useState(!!currentUser);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  if (currentUser && normalizeRole(currentUser.role) === ROLES.ADMIN) {
-    return <AdminPaymentHistory />;
-  }
+  // Khai báo trước useEffect để tránh Temporal Dead Zone
+  const createDefaultInvoice = async () => {
+    if (!currentUser) {
+      setError('Vui lòng đăng nhập trước khi thanh toán.');
+      return;
+    }
+
+    try {
+      const invoiceData = SAMPLE_INVOICE_TEMPLATE(currentUser.uid);
+      const created = await createInvoice(invoiceData);
+      setInvoice(created);
+      setPaymentStatus(created.status || 'unpaid');
+      setSuccess('Hóa đơn mẫu đã được tạo. Bạn có thể tiếp tục thanh toán.');
+    } catch (err) {
+      setError(buildErrorMessage(err));
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) {
-      setLoading(false);
       return;
     }
 
     const role = normalizeRole(currentUser.role);
     if (role !== ROLES.RESIDENT) {
-      setError('Chỉ cư dân mới được phép truy cập và thanh toán hóa đơn.');
-      setLoading(false);
+      // Không gọi setError trong useEffect; hiển thị thông báo trong render
       return;
     }
 
@@ -95,24 +108,8 @@ export default function Payment() {
     };
 
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.uid, currentUser?.role]);
-
-  const createDefaultInvoice = async () => {
-    if (!currentUser) {
-      setError('Vui lòng đăng nhập trước khi thanh toán.');
-      return;
-    }
-
-    try {
-      const invoiceData = SAMPLE_INVOICE_TEMPLATE(currentUser.uid);
-      const created = await createInvoice(invoiceData);
-      setInvoice(created);
-      setPaymentStatus(created.status || 'unpaid');
-      setSuccess('Hóa đơn mẫu đã được tạo. Bạn có thể tiếp tục thanh toán.');
-    } catch (err) {
-      setError(buildErrorMessage(err));
-    }
-  };
 
   const handleRequestPayment = async () => {
     if (!invoice) {
@@ -157,7 +154,24 @@ export default function Payment() {
     }
   };
 
+  // Kiểm tra quyền admin PHẢI đặt SAU tất cả các Hook
+  if (currentUser && normalizeRole(currentUser.role) === ROLES.ADMIN) {
+    return <AdminPaymentHistory />;
+  }
+
+  // Kiểm tra quyền non-resident trong render, không dùng useState trong useEffect
+  if (currentUser && normalizeRole(currentUser.role) !== ROLES.RESIDENT) {
+    return (
+      <main className="max-w-container-max-width mx-auto px-margin-desktop py-8">
+        <div className="rounded-xl border border-surface-container p-8 text-center bg-surface-container-lowest">
+          <p className="font-body-md text-on-surface">Chỉ cư dân mới được phép truy cập và thanh toán hóa đơn.</p>
+        </div>
+      </main>
+    );
+  }
+
   if (!currentUser) {
+
     return (
       <main className="max-w-container-max-width mx-auto px-margin-desktop py-8">
         <section className="mb-8">

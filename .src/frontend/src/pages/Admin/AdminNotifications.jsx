@@ -30,12 +30,6 @@ export default function AdminNotifications() {
     targetRole: 'all',
   });
 
-  useEffect(() => {
-    fetchNotifications();
-    // Reset page when filter changes
-    setCurrentPage(1);
-  }, [roleFilter]);
-
   const fetchNotifications = async () => {
     setLoading(true);
     setError('');
@@ -49,7 +43,14 @@ export default function AdminNotifications() {
     }
   };
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchNotifications();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleFilter]);
+
   const handleRoleFilterChange = (e) => {
+    setCurrentPage(1); // Reset trang khi đổi bộ lọc
     setRoleFilter(e.target.value);
   };
 

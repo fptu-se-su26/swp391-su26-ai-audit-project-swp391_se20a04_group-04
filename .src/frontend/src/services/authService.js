@@ -15,7 +15,7 @@ import { ROLES, normalizeRole } from '../constants/roles';
 // Tên collection chính trên Firestore
 const USERS_COLLECTION = 'users';
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api/auth';
+const BACKEND_URL = import.meta.env.VITE_AUTH_URL || (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/auth` : 'http://localhost:5001/api/auth');
 
 /**
  * Chuẩn hóa dữ liệu user từ Firestore (hỗ trợ cả tên trường tiếng Việt lẫn tiếng Anh)
@@ -55,7 +55,7 @@ const authService = {
 
       return { success: true };
     } catch (error) {
-      throw new Error(error.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+      throw new Error(error.message || 'Đăng ký thất bại. Vui lòng thử lại.', { cause: error });
     }
   },
 
@@ -63,34 +63,29 @@ const authService = {
    * Đăng nhập thông qua Backend (Yêu cầu email đã xác nhận)
    */
   async login(email, password, rememberMe) {
-    try {
-      const response = await fetch(`${BACKEND_URL}/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+    const response = await fetch(`${BACKEND_URL}/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Đăng nhập thất bại.');
-      }
-
-      const { user, token } = data;
-
-      // Lưu thông tin vào storage
-      const storage = rememberMe ? localStorage : sessionStorage;
-      storage.setItem('eco_token', token);
-      storage.setItem('eco_user', JSON.stringify(user));
-
-      window.dispatchEvent(new Event('authChange'));
-      return { user, token };
-    } catch (error) {
-      // eslint-disable-next-line no-useless-catch
-      throw error;
+    if (!response.ok) {
+      throw new Error(data.error || 'Đăng nhập thất bại.');
     }
+
+    const { user, token } = data;
+
+    // Lưu thông tin vào storage
+    const storage = rememberMe ? localStorage : sessionStorage;
+    storage.setItem('eco_token', token);
+    storage.setItem('eco_user', JSON.stringify(user));
+
+    window.dispatchEvent(new Event('authChange'));
+    return { user, token };
   },
 
   /**
@@ -140,9 +135,9 @@ const authService = {
         message = 'Bạn đã đóng cửa sổ đăng nhập Google.';
       }
       if (error.code === 'auth/too-many-requests') {
-        throw new Error('Tài khoản bị tạm khóa do đăng nhập sai nhiều lần. Vui lòng thử lại sau.');
+        throw new Error('Tài khoản bị tạm khóa do đăng nhập sai nhiều lần. Vui lòng thử lại sau.', { cause: error });
       }
-      throw new Error(message);
+      throw new Error(message, { cause: error });
     }
   },
 
@@ -170,7 +165,7 @@ const authService = {
     if (!userStr) return null;
     try {
       return JSON.parse(userStr);
-    } catch (e) {
+    } catch {
       return null;
     }
   },

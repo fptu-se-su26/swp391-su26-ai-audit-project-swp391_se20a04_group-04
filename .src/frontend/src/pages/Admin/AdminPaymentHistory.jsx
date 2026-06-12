@@ -9,10 +9,6 @@ export default function AdminPaymentHistory() {
   const [error, setError] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
 
-  useEffect(() => {
-    fetchData();
-  }, [roleFilter]);
-
   const fetchData = async () => {
     setLoading(true);
     setError('');
@@ -26,6 +22,12 @@ export default function AdminPaymentHistory() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleFilter]);
 
   const handleRoleChange = (e) => {
     setRoleFilter(e.target.value);

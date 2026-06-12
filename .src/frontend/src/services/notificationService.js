@@ -5,8 +5,11 @@
 import authService from './authService';
 
 const BASE_URL = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace('/api/auth', '/api/notifications')
+  ? (import.meta.env.VITE_API_URL.includes('/api/auth')
+      ? import.meta.env.VITE_API_URL.replace('/api/auth', '/api/notifications')
+      : `${import.meta.env.VITE_API_URL}/api/notifications`)
   : 'http://localhost:5001/api/notifications';
+
 
 /**
  * Tạo header Authorization đính kèm token xác thực.
@@ -153,19 +156,6 @@ const notificationService = {
     return data;
   },
 
-  /**
-   * [DEV ONLY] Tạo dữ liệu thông báo mẫu để kiểm thử nhanh.
-   * Chỉ dùng trong môi trường phát triển.
-   */
-  async seedNotifications() {
-    const response = await fetch(`${BASE_URL}/seed`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Không thể tạo dữ liệu mẫu.');
-    return data;
-  },
 };
 
 export default notificationService;

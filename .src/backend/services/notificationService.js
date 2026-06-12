@@ -120,69 +120,6 @@ async function updateNotificationSettings(userId, settings) {
 }
 
 /**
- * [SEED] Tạo dữ liệu thông báo mẫu để kiểm thử.
- * Dành cho mục đích phát triển (development). Xóa hoặc bảo vệ route này trước khi deploy production.
- * @param {string} userId - UID của cư dân cần seed dữ liệu
- */
-async function seedNotificationsForUser(userId) {
-  const sampleNotifications = [
-    {
-      user_id: userId,
-      title: 'Lịch thu gom rác ngày mai',
-      content: 'Ngày mai (Thứ Tư) xe sẽ đến thu gom rác hữu cơ. Vui lòng đặt thùng rác màu xanh lá trước cổng trước 7:30 sáng.',
-      type: 'schedule',
-      sent_at: new Date(),
-      is_read: false,
-      link: '/tra-cuu',
-      sender_role: 'manager',
-      sender_name: 'Công ty Môi Trường Đô Thị Đà Nẵng',
-    },
-    {
-      user_id: userId,
-      title: 'Hóa đơn phí vệ sinh tháng 6/2026',
-      content: 'Hóa đơn phí vệ sinh môi trường tháng 6/2026 đã được phát hành. Hạn chót thanh toán ngày 25/06/2026. Vui lòng thanh toán đúng hạn.',
-      type: 'payment',
-      sent_at: new Date(Date.now() - 3600 * 1000 * 5), // 5 giờ trước
-      is_read: false,
-      link: '/thanh-toan',
-      sender_role: 'admin',
-      sender_name: 'Hệ thống EcoSchedule',
-    },
-    {
-      user_id: userId,
-      title: 'Cập nhật chính sách phân loại rác mới',
-      content: 'Kể từ ngày 01/07/2026, toàn bộ khu vực Quận Sơn Trà sẽ áp dụng chính sách phân loại rác 3 thành phần. Vui lòng xem hướng dẫn để tránh bị từ chối thu gom.',
-      type: 'system',
-      sent_at: new Date(Date.now() - 3600 * 1000 * 24 * 2), // 2 ngày trước
-      is_read: true,
-      link: '/huong-dan',
-      sender_role: 'admin',
-      sender_name: 'Hệ thống EcoSchedule',
-    },
-    {
-      user_id: userId,
-      title: 'Thông báo: Xe rác đến muộn hôm nay',
-      content: 'Do ảnh hưởng của mưa lớn, lịch thu gom rác chiều hôm nay tại Tổ 5 - Phường Mân Thái sẽ bị dời sang 18:00 - 20:00. Xin lỗi vì bất tiện này!',
-      type: 'schedule',
-      sent_at: new Date(Date.now() - 3600 * 1000 * 2), // 2 giờ trước
-      is_read: false,
-      link: '/tra-cuu',
-      sender_role: 'manager',
-      sender_name: 'Công ty Môi Trường Đô Thị Đà Nẵng',
-    },
-  ];
-
-  const batch = db.batch();
-  sampleNotifications.forEach((notification) => {
-    const docRef = db.collection(NOTIFICATIONS_COLLECTION).doc();
-    batch.set(docRef, notification);
-  });
-
-  await batch.commit();
-  return { seeded: sampleNotifications.length };
-}
-
-/**
  * [ADMIN] Lấy toàn bộ thông báo từ hệ thống.
  */
 async function getAdminNotifications(roleFilter) {
@@ -272,7 +209,6 @@ module.exports = {
   markAllAsRead,
   getNotificationSettings,
   updateNotificationSettings,
-  seedNotificationsForUser,
   getAdminNotifications,
   createAdminNotification,
   updateAdminNotification,
