@@ -13,3 +13,6 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+.DS_Store
+.src/backend/serviceAccountKey.json
+swp391-database-firebase-adminsdk-fbsvc-098b1ea896.json

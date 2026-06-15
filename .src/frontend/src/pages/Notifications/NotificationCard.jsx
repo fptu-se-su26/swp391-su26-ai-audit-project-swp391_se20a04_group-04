@@ -4,6 +4,7 @@
  * Nhận toàn bộ dữ liệu thông báo qua props, không tự gọi API.
  */
 
+import { normalizeRole } from '../../constants/roles';
 import { TYPE_CONFIG, SENDER_CONFIG, timeAgo } from './notificationUtils';
 
 /**
@@ -12,7 +13,7 @@ import { TYPE_CONFIG, SENDER_CONFIG, timeAgo } from './notificationUtils';
  */
 export default function NotificationCard({ notification, onClick }) {
   const typeConf   = TYPE_CONFIG[notification.type]          || TYPE_CONFIG.system;
-  const senderConf = SENDER_CONFIG[notification.sender_role] || SENDER_CONFIG.Manager;
+  const senderConf = SENDER_CONFIG[normalizeRole(notification.sender_role)] || SENDER_CONFIG.manager;
   const isUnread   = !notification.is_read;
 
   return (

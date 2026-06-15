@@ -11,7 +11,8 @@ import Register from './pages/Register/Register';
 import Dashboard from './pages/Dashboard';
 import ManagerInvoice from './pages/ManagerInvoice';
 import ResidentSchedules from './resident/ResidentSchedules';
-
+import Complaints from './pages/Complaints';
+import AdminManagement from './pages/Admin/AdminManagement';
 
 function App() {
   return (
@@ -29,6 +30,8 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/invoices/new" element={<ManagerInvoice />} />
+            <Route path="/phan-anh" element={<Complaints />} />
+            <Route path="/quan-ly" element={<AdminManagement />} />
           </Routes>
         </div>
         <Footer />

@@ -2,9 +2,10 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import authService from '../services/authService';
 import notificationService from '../services/notificationService';
+import { ROLES, normalizeRole } from '../constants/roles';
 import './Header.css';
 
-// Ánh xạ loại thông báo sang icon và màu sắc (dùng chung với Notifications.jsx)
+// Ánh xạ loại thông báo sang icon và màu sắc
 const TYPE_ICON = {
   schedule: { icon: 'local_shipping', color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
   payment:  { icon: 'payments',       color: 'text-amber-600',   bg: 'bg-amber-500/10'   },
@@ -22,6 +23,14 @@ function timeAgo(isoString) {
   return `${Math.floor(hrs / 24)} ngày trước`;
 }
 
+function getRoleLabel(role) {
+  const r = normalizeRole(role);
+  if (r === ROLES.ADMIN) return 'Quản trị hệ thống';
+  if (r === ROLES.MANAGER) return 'Quản lý';
+  if (r === ROLES.COLLECTOR) return 'Nhân viên thu gom';
+  return 'Cư dân';
+}
+
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -30,10 +39,12 @@ export default function Header() {
   const [notifications, setNotifications] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownLoading, setDropdownLoading] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const dropdownRef = useRef(null);
   const bellRef = useRef(null);
+  const userMenuRef = useRef(null);
 
-  // Lấy thông báo từ API (dùng cho cả badge đếm và dropdown)
+  // Lấy thông báo từ API
   const fetchNotifications = useCallback(async () => {
     if (!authService.isAuthenticated()) {
       setUnreadCount(0);
@@ -59,14 +70,16 @@ export default function Header() {
     window.addEventListener('authChange', handleAuthChange);
     window.addEventListener('notificationsUpdated', fetchNotifications);
 
-    // Chỉ sync auth state theo interval, không gọi API
     const interval = setInterval(() => {
       const currentUser = authService.getCurrentUser();
       setUser(currentUser);
       if (!currentUser) { setUnreadCount(0); setNotifications([]); }
     }, 3000);
 
-    fetchNotifications();
+    if (authService.isAuthenticated()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchNotifications();
+    }
 
     return () => {
       window.removeEventListener('authChange', handleAuthChange);
@@ -84,12 +97,14 @@ export default function Header() {
       ) {
         setShowDropdown(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Bật/tắt dropdown và reload nếu cần
   const handleBellClick = async () => {
     if (!authService.isAuthenticated()) {
       navigate('/login');
@@ -101,9 +116,9 @@ export default function Header() {
       setDropdownLoading(false);
     }
     setShowDropdown((prev) => !prev);
+    setShowUserMenu(false);
   };
 
-  // Đánh dấu một thông báo đã đọc từ dropdown
   const handleMarkRead = async (e, id) => {
     e.stopPropagation();
     try {
@@ -114,6 +129,12 @@ export default function Header() {
     } catch { /* bỏ qua */ }
   };
 
+  const handleLogout = async () => {
+    setShowUserMenu(false);
+    await authService.logout();
+    navigate('/login');
+  };
+
   const isActive = (path) => location.pathname === path;
   const navLinkClass = (path) =>
     `font-label-md text-label-md transition-colors ${
@@ -122,15 +143,15 @@ export default function Header() {
         : 'text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed'
     }`;
 
-  const getDashboardPath = () => user ? '/dashboard' : '/login';
-  const handleAccountClick = () => navigate(getDashboardPath());
-
-  // Lấy 5 thông báo mới nhất để hiện trong dropdown
   const previewNotifications = notifications.slice(0, 5);
+  const userRole = user ? normalizeRole(user.role) : null;
+  const isManagerOrCollector = userRole === ROLES.MANAGER || userRole === ROLES.COLLECTOR || userRole === ROLES.ADMIN;
 
   return (
     <header className="header bg-surface dark:bg-inverse-surface shadow-sm docked full-width">
       <div className="flex justify-between items-center px-margin-desktop w-full max-w-container-max-width mx-auto h-20">
+
+        {/* Logo */}
         <Link to="/" className="flex items-center gap-2">
           <span className="material-symbols-outlined text-primary dark:text-primary-fixed" style={{ fontSize: '32px' }}>
             recycling
@@ -140,18 +161,26 @@ export default function Header() {
           </span>
         </Link>
 
+        {/* Nav links */}
         <nav className="hidden md:flex items-center gap-8">
           <Link className={navLinkClass('/tra-cuu')} to="/tra-cuu">Tra cứu lịch</Link>
           <Link className={navLinkClass('/thong-bao')} to="/thong-bao">Thông báo</Link>
           <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
-          <Link className={navLinkClass('/huong-dan')} to="/huong-dan">Hướng dẫn phân loại</Link>
+          {userRole !== ROLES.ADMIN && (
+            <>
+              <Link className={navLinkClass('/huong-dan')} to="/huong-dan">Hướng dẫn phân loại</Link>
+              <Link className={navLinkClass('/phan-anh')} to="/phan-anh">Gửi phản ánh</Link>
+            </>
+          )}
+          {userRole === ROLES.ADMIN && (
+            <Link className={navLinkClass('/quan-ly')} to="/quan-ly">Quản lý</Link>
+          )}
         </nav>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
 
-          {/* ===== CHUÔNG THÔNG BÁO + DROPDOWN ===== */}
+          {/* ===== CHUÔNG THÔNG BÁO ===== */}
           <div className="relative">
-            {/* Nút chuông */}
             <button
               ref={bellRef}
               onClick={handleBellClick}
@@ -166,14 +195,13 @@ export default function Header() {
               )}
             </button>
 
-            {/* Dropdown Panel */}
+            {/* Dropdown thông báo */}
             {showDropdown && (
               <div
                 ref={dropdownRef}
                 className="notification-dropdown absolute right-0 top-[calc(100%+12px)] w-[380px] bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 z-50 overflow-hidden"
                 style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}
               >
-                {/* Header dropdown */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-primary text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -195,7 +223,6 @@ export default function Header() {
                   </Link>
                 </div>
 
-                {/* Danh sách thông báo */}
                 <div className="max-h-[360px] overflow-y-auto">
                   {dropdownLoading ? (
                     <div className="flex items-center justify-center py-10 gap-3 text-slate-400">
@@ -216,32 +243,24 @@ export default function Header() {
                       return (
                         <div
                           key={n.id}
-                          onClick={() => {
-                            setShowDropdown(false);
-                            if (n.link) navigate(n.link);
-                          }}
+                          onClick={() => { setShowDropdown(false); if (n.link) navigate(n.link); }}
                           className={`notification-item flex items-start gap-3 px-5 py-4 cursor-pointer border-b border-slate-50 dark:border-slate-700/50 last:border-b-0 ${
                             !n.is_read
                               ? 'bg-emerald-50/60 dark:bg-emerald-950/20 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
                               : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'
                           }`}
                         >
-                          {/* Icon loại */}
                           <div className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center ${conf.bg} ${conf.color}`}>
                             <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
                               {conf.icon}
                             </span>
                           </div>
-
-                          {/* Nội dung */}
                           <div className="flex-grow min-w-0">
                             <p className={`text-xs leading-snug line-clamp-2 ${!n.is_read ? 'font-semibold text-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
                               {n.title || n.content}
                             </p>
                             <p className="text-[11px] text-slate-400 mt-0.5">{timeAgo(n.sent_at)}</p>
                           </div>
-
-                          {/* Chấm chưa đọc + nút đánh dấu */}
                           <div className="flex-shrink-0 flex flex-col items-center gap-1.5 pt-0.5">
                             {!n.is_read ? (
                               <>
@@ -255,9 +274,7 @@ export default function Header() {
                                 </button>
                               </>
                             ) : (
-                              <span className="material-symbols-outlined text-slate-200 dark:text-slate-600 text-sm">
-                                check_circle
-                              </span>
+                              <span className="material-symbols-outlined text-slate-200 dark:text-slate-600 text-sm">check_circle</span>
                             )}
                           </div>
                         </div>
@@ -266,7 +283,6 @@ export default function Header() {
                   )}
                 </div>
 
-                {/* Footer dropdown */}
                 <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/80">
                   <Link
                     to="/thong-bao"
@@ -282,31 +298,103 @@ export default function Header() {
           </div>
           {/* ===== KẾT THÚC CHUÔNG ===== */}
 
-          <button
-            onClick={handleAccountClick}
-            className={`material-symbols-outlined header__icon transition-colors ${
-              user ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-primary dark:text-primary-fixed'
-            }`}
-            title={user ? `Tài khoản: ${user.fullName}` : 'Đăng nhập'}
-          >
-            account_circle
-          </button>
-
+          {/* ===== USER MENU / NÚT ĐĂNG NHẬP ===== */}
           {user ? (
-            <button
-              onClick={() => navigate(getDashboardPath())}
-              className="header__cta bg-emerald-600 text-white px-6 py-2.5 rounded-full font-label-md text-label-md hover:bg-emerald-500 active:opacity-80 transition-all hidden md:block"
-            >
-              Bảng điều khiển
-            </button>
+            <div className="relative" ref={userMenuRef}>
+              {/* Nút avatar kích hoạt dropdown */}
+              <button
+                onClick={() => { setShowUserMenu((prev) => !prev); setShowDropdown(false); }}
+                className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-500 bg-white dark:bg-slate-800 transition-all"
+                title={`Tài khoản: ${user.fullName || user.email}`}
+              >
+                <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                  {(user.fullName || user.email || 'U')[0].toUpperCase()}
+                </div>
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 max-w-[100px] truncate hidden md:block">
+                  {user.fullName || user.email}
+                </span>
+                <span className={`material-symbols-outlined text-slate-400 text-base transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`}>
+                  expand_more
+                </span>
+              </button>
+
+              {/* Dropdown user menu */}
+              {showUserMenu && (
+                <div
+                  className="absolute right-0 top-[calc(100%+10px)] w-64 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 z-50 overflow-hidden animate-fade-in"
+                  style={{ boxShadow: '0 16px 48px rgba(0,0,0,0.14)' }}
+                >
+                  {/* Thông tin user */}
+                  <div className="px-4 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-base flex-shrink-0">
+                      {(user.fullName || user.email || 'U')[0].toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{user.fullName || 'Người dùng'}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
+                      <span className="inline-block mt-1 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold rounded-full uppercase tracking-wide">
+                        {getRoleLabel(user.role)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Menu items */}
+                  <div className="py-1.5">
+                    {isManagerOrCollector && (
+                      <button
+                        onClick={() => { setShowUserMenu(false); navigate('/dashboard'); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                      >
+                        <span className="material-symbols-outlined text-base text-slate-400">dashboard</span>
+                        Bảng điều khiển
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setShowUserMenu(false); navigate('/thong-bao'); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                    >
+                      <span className="material-symbols-outlined text-base text-slate-400">notifications</span>
+                      Thông báo của tôi
+                      {unreadCount > 0 && (
+                        <span className="ml-auto px-1.5 py-0.5 bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 text-[10px] font-bold rounded-full">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </button>
+                    {userRole !== ROLES.ADMIN && (
+                      <button
+                        onClick={() => { setShowUserMenu(false); navigate('/phan-anh'); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                      >
+                        <span className="material-symbols-outlined text-base text-slate-400">rate_review</span>
+                        Phản ánh của tôi
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Đăng xuất */}
+                  <div className="border-t border-slate-100 dark:border-slate-700 py-1.5">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors text-left font-semibold"
+                    >
+                      <span className="material-symbols-outlined text-base">logout</span>
+                      Đăng xuất
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <button
               onClick={() => navigate('/login')}
-              className="header__cta bg-primary text-on-primary px-6 py-2.5 rounded-full font-label-md text-label-md hover:opacity-90 active:opacity-80 transition-all hidden md:block"
+              className="header__cta bg-primary text-on-primary px-6 py-2.5 rounded-full font-label-md text-label-md hover:opacity-90 active:opacity-80 transition-all"
             >
               Đăng nhập
             </button>
           )}
+          {/* ===== KẾT THÚC USER MENU ===== */}
+
         </div>
       </div>
     </header>

@@ -4,7 +4,7 @@ import authService from '../../services/authService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 function getStatusBadge(status) {
   const state = (status || '').toLowerCase();
@@ -29,7 +29,8 @@ function formatDate(dateString) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  // Khởi tạo user trực tiếp để tránh setState-in-effect
+  const [user, setUser] = useState(() => authService.getCurrentUser());
   const [managerLoading, setManagerLoading] = useState(false);
   const [apiMessage, setApiMessage] = useState('');
   const [managerError, setManagerError] = useState('');
@@ -70,8 +71,8 @@ export default function Dashboard() {
       navigate('/login');
       return;
     }
-    setUser(currentUser);
-
+    // setUser được khởi tạo trực tiếp từ useState, không cần gọi lại ở đây
+    // Chỉ lắng nghe sự kiện thay đổi auth để cập nhật khi logout/login
     const handleAuthChange = () => {
       setUser(authService.getCurrentUser());
     };
@@ -82,39 +83,12 @@ export default function Dashboard() {
     };
   }, [navigate]);
 
-  useEffect(() => {
-    if (user === null) {
-      return;
-    }
-
-    const role = normalizeRole(user.role);
-    if (role === ROLES.RESIDENT) {
-      navigate('/');
-      return;
-    }
-
-    if (role === ROLES.MANAGER) {
-      loadManagerData();
-    }
-  }, [user, navigate]);
-
   const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${authService.getToken()}`,
   });
 
-  const loadManagerData = async () => {
-    setManagerLoading(true);
-    setManagerError('');
-    try {
-      await Promise.all([fetchSchedules(), fetchComplaints(), fetchReport()]);
-    } catch (error) {
-      setManagerError(error.message || 'Không thể tải dữ liệu quản lý.');
-    } finally {
-      setManagerLoading(false);
-    }
-  };
-
+  // Khai báo fetch functions TRƯỚC loadManagerData để tránh TDZ
   const fetchSchedules = async () => {
     const response = await fetch(`${API_BASE}/api/manager/schedules`, {
       headers: getAuthHeaders(),
@@ -158,6 +132,36 @@ export default function Dashboard() {
     setReport(data);
     return data;
   };
+
+  const loadManagerData = async () => {
+    setManagerLoading(true);
+    setManagerError('');
+    try {
+      await Promise.all([fetchSchedules(), fetchComplaints(), fetchReport()]);
+    } catch (error) {
+      setManagerError(error.message || 'Không thể tải dữ liệu quản lý.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user === null) {
+      return;
+    }
+
+    const role = normalizeRole(user.role);
+    if (role === ROLES.RESIDENT) {
+      navigate('/');
+      return;
+    }
+
+    if (role === ROLES.MANAGER || role === ROLES.ADMIN) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadManagerData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, navigate]);
 
   const handleCreateSchedule = async (event) => {
     event.preventDefault();
@@ -345,7 +349,7 @@ export default function Dashboard() {
     );
   }
 
-  const isManager = normalizeRole(user.role) === ROLES.MANAGER;
+  const isManager = normalizeRole(user.role) === ROLES.MANAGER || normalizeRole(user.role) === ROLES.ADMIN;
 
   if (!isManager) {
     return (
@@ -387,8 +391,16 @@ export default function Dashboard() {
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h1 className="text-xl font-bold text-slate-800 dark:text-white">{user.fullName || 'Manager'}</h1>
-                <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">Manager</span>
+                <h1 className="text-xl font-bold text-slate-800 dark:text-white">
+                  {user.fullName || (normalizeRole(user.role) === ROLES.ADMIN ? 'Admin' : 'Manager')}
+                </h1>
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                  normalizeRole(user.role) === ROLES.ADMIN 
+                    ? 'bg-rose-100 text-rose-700' 
+                    : 'bg-emerald-100 text-emerald-700'
+                }`}>
+                  {normalizeRole(user.role) === ROLES.ADMIN ? 'Admin' : 'Manager'}
+                </span>
               </div>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-base">mail</span> {user.email}
@@ -401,14 +413,16 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/dashboard/invoices/new')}
-              className="py-2.5 px-4 bg-primary text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
-            >
-              <span className="material-symbols-outlined">receipt_long</span>
-              Tạo hóa đơn
-            </button>
+            {normalizeRole(user.role) !== ROLES.ADMIN && (
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard/invoices/new')}
+                className="py-2.5 px-4 bg-primary text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined">receipt_long</span>
+                Tạo hóa đơn
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"

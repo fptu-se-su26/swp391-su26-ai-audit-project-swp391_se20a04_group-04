@@ -1,6 +1,6 @@
 import authService from './authService';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 function getAuthHeaders() {
   return {
@@ -64,6 +64,17 @@ export async function verifyPaymentStatus(invoiceId) {
 
 export async function fetchInvoiceById(invoiceId) {
   const response = await fetch(`${API_BASE}/api/invoices/${invoiceId}`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(response);
+}
+
+export async function getAdminTransactions(roleFilter = '') {
+  let url = `${API_BASE}/api/admin/transactions`;
+  if (roleFilter) {
+    url += `?role=${roleFilter}`;
+  }
+  const response = await fetch(url, {
     headers: getAuthHeaders(),
   });
   return parseJsonResponse(response);

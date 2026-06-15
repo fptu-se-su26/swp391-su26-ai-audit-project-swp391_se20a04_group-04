@@ -120,66 +120,87 @@ async function updateNotificationSettings(userId, settings) {
 }
 
 /**
- * [SEED] Tạo dữ liệu thông báo mẫu để kiểm thử.
- * Dành cho mục đích phát triển (development). Xóa hoặc bảo vệ route này trước khi deploy production.
- * @param {string} userId - UID của cư dân cần seed dữ liệu
+ * [ADMIN] Lấy toàn bộ thông báo từ hệ thống.
  */
-async function seedNotificationsForUser(userId) {
-  const sampleNotifications = [
-    {
-      user_id: userId,
-      title: 'Lịch thu gom rác ngày mai',
-      content: 'Ngày mai (Thứ Tư) xe sẽ đến thu gom rác hữu cơ. Vui lòng đặt thùng rác màu xanh lá trước cổng trước 7:30 sáng.',
-      type: 'schedule',
-      sent_at: new Date(),
-      is_read: false,
-      link: '/tra-cuu',
-      sender_role: 'Manager',
-      sender_name: 'Công ty Môi Trường Đô Thị Đà Nẵng',
-    },
-    {
-      user_id: userId,
-      title: 'Hóa đơn phí vệ sinh tháng 6/2026',
-      content: 'Hóa đơn phí vệ sinh môi trường tháng 6/2026 đã được phát hành. Hạn chót thanh toán ngày 25/06/2026. Vui lòng thanh toán đúng hạn.',
-      type: 'payment',
-      sent_at: new Date(Date.now() - 3600 * 1000 * 5), // 5 giờ trước
-      is_read: false,
-      link: '/thanh-toan',
-      sender_role: 'Admin',
-      sender_name: 'Hệ thống EcoSchedule',
-    },
-    {
-      user_id: userId,
-      title: 'Cập nhật chính sách phân loại rác mới',
-      content: 'Kể từ ngày 01/07/2026, toàn bộ khu vực Quận Sơn Trà sẽ áp dụng chính sách phân loại rác 3 thành phần. Vui lòng xem hướng dẫn để tránh bị từ chối thu gom.',
-      type: 'system',
-      sent_at: new Date(Date.now() - 3600 * 1000 * 24 * 2), // 2 ngày trước
-      is_read: true,
-      link: '/huong-dan',
-      sender_role: 'Admin',
-      sender_name: 'Hệ thống EcoSchedule',
-    },
-    {
-      user_id: userId,
-      title: 'Thông báo: Xe rác đến muộn hôm nay',
-      content: 'Do ảnh hưởng của mưa lớn, lịch thu gom rác chiều hôm nay tại Tổ 5 - Phường Mân Thái sẽ bị dời sang 18:00 - 20:00. Xin lỗi vì bất tiện này!',
-      type: 'schedule',
-      sent_at: new Date(Date.now() - 3600 * 1000 * 2), // 2 giờ trước
-      is_read: false,
-      link: '/tra-cuu',
-      sender_role: 'Manager',
-      sender_name: 'Công ty Môi Trường Đô Thị Đà Nẵng',
-    },
-  ];
+async function getAdminNotifications(roleFilter) {
+  let query = db.collection(NOTIFICATIONS_COLLECTION).orderBy('sent_at', 'desc');
+  if (roleFilter && roleFilter !== 'all') {
+    query = query.where('targetRole', '==', roleFilter);
+  }
+  const snapshot = await query.get();
+  
+  if (snapshot.empty) return [];
+  
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    // Chuyển đổi an toàn kiểu dữ liệu thời gian về ISO String
+    let sentAtISO = data.sent_at;
+    if (data.sent_at?.toDate) {
+      sentAtISO = data.sent_at.toDate().toISOString();
+    } else if (data.sent_at instanceof Date) {
+      sentAtISO = data.sent_at.toISOString();
+    }
 
-  const batch = db.batch();
-  sampleNotifications.forEach((notification) => {
-    const docRef = db.collection(NOTIFICATIONS_COLLECTION).doc();
-    batch.set(docRef, notification);
+    let createdAtISO = data.created_at || sentAtISO;
+    if (data.created_at?.toDate) {
+      createdAtISO = data.created_at.toDate().toISOString();
+    } else if (data.created_at instanceof Date) {
+      createdAtISO = data.created_at.toISOString();
+    }
+
+    return {
+      id: doc.id,
+      ...data,
+      sent_at: sentAtISO,
+      created_at: createdAtISO,
+    };
   });
+}
 
-  await batch.commit();
-  return { seeded: sampleNotifications.length };
+/**
+ * [ADMIN] Tạo một thông báo mới
+ */
+async function createAdminNotification(payload) {
+  const { title, message, type, targetRole } = payload;
+  const newNotification = {
+    title,
+    content: message,
+    type: type || 'system',
+    targetRole: targetRole || 'all',
+    sent_at: new Date(),
+    created_at: new Date().toISOString(),
+    is_read: false,
+    sender_role: 'admin',
+    sender_name: 'Hệ thống Admin',
+  };
+
+  const docRef = await db.collection(NOTIFICATIONS_COLLECTION).add(newNotification);
+  return { id: docRef.id, ...newNotification };
+}
+
+/**
+ * [ADMIN] Cập nhật một thông báo
+ */
+async function updateAdminNotification(id, payload) {
+  const { title, message, type, targetRole } = payload;
+  const updateData = {
+    title,
+    content: message,
+    type: type || 'system',
+    targetRole: targetRole || 'all',
+    updated_at: new Date().toISOString(),
+  };
+
+  await db.collection(NOTIFICATIONS_COLLECTION).doc(id).update(updateData);
+  return { id, ...updateData };
+}
+
+/**
+ * [ADMIN] Xóa một thông báo
+ */
+async function deleteAdminNotification(id) {
+  await db.collection(NOTIFICATIONS_COLLECTION).doc(id).delete();
+  return { id, deleted: true };
 }
 
 module.exports = {
@@ -188,5 +209,8 @@ module.exports = {
   markAllAsRead,
   getNotificationSettings,
   updateNotificationSettings,
-  seedNotificationsForUser,
+  getAdminNotifications,
+  createAdminNotification,
+  updateAdminNotification,
+  deleteAdminNotification,
 };

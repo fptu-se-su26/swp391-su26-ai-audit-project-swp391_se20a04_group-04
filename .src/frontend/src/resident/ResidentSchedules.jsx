@@ -4,7 +4,7 @@ import authService from '../services/authService';
 // Xác định base API URL động từ config authService
 const API_BASE = import.meta.env.VITE_API_URL 
   ? import.meta.env.VITE_API_URL.replace('/auth', '') 
-  : 'http://localhost:5000/api';
+  : 'http://localhost:5001/api';
 
 export default function ResidentSchedules() {
   // Form State
@@ -22,8 +22,8 @@ export default function ResidentSchedules() {
   const [schedules, setSchedules] = useState([]);
   const [searched, setSearched] = useState(false);
 
-  // User Profile pre-fill
-  const [currentUser, setCurrentUser] = useState(null);
+  // User Profile: khởi tạo trực tiếp thay vì dùng useEffect để tránh setState-in-effect
+  const currentUser = authService.getCurrentUser();
 
   // 1. Tải danh sách Tỉnh/Thành phố khi component mount
   useEffect(() => {
@@ -46,50 +46,34 @@ export default function ResidentSchedules() {
     };
 
     fetchProvinces();
-
-    // Lấy thông tin user hiện tại
-    const user = authService.getCurrentUser();
-    if (user) {
-      setCurrentUser(user);
-      // Điền sẵn tổ dân cư từ địa chỉ hoặc thông tin phụ của user nếu có
-      if (user.area) {
-        // Ví dụ: "Quận Sơn Trà, Đà Nẵng" -> chúng ta có thể trích xuất nếu có
-      }
-      if (user.neighborhood) {
-        setNeighborhood(user.neighborhood);
-      }
-    }
   }, []);
 
-  // 2. Tải danh sách Phường/Xã khi thay đổi Tỉnh/Thành phố
-  useEffect(() => {
-    if (!selectedProvince) {
-      setWards([]);
-      setSelectedWard('');
-      return;
-    }
+  // 2. Handler đổi Tỉnh/Thành phố: reset phường xã và tải mới
+  // (đưa logic vào event handler thay vì useEffect để tránh setState-in-effect)
+  const handleProvinceChange = async (e) => {
+    const newProvince = e.target.value;
+    setSelectedProvince(newProvince);
+    setSelectedWard('');
+    setWards([]); // Reset wards trong handler thay vì useEffect
 
-    const fetchWards = async () => {
-      setLoadingWards(true);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE}/address/wards?provinceCode=${selectedProvince}`);
-        if (!res.ok) {
-          throw new Error('Không thể tải danh sách Phường/Xã');
-        }
-        const data = await res.json();
-        setWards(data);
-        setSelectedWard(''); // Reset phường xã khi đổi tỉnh thành
-      } catch (err) {
-        console.error('Lỗi khi tải phường xã:', err);
-        setError('Không thể tải danh sách Phường/Xã cho khu vực này.');
-      } finally {
-        setLoadingWards(false);
+    if (!newProvince) return;
+
+    setLoadingWards(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/address/wards?provinceCode=${newProvince}`);
+      if (!res.ok) {
+        throw new Error('Không thể tải danh sách Phường/Xã');
       }
-    };
-
-    fetchWards();
-  }, [selectedProvince]);
+      const data = await res.json();
+      setWards(data);
+    } catch (err) {
+      console.error('Lỗi khi tải phường xã:', err);
+      setError('Không thể tải danh sách Phường/Xã cho khu vực này.');
+    } finally {
+      setLoadingWards(false);
+    }
+  };
 
   // 3. Xử lý tra cứu lịch thu gom
   const handleSearch = async (e) => {
@@ -222,7 +206,7 @@ export default function ResidentSchedules() {
                   <div className="relative">
                     <select
                       value={selectedProvince}
-                      onChange={(e) => setSelectedProvince(e.target.value)}
+                      onChange={handleProvinceChange}
                       disabled={loadingProvinces}
                       className="w-full h-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 pr-10 appearance-none text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none transition-all disabled:opacity-60"
                     >
@@ -423,7 +407,7 @@ export default function ResidentSchedules() {
                           <div className="flex justify-between items-start">
                             <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
                               <span className="material-symbols-outlined text-xs font-bold">delete</span>
-                              {schedule.trash_type || 'Rác sinh hoạt'}
+                              {schedule.trash_type || (schedule.service_type === 'Recycling' ? 'Rác tái chế (Nhựa, kim loại)' : schedule.service_type === 'Organic' ? 'Rác hữu cơ (Sinh hoạt)' : schedule.service_type === 'General' ? 'Rác thải sinh hoạt (Khác)' : schedule.service_type) || 'Rác sinh hoạt'}
                             </span>
                             {getStatusBadge(schedule.status)}
                           </div>
@@ -448,7 +432,7 @@ export default function ResidentSchedules() {
                         <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
                           <div className="flex items-center gap-1">
                             <span className="material-symbols-outlined text-sm">schedule</span>
-                            <span>{schedule.time_slot || '17:00 - 19:00'}</span>
+                            <span>{schedule.time_slot || (schedule.schedule_date ? new Date(schedule.schedule_date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '17:00 - 19:00')}</span>
                           </div>
                           
                           {schedule.neighborhood && (

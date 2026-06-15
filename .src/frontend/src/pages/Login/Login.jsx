@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import authService from '../../services/authService';
+import { ROLES, normalizeRole } from '../../constants/roles';
 import './Login.css';
 
 export default function Login() {
@@ -76,7 +77,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      await authService.login(
+      const { user } = await authService.login(
         formData.email.trim(),
         formData.password,
         formData.rememberMe
@@ -84,10 +85,13 @@ export default function Login() {
 
       setSuccessMessage('Đăng nhập thành công! Đang chuyển hướng...');
 
-      // Delay slightly for transition animation
+      // Redirect dựa theo role: Resident → trang chủ; Manager/Collector → dashboard
+      const role = normalizeRole(user?.role);
+      const redirectPath = role === ROLES.RESIDENT ? '/' : '/dashboard';
+
       setTimeout(() => {
-        navigate('/dashboard');
         window.dispatchEvent(new Event('authChange'));
+        navigate(redirectPath);
       }, 1200);
 
     } catch (err) {
@@ -108,12 +112,16 @@ export default function Login() {
     setIsGoogleLoading(true);
 
     try {
-      await authService.loginWithGoogle(formData.rememberMe);
+      const { user } = await authService.loginWithGoogle(formData.rememberMe);
       setSuccessMessage('Đăng nhập bằng Google thành công! Đang chuyển hướng...');
 
+      // Redirect dựa theo role: Resident → trang chủ; Manager/Collector → dashboard
+      const role = normalizeRole(user?.role);
+      const redirectPath = role === ROLES.RESIDENT ? '/' : '/dashboard';
+
       setTimeout(() => {
-        navigate('/dashboard');
         window.dispatchEvent(new Event('authChange'));
+        navigate(redirectPath);
       }, 1200);
     } catch (err) {
       setApiError(err.message || 'Đăng nhập Google thất bại.');

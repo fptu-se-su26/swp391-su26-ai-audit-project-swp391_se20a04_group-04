@@ -2,16 +2,18 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const { db, auth } = require('./firebaseAdmin');
+const { ROLES, normalizeRole } = require('./constants/roles');
 const addressService = require('./services/addressService');
 const scheduleService = require('./services/scheduleService');
 const notificationService = require('./services/notificationService');
 const invoiceService = require('./services/invoiceService');
+const complaintService = require('./services/complaintService');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
 const PAYOS_CLIENT_ID = process.env.PAYOS_CLIENT_ID || '';
 const PAYOS_API_KEY = process.env.PAYOS_API_KEY || '';
@@ -31,11 +33,6 @@ app.use(express.json());
 // Tên collection chính trên Firestore
 const USERS_COLLECTION = 'users';
 
-const ROLES = {
-  RESIDENT: 'Resident',
-  MANAGER: 'Collection Company Manager',
-  COLLECTOR: 'Collector',
-};
 
 /**
  * Chuẩn hóa dữ liệu user từ Firestore
@@ -48,22 +45,11 @@ function normalizeUser(data, uid) {
     phone:    data.phone    || data['điện thoại']   || data['dien_thoai']|| '',
     address:  data.address  || data['Địa chỉ']      || data['dia_chi']   || '',
     area:     data.area     || data['khu vực']      || data['khu_vuc']   || '',
-    role:     data.role     || data['vai trò']      || data['Vai trò']   || 'Citizen',
+    role:     normalizeRole(data.role || data['vai trò'] || data['Vai trò']),
     emailVerified: data.emailVerified ?? true,
   };
 }
 
-/**
- * Chuẩn hóa vai trò sang hằng số trong ROLES
- */
-function normalizeRole(role = '') {
-  if (typeof role !== 'string') return ROLES.RESIDENT;
-  const normalized = role.trim().toLowerCase();
-  if (normalized.includes('manager')) return ROLES.MANAGER;
-  if (normalized.includes('collector')) return ROLES.COLLECTOR;
-  if (normalized.includes('resident') || normalized.includes('citizen')) return ROLES.RESIDENT;
-  return role;
-}
 
 /**
  * Endpoint Đăng ký tài khoản
@@ -128,7 +114,7 @@ app.post('/api/auth/register', async (req, res) => {
       email,
       phone: phone || '',
       address: address || '',
-      role: role || 'Citizen',
+      role: normalizeRole(role),
       emailVerified: false,
       createdAt: new Date().toISOString(),
       area: 'Quận Sơn Trà, Đà Nẵng',
@@ -221,7 +207,7 @@ app.post('/api/auth/login', async (req, res) => {
         uid: uid,
         fullName: userRecord.displayName || email.split('@')[0],
         email: email,
-        role: 'Citizen',
+        role: ROLES.RESIDENT,
         area: 'Quận Sơn Trà, Đà Nẵng',
         emailVerified: true,
       };
@@ -400,9 +386,9 @@ async function ensureResident(req, res, next) {
     }
 
     const userData = normalizeUser(userDoc.data(), req.uid);
-    const normalizedRole = (userData.role || '').toLowerCase();
-    if (!normalizedRole.includes('resident') && !normalizedRole.includes('citizen')) {
-      return res.status(403).json({ error: 'Chỉ cư dân mới được phép truy cập chức năng thanh toán.' });
+    const role = normalizeRole(userData.role);
+    if (role !== ROLES.RESIDENT) {
+      return res.status(403).json({ error: 'Chỉ cư dân mới được phép truy cập chức năng này.' });
     }
 
     req.userProfile = userData;
@@ -412,6 +398,241 @@ async function ensureResident(req, res, next) {
     return res.status(500).json({ error: 'Lỗi hệ thống khi xác thực vai trò resident.' });
   }
 }
+
+/**
+ * Middleware cho phép truy cập chỉ với vai trò Admin
+ */
+async function ensureAdmin(req, res, next) {
+  try {
+    const userDoc = await db.collection(USERS_COLLECTION).doc(req.uid).get();
+    if (!userDoc.exists) {
+      return res.status(403).json({ error: 'Không tìm thấy thông tin người dùng để xác thực vai trò.' });
+    }
+
+    const userData = normalizeUser(userDoc.data(), req.uid);
+    const role = normalizeRole(userData.role);
+    if (role !== ROLES.ADMIN) {
+      return res.status(403).json({ error: 'Chỉ Admin mới được phép truy cập chức năng này.' });
+    }
+
+    req.userProfile = userData;
+    next();
+  } catch (error) {
+    console.error('[Auth] Lỗi kiểm tra vai trò Admin:', error.message);
+    return res.status(500).json({ error: 'Lỗi hệ thống khi xác thực vai trò admin.' });
+  }
+}
+
+// ----------------------------------------------------------------------
+// ADMIN APIS: USER MANAGEMENT
+// ----------------------------------------------------------------------
+
+app.get('/api/admin/users', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const { search = '', role = '', page = 1, limit = 10 } = req.query;
+    const snapshot = await db.collection(USERS_COLLECTION).get();
+    let users = snapshot.docs.map(doc => normalizeUser(doc.data(), doc.id));
+
+    if (role) {
+      users = users.filter(u => normalizeRole(u.role) === role);
+    }
+    if (search) {
+      const lowerSearch = search.toLowerCase();
+      users = users.filter(u => 
+        (u.fullName && u.fullName.toLowerCase().includes(lowerSearch)) || 
+        (u.email && u.email.toLowerCase().includes(lowerSearch))
+      );
+    }
+
+    users.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+    const total = users.length;
+    const start = (page - 1) * limit;
+    const paginated = users.slice(start, start + parseInt(limit));
+
+    res.json({
+      data: paginated,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (error) {
+    console.error('[Admin] Lỗi lấy danh sách user:', error);
+    res.status(500).json({ error: 'Lỗi khi tải danh sách người dùng.' });
+  }
+});
+
+app.post('/api/admin/users', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const { email, password, fullName, phone, role, area, address } = req.body;
+    if (!email || !password || !fullName) {
+      return res.status(400).json({ error: 'Thiếu thông tin bắt buộc (Email, Mật khẩu, Họ tên)' });
+    }
+    
+    const userRecord = await auth.createUser({
+      email,
+      password,
+      displayName: fullName,
+    });
+
+    const userData = {
+      uid: userRecord.uid,
+      email,
+      fullName,
+      phone: phone || '',
+      role: role || ROLES.RESIDENT,
+      area: area || '',
+      address: address || '',
+      emailVerified: true,
+      createdAt: new Date().toISOString(),
+    };
+
+    await db.collection(USERS_COLLECTION).doc(userRecord.uid).set(userData);
+    res.status(201).json(normalizeUser(userData, userRecord.uid));
+  } catch (error) {
+    console.error('[Admin] Lỗi tạo user:', error);
+    res.status(500).json({ error: error.message || 'Lỗi khi tạo người dùng mới.' });
+  }
+});
+
+app.put('/api/admin/users/:uid', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const { fullName, phone, role, area, address } = req.body;
+
+    await auth.updateUser(uid, {
+      displayName: fullName,
+    });
+
+    const updateData = {
+      fullName,
+      phone: phone || '',
+      role: role || ROLES.RESIDENT,
+      area: area || '',
+      address: address || '',
+      updatedAt: new Date().toISOString()
+    };
+
+    await db.collection(USERS_COLLECTION).doc(uid).update(updateData);
+    
+    const userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
+    res.json(normalizeUser(userDoc.data(), uid));
+  } catch (error) {
+    console.error('[Admin] Lỗi sửa user:', error);
+    res.status(500).json({ error: error.message || 'Lỗi khi cập nhật người dùng.' });
+  }
+});
+
+app.delete('/api/admin/users/:uid', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const { uid } = req.params;
+    await auth.deleteUser(uid);
+    await db.collection(USERS_COLLECTION).doc(uid).delete();
+    res.json({ message: 'Đã xóa người dùng thành công' });
+  } catch (error) {
+    console.error('[Admin] Lỗi xóa user:', error);
+    res.status(500).json({ error: error.message || 'Lỗi khi xóa người dùng.' });
+  }
+});
+
+app.get('/api/admin/transactions', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const { role = '' } = req.query;
+
+    const paymentsSnapshot = await db.collection('payments').get();
+    const payments = [];
+    paymentsSnapshot.forEach(doc => {
+      payments.push({ id: doc.id, ...doc.data() });
+    });
+
+    const usersSnapshot = await db.collection(USERS_COLLECTION).get();
+    const usersMap = {};
+    usersSnapshot.forEach(doc => {
+      const u = normalizeUser(doc.data(), doc.id);
+      usersMap[doc.id] = {
+        fullName: u.fullName,
+        email: u.email,
+        role: normalizeRole(u.role),
+      };
+    });
+
+    let transactions = payments.map(pm => {
+      const user = usersMap[pm.userId] || {};
+      return {
+        ...pm,
+        transactionId: pm.transactionCode || pm.paymentId || pm.id,
+        userName: user.fullName || 'Ẩn danh',
+        userEmail: user.email || '',
+        userRole: user.role || 'Resident',
+      };
+    });
+
+    if (role) {
+      transactions = transactions.filter(t => t.userRole === role);
+    }
+
+    transactions.sort((a, b) => {
+      const dateA = a.createdAt || a.paidAt || '';
+      const dateB = b.createdAt || b.paidAt || '';
+      return dateB.localeCompare(dateA);
+    });
+
+    return res.status(200).json({ data: transactions });
+  } catch (error) {
+    console.error('[Admin] Lỗi lấy danh sách giao dịch:', error);
+    return res.status(500).json({ error: 'Lỗi khi tải lịch sử giao dịch.' });
+  }
+});
+
+app.get('/api/admin/complaints', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const { search = '', role = '', page = 1, limit = 10 } = req.query;
+    
+    const snapshot = await db.collection('complaints').orderBy('created_at', 'desc').get();
+    let complaints = [];
+    snapshot.forEach(doc => complaints.push({ id: doc.id, ...doc.data() }));
+
+    const usersSnapshot = await db.collection(USERS_COLLECTION).get();
+    const usersMap = {};
+    usersSnapshot.forEach(doc => {
+      const u = normalizeUser(doc.data(), doc.id);
+      usersMap[doc.id] = normalizeRole(u.role);
+    });
+
+    complaints = complaints.map(c => ({
+      ...c,
+      userRole: usersMap[c.userId] || 'Unknown'
+    }));
+
+    if (role) {
+      complaints = complaints.filter(c => c.userRole === role);
+    }
+    if (search) {
+      const lowerSearch = search.toLowerCase();
+      complaints = complaints.filter(c => 
+        (c.title && c.title.toLowerCase().includes(lowerSearch)) || 
+        (c.description && c.description.toLowerCase().includes(lowerSearch)) ||
+        (c.userName && c.userName.toLowerCase().includes(lowerSearch))
+      );
+    }
+
+    const total = complaints.length;
+    const start = (page - 1) * limit;
+    const paginated = complaints.slice(start, start + parseInt(limit));
+
+    res.json({
+      data: paginated,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (error) {
+    console.error('[Admin] Lỗi lấy danh sách phản ánh:', error);
+    res.status(500).json({ error: 'Lỗi khi tải danh sách phản ánh.' });
+  }
+});
 
 app.get('/api/manager/schedules', verifyToken, ensureManager, async (req, res) => {
   try {
@@ -921,6 +1142,22 @@ app.post('/api/invoices/:invoiceId/verify-payment', verifyToken, ensureResident,
       updatedAt: new Date().toISOString(),
     });
 
+    // Tạo bản ghi giao dịch trong collection 'payments'
+    const paymentId = `payment_${Date.now()}`;
+    await db.collection('payments').doc(paymentId).set({
+      paymentId,
+      invoiceId: invoice.invoiceId,
+      userId: req.uid,
+      amount: invoice.amount,
+      currency: invoice.currency || 'VND',
+      method: 'PayOS',
+      transactionCode: `PAYOS_${invoice.invoiceId}`,
+      status: 'success',
+      gatewayResponse: { code: '00', message: 'Success' },
+      createdAt: new Date().toISOString(),
+      paidAt: new Date().toISOString(),
+    });
+
     return res.status(200).json({ invoice: updatedInvoice, paid: true });
   } catch (error) {
     console.error('[API] Lỗi kiểm tra thanh toán hóa đơn:', error.message);
@@ -1002,6 +1239,42 @@ async function verifyToken(req, res, next) {
 }
 
 // ============================================================
+// ROUTES: Phản ánh Cư dân (/api/complaints)
+// ============================================================
+
+/**
+ * POST /api/complaints
+ * Cư dân gửi phản ánh mới.
+ */
+app.post('/api/complaints', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const result = await complaintService.createComplaint(
+      req.uid,
+      req.userProfile.fullName,
+      req.body
+    );
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi gửi phản ánh cư dân:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/complaints
+ * Lấy danh sách các phản ánh của cư dân đang đăng nhập.
+ */
+app.get('/api/complaints', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const result = await complaintService.getUserComplaints(req.uid);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi lấy danh sách phản ánh cư dân:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================
 // ROUTES: Thông báo Cư dân (/api/notifications)
 // ============================================================
 
@@ -1078,17 +1351,60 @@ app.post('/api/notifications/settings', verifyToken, async (req, res) => {
   }
 });
 
+
 /**
- * POST /api/notifications/seed
- * [DEV ONLY] Tạo dữ liệu thông báo mẫu cho cư dân đang đăng nhập để kiểm thử.
- * LƯU Ý: Xóa hoặc bảo vệ route này trước khi deploy lên production!
+ * GET /api/notifications/admin
+ * [ADMIN] Lấy toàn bộ danh sách thông báo.
  */
-app.post('/api/notifications/seed', verifyToken, async (req, res) => {
+app.get('/api/notifications/admin', verifyToken, ensureAdmin, async (req, res) => {
   try {
-    const result = await notificationService.seedNotificationsForUser(req.uid);
-    return res.status(201).json({ success: true, ...result });
+    const { role } = req.query;
+    const notifications = await notificationService.getAdminNotifications(role);
+    return res.status(200).json(notifications);
   } catch (error) {
-    console.error('[API] Lỗi seed dữ liệu thông báo:', error.message);
+    console.error('[API] Lỗi lấy danh sách thông báo admin:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/notifications/admin
+ * [ADMIN] Tạo một thông báo mới.
+ */
+app.post('/api/notifications/admin', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const result = await notificationService.createAdminNotification(req.body);
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi tạo thông báo admin:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/notifications/admin/:id
+ * [ADMIN] Cập nhật thông báo.
+ */
+app.put('/api/notifications/admin/:id', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const result = await notificationService.updateAdminNotification(req.params.id, req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi cập nhật thông báo admin:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/notifications/admin/:id
+ * [ADMIN] Xóa thông báo.
+ */
+app.delete('/api/notifications/admin/:id', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const result = await notificationService.deleteAdminNotification(req.params.id);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi xóa thông báo admin:', error.message);
     return res.status(500).json({ error: error.message });
   }
 });

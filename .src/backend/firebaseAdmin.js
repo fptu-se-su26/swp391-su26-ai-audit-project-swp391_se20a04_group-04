@@ -2,8 +2,7 @@ const admin = require('firebase-admin');
 const fs = require('fs');
 const path = require('path');
 
-// Tải cấu hình từ .env
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 let isInitialized = false;
 
