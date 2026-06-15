@@ -1,8 +1,18 @@
-
+# Firebase credentials & secrets
 .src/backend/serviceAccountKey.json
 .src/backend/.env
+
+# Admin / debug scripts (không push lên repo)
+.src/backend/scripts/
+
+# Dependencies
+node_modules/
+.src/backend/node_modules/
+.src/frontend/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
 .DS_Store
 .src/backend/serviceAccountKey.json
-.src/backend/node_modules
-.src/frontend/node_modules
 swp391-database-firebase-adminsdk-fbsvc-098b1ea896.json

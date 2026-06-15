@@ -15,10 +15,12 @@ const complaintService = require('./services/complaintService');
 const app = express();
 const PORT = process.env.PORT || 5001;
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
-const PAYOS_API_BASE_URL = process.env.PAYOS_API_BASE_URL || '';
 const PAYOS_CLIENT_ID = process.env.PAYOS_CLIENT_ID || '';
 const PAYOS_API_KEY = process.env.PAYOS_API_KEY || '';
 const PAYOS_CHECKSUM_KEY = process.env.PAYOS_CHECKSUM_KEY || '';
+const PAYOS_API_BASE_URL = (process.env.PAYOS_API_BASE_URL && !process.env.PAYOS_API_BASE_URL.includes('example.com'))
+  ? process.env.PAYOS_API_BASE_URL
+  : 'https://api-merchant.payos.vn';
 
 // CORS configuration - Allow frontend server
 app.use(cors({
@@ -927,8 +929,9 @@ app.get('/api/invoices/current', verifyToken, ensureResident, async (req, res) =
 
     if (invoice.status !== 'paid') {
       try {
-        const { paymentUrl } = await createPayOSPaymentSession(invoice, req.uid);
+        const { paymentUrl, qrCode } = await createPayOSPaymentSession(invoice, req.uid, req.headers.origin);
         invoice.paymentUrl = paymentUrl;
+        invoice.qrCode = qrCode || null;
       } catch (paymentError) {
         console.warn('[API] Không thể tạo session PayOS tự động:', paymentError.message);
       }
@@ -954,33 +957,106 @@ app.get('/api/invoices/:invoiceId', verifyToken, ensureResident, async (req, res
   }
 });
 
-function buildPayOSChecksum(payload) {
-  return crypto.createHmac('sha256', PAYOS_CHECKSUM_KEY).update(JSON.stringify(payload)).digest('hex');
+function normalizeDescription(text) {
+  if (!text) return 'Thanh toan';
+  const map = {
+    'à':'a','á':'a','ả':'a','ã':'a','ạ':'a','ă':'a','ằ':'a','ắ':'a','ẳ':'a','ẵ':'a','ặ':'a','â':'a','ầ':'a','ấ':'a','ẩ':'a','ẫ':'a','ậ':'a',
+    'đ':'d',
+    'è':'e','é':'e','ẻ':'e','ẽ':'e','ẹ':'e','ê':'e','ề':'e','ế':'e','ể':'e','ễ':'e','ệ':'e',
+    'ì':'i','í':'i','ỉ':'i','ĩ':'i','ị':'i',
+    'ò':'o','ó':'o','ỏ':'o','õ':'o','ọ':'o','ô':'o','ồ':'o','ố':'o','ổ':'o','ỗ':'o','ộ':'o','ơ':'o','ờ':'o','ớ':'o','ở':'o','ỡ':'o','ợ':'o',
+    'ù':'u','ú':'u','ủ':'u','ũ':'u','ụ':'u','ư':'u','ừ':'u','ứ':'u','ử':'u','ữ':'u','ự':'u',
+    'ỳ':'y','ý':'y','ỷ':'y','ỹ':'y','ỵ':'y',
+    'À':'A','Á':'A','Ả':'A','Ã':'A','Ạ':'A','Ă':'A','Ằ':'A','Ắ':'A','Ẳ':'A','Ẵ':'A','Ặ':'A','Â':'A','Ầ':'A','Ấ':'A','Ẩ':'A','Ẫ':'A','Ậ':'A',
+    'Đ':'D',
+    'È':'E','É':'E','Ẻ':'E','Ẽ':'E','Ẹ':'E','Ê':'E','Ề':'E','Ế':'E','Ể':'E','Ễ':'E','Ệ':'E',
+    'Ì':'I','Í':'I','Ỉ':'I','Ĩ':'I','Ị':'I',
+    'Ò':'O','Ó':'O','Ỏ':'O','Õ':'O','Ọ':'O','Ô':'O','Ồ':'O','Ố':'O','Ổ':'O','Ỗ':'O','Ộ':'O','Ơ':'O','Ờ':'O','Ớ':'O','Ở':'O','Ỡ':'O','Ợ':'O',
+    'Ù':'U','Ú':'U','Ủ':'U','Ũ':'U','Ụ':'U','Ư':'U','Ừ':'U','Ứ':'U','Ử':'U','Ữ':'U','Ự':'U',
+    'Ỳ':'Y','Ý':'Y','Ỷ':'Y','Ỹ':'Y','Ỵ':'Y'
+  };
+  let result = text.split('').map(char => map[char] || char).join('');
+  result = result.replace(/[^a-zA-Z0-9 ]/g, '');
+  return result.substring(0, 25).trim();
 }
 
-async function createPayOSPaymentSession(invoice, userId) {
-  const payload = {
-    clientId: PAYOS_CLIENT_ID,
-    apiKey: PAYOS_API_KEY,
-    invoiceId: invoice.invoiceId,
-    amount: invoice.amount,
-    currency: invoice.currency,
-    userId,
-    description: `Thanh toán ${invoice.feeType}`,
-  };
+function buildPayOSSignature(amount, cancelUrl, description, orderCode, returnUrl, checksumKey) {
+  const data = `amount=${amount}&cancelUrl=${cancelUrl}&description=${description}&orderCode=${orderCode}&returnUrl=${returnUrl}`;
+  return crypto.createHmac('sha256', checksumKey).update(data).digest('hex');
+}
 
-  if (PAYOS_API_BASE_URL && PAYOS_CLIENT_ID && PAYOS_API_KEY && PAYOS_CHECKSUM_KEY) {
-    const checksum = buildPayOSChecksum(payload);
-    const response = await fetch(`${PAYOS_API_BASE_URL}/payments/create`, {
+async function createPayOSPaymentSession(invoice, userId, originUrl) {
+  let orderCode = invoice.orderCode;
+  if (!orderCode) {
+    // Generate orderCode as a unique integer (safe for JS double-precision floats up to 9007199254740991)
+    orderCode = Date.now();
+    await invoiceService.updateInvoice(invoice.invoiceId, { orderCode });
+    invoice.orderCode = orderCode;
+  }
+
+  const origin = originUrl || 'http://localhost:5173';
+  const returnUrl = `${origin}/thanh-toan`;
+  const cancelUrl = `${origin}/thanh-toan`;
+
+  const isPayOSConfigured = 
+    PAYOS_CLIENT_ID && 
+    PAYOS_CLIENT_ID !== 'YOUR_PAYOS_CLIENT_ID' && 
+    PAYOS_API_KEY && 
+    PAYOS_API_KEY !== 'YOUR_PAYOS_API_KEY' && 
+    PAYOS_CHECKSUM_KEY && 
+    PAYOS_CHECKSUM_KEY !== 'YOUR_PAYOS_CHECKSUM_KEY';
+
+  if (isPayOSConfigured) {
+    const description = normalizeDescription(`Thanh toan phi ve sinh`);
+    const amount = Number(invoice.amount);
+    
+    const signature = buildPayOSSignature(
+      amount,
+      cancelUrl,
+      description,
+      orderCode,
+      returnUrl,
+      PAYOS_CHECKSUM_KEY
+    );
+
+    const payload = {
+      orderCode,
+      amount,
+      description,
+      cancelUrl,
+      returnUrl,
+      signature
+    };
+
+    console.log('[PayOS] Gửi yêu cầu tạo link thanh toán với orderCode:', orderCode);
+    const response = await fetch(`${PAYOS_API_BASE_URL}/v2/payment-requests`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, checksum }),
+      headers: {
+        'x-client-id': PAYOS_CLIENT_ID,
+        'x-api-key': PAYOS_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
     });
+
     const data = await response.json();
+    console.log('[PayOS] Phản hồi từ PayOS API:', JSON.stringify(data));
     if (!response.ok) {
-      throw new Error(data.error || 'Không thể tạo yêu cầu PayOS.');
+      console.error('[PayOS] Lỗi từ PayOS API:', data);
+      throw new Error(data.desc || data.error || 'Không thể tạo yêu cầu PayOS.');
     }
-    return { paymentUrl: data.paymentUrl || data.qrUrl || data.redirectUrl };
+
+    const checkoutUrl = data?.data?.checkoutUrl;
+    // qrCode là chuỗi VietQR Pro (EMVCo) – MoMo/MB Bank/banking apps quét được
+    const qrCode = data?.data?.qrCode || null;
+
+    if (!checkoutUrl) {
+      console.error('[PayOS] Không tìm thấy checkoutUrl trong phản hồi:', data);
+      throw new Error(`PayOS không trả về link thanh toán. Mã: ${data?.code}, Mô tả: ${data?.desc}`);
+    }
+
+    console.log('[PayOS] qrCode (VietQR):', qrCode ? 'Có' : 'Không có');
+    return { paymentUrl: checkoutUrl, qrCode };
   }
 
   return {
@@ -989,24 +1065,37 @@ async function createPayOSPaymentSession(invoice, userId) {
 }
 
 async function verifyPayOSPayment(invoice) {
-  if (PAYOS_API_BASE_URL && PAYOS_CLIENT_ID && PAYOS_API_KEY && PAYOS_CHECKSUM_KEY) {
-    const payload = {
-      clientId: PAYOS_CLIENT_ID,
-      apiKey: PAYOS_API_KEY,
-      invoiceId: invoice.invoiceId,
-      amount: invoice.amount,
-    };
-    const checksum = buildPayOSChecksum(payload);
-    const response = await fetch(`${PAYOS_API_BASE_URL}/payments/status`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, checksum }),
+  const isPayOSConfigured = 
+    PAYOS_CLIENT_ID && 
+    PAYOS_CLIENT_ID !== 'YOUR_PAYOS_CLIENT_ID' && 
+    PAYOS_API_KEY && 
+    PAYOS_API_KEY !== 'YOUR_PAYOS_API_KEY' && 
+    PAYOS_CHECKSUM_KEY && 
+    PAYOS_CHECKSUM_KEY !== 'YOUR_PAYOS_CHECKSUM_KEY';
+
+  if (isPayOSConfigured) {
+    const orderCode = invoice.orderCode;
+    if (!orderCode) {
+      throw new Error('Hóa đơn chưa được khởi tạo giao dịch thanh toán.');
+    }
+
+    console.log('[PayOS] Đang kiểm tra trạng thái cho orderCode:', orderCode);
+    const response = await fetch(`${PAYOS_API_BASE_URL}/v2/payment-requests/${orderCode}`, {
+      method: 'GET',
+      headers: {
+        'x-client-id': PAYOS_CLIENT_ID,
+        'x-api-key': PAYOS_API_KEY,
+        'Content-Type': 'application/json'
+      }
     });
+
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error || 'Không thể kiểm tra trạng thái PayOS.');
+      console.error('[PayOS] Lỗi khi lấy trạng thái giao dịch:', data);
+      throw new Error(data.desc || data.error || 'Không thể kiểm tra trạng thái PayOS.');
     }
-    return data.status === 'PAID' || data.status === 'COMPLETED';
+
+    return data.data && (data.data.status === 'PAID' || data.data.status === 'COMPLETED');
   }
 
   return true;
@@ -1023,8 +1112,8 @@ app.post('/api/invoices/:invoiceId/payment-request', verifyToken, ensureResident
       return res.status(400).json({ error: 'Hóa đơn đã được thanh toán.' });
     }
 
-    const { paymentUrl } = await createPayOSPaymentSession(invoice, req.uid);
-    return res.status(200).json({ paymentUrl });
+    const { paymentUrl, qrCode } = await createPayOSPaymentSession(invoice, req.uid, req.headers.origin);
+    return res.status(200).json({ paymentUrl, qrCode });
   } catch (error) {
     console.error('[API] Lỗi tạo yêu cầu thanh toán PayOS:', error.message);
     return res.status(500).json({ error: error.message });
