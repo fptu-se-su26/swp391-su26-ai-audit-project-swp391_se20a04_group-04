@@ -5,6 +5,11 @@
 # Admin / debug scripts (không push lên repo)
 .src/backend/scripts/
 
+# Dependencies
+node_modules/
+.src/backend/node_modules/
+.src/frontend/node_modules/
+
 # OS
 .DS_Store
 Thumbs.db
