@@ -1,6 +1,10 @@
-
+# Firebase credentials & secrets
 .src/backend/serviceAccountKey.json
 .src/backend/.env
-.DS_Store
-.src/backend/serviceAccountKey.json
 
+# Admin / debug scripts (không push lên repo)
+.src/backend/scripts/
+
+# OS
+.DS_Store
+Thumbs.db
