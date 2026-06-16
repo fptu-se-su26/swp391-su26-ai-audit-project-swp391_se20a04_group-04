@@ -6,6 +6,7 @@ import { ROLES, normalizeRole, REGISTER_ROLES } from '../../constants/roles';
 
 export default function UserManagement({ hideHeader = false }) {
   const navigate = useNavigate();
+  const [allUsers, setAllUsers] = useState([]);
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -42,22 +43,43 @@ export default function UserManagement({ hideHeader = false }) {
 
   useEffect(() => {
     fetchData();
-  }, [page, debouncedSearch, roleFilter]);
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await getUsers(page, limit, debouncedSearch, roleFilter);
-      setUsers(res.data);
-      setTotal(res.total);
-      setTotalPages(res.totalPages);
+      const res = await getUsers('', '', '', ''); // Call API without limit to get all
+      setAllUsers(res.data || []);
     } catch (err) {
       setError(err.message || 'Lỗi khi tải danh sách người dùng.');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let filtered = allUsers;
+    
+    if (roleFilter) {
+      filtered = filtered.filter(u => u.role === roleFilter);
+    }
+    
+    if (debouncedSearch) {
+      const lowerSearch = debouncedSearch.toLowerCase();
+      filtered = filtered.filter(u => 
+        (u.fullName && u.fullName.toLowerCase().includes(lowerSearch)) || 
+        (u.email && u.email.toLowerCase().includes(lowerSearch)) ||
+        (u.uid && u.uid.toLowerCase().includes(lowerSearch))
+      );
+    }
+    
+    setTotal(filtered.length);
+    setTotalPages(Math.ceil(filtered.length / limit) || 1);
+    
+    const start = (page - 1) * limit;
+    setUsers(filtered.slice(start, start + limit));
+  }, [allUsers, page, debouncedSearch, roleFilter]);
 
   const handleSearchChange = (e) => {
     setSearch(e.target.value);

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import complaintService from '../../services/complaintService';
 
 export default function AdminComplaints({ hideHeader = false }) {
+  const [allComplaints, setAllComplaints] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -27,22 +28,43 @@ export default function AdminComplaints({ hideHeader = false }) {
 
   useEffect(() => {
     fetchComplaints();
-  }, [page, debouncedSearch, roleFilter]);
+  }, []);
 
   const fetchComplaints = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await complaintService.getAdminComplaints(page, limit, debouncedSearch, roleFilter);
-      setComplaints(res.data || []);
-      setTotalPages(res.totalPages || 1);
-      setTotal(res.total || 0);
+      const res = await complaintService.getAdminComplaints('', '', '', '');
+      setAllComplaints(res.data || []);
     } catch (err) {
       setError(err.message || 'Không thể tải danh sách phản ánh.');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let filtered = allComplaints;
+
+    if (roleFilter) {
+      filtered = filtered.filter(c => c.userRole === roleFilter);
+    }
+
+    if (debouncedSearch) {
+      const lowerSearch = debouncedSearch.toLowerCase();
+      filtered = filtered.filter(c => 
+        (c.title && c.title.toLowerCase().includes(lowerSearch)) || 
+        (c.description && c.description.toLowerCase().includes(lowerSearch)) ||
+        (c.userName && c.userName.toLowerCase().includes(lowerSearch))
+      );
+    }
+
+    setTotal(filtered.length);
+    setTotalPages(Math.ceil(filtered.length / limit) || 1);
+
+    const start = (page - 1) * limit;
+    setComplaints(filtered.slice(start, start + limit));
+  }, [allComplaints, page, debouncedSearch, roleFilter]);
 
   const getStatusBadge = (status) => {
     const s = status ? status.toLowerCase() : 'open';
