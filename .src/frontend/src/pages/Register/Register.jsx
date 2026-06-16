@@ -1,13 +1,10 @@
 import { useState } from 'react';
-import {  Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import authService from '../../services/authService';
-import { ROLES, REGISTER_ROLES, ADDRESS_LABELS } from '../../constants/roles';
+import { ROLES } from '../../constants/roles';
 import './Register.css';
 
-
-
 export default function Register() {
-  
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -16,13 +13,12 @@ export default function Register() {
     password: '',
     confirmPassword: '',
     address: '',
-    role: ROLES.RESIDENT,
     agreeTerms: false,
   });
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState('');
@@ -34,10 +30,8 @@ export default function Register() {
     setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
-      // Reset địa chỉ khi đổi role
-      ...(name === 'role' ? { address: '' } : {}),
     }));
-    
+
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
@@ -81,7 +75,7 @@ export default function Register() {
     }
 
     if (!formData.address.trim()) {
-      newErrors.address = `${ADDRESS_LABELS[formData.role]?.label || 'Địa chỉ'} không được bỏ trống`;
+      newErrors.address = 'Địa chỉ không được bỏ trống';
     }
 
     if (!formData.agreeTerms) {
@@ -109,7 +103,7 @@ export default function Register() {
         phone: formData.phone.trim().replace(/\s/g, ''),
         password: formData.password,
         address: formData.address.trim(),
-        role: formData.role,
+        role: ROLES.RESIDENT, // Luôn đăng ký với vai trò Cư dân
       });
 
       setSuccessMessage(
@@ -121,8 +115,6 @@ export default function Register() {
       setIsLoading(false);
     }
   };
-
-  const addrConfig = ADDRESS_LABELS[formData.role] || ADDRESS_LABELS[ROLES.RESIDENT];
 
   return (
     <div className="register-container py-12 px-4 flex items-center justify-center min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900">
@@ -140,18 +132,19 @@ export default function Register() {
             <p className="text-xs text-emerald-200 mt-1">Quận Sơn Trà, Đà Nẵng</p>
           </div>
 
-          <div className="z-10 my-6 hidden md:flex flex-col gap-3">
-            {REGISTER_ROLES.map((r) => (
-              <div
-                key={r.value}
-                className={`rounded-xl p-3 text-left transition-all cursor-default border ${
-                  formData.role === r.value
-                    ? 'bg-white/20 border-white/50'
-                    : 'bg-white/5 border-white/10'
-                }`}
-              >
-                <p className="text-xs font-bold">{r.label.split(' (')[0]}</p>
-                <p className="text-xs text-emerald-200 mt-0.5 font-light">{r.desc}</p>
+          <div className="z-10 my-6 hidden md:flex flex-col gap-4">
+            {[
+              { icon: 'calendar_today', title: 'Tra cứu lịch thu gom', desc: 'Biết chính xác lịch xe rác đến khu vực của bạn' },
+              { icon: 'notifications_active', title: 'Nhận thông báo', desc: 'Tự động nhắc nhở trước khi xe thu gom đến' },
+              { icon: 'receipt_long', title: 'Quản lý hóa đơn', desc: 'Xem và thanh toán phí vệ sinh môi trường' },
+              { icon: 'rate_review', title: 'Gửi phản ánh', desc: 'Phản ánh sự cố liên quan đến thu gom rác' },
+            ].map((item) => (
+              <div key={item.icon} className="flex items-start gap-3 text-left bg-white/10 rounded-xl p-3 border border-white/20">
+                <span className="material-symbols-outlined text-emerald-200 text-xl mt-0.5 flex-shrink-0">{item.icon}</span>
+                <div>
+                  <p className="text-xs font-bold">{item.title}</p>
+                  <p className="text-[11px] text-emerald-200 mt-0.5 font-light">{item.desc}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -165,10 +158,10 @@ export default function Register() {
         <div className="form-panel md:w-2/3 p-8 overflow-y-auto max-h-[90vh]">
           <div className="text-center md:text-left mb-5">
             <h1 className="font-headline-md text-2xl font-bold text-slate-800 dark:text-white">
-              Đăng ký EcoSchedule
+              Đăng ký tài khoản
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Tạo tài khoản để tham gia hệ thống quản lý thu gom rác thải tại Quận Sơn Trà.
+              Tạo tài khoản cư dân để tham gia hệ thống quản lý thu gom rác thải tại Quận Sơn Trà.
             </p>
           </div>
 
@@ -188,41 +181,6 @@ export default function Register() {
 
           {!successMessage && (
             <form onSubmit={handleSubmit} className="space-y-4">
-
-              {/* ROLE SELECTOR */}
-              <div className="form-group">
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  Vai trò <span className="text-rose-500">*</span>
-                </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {REGISTER_ROLES.map((r) => (
-                    <label
-                      key={r.value}
-                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        formData.role === r.value
-                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="role"
-                        value={r.value}
-                        checked={formData.role === r.value}
-                        onChange={handleChange}
-                        className="accent-emerald-600"
-                        disabled={isLoading}
-                      />
-                      <div>
-                        <p className={`text-sm font-semibold ${formData.role === r.value ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
-                          {r.label.split(' (')[0]}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{r.desc}</p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
 
               {/* Họ và tên */}
               <div className="form-group">
@@ -347,23 +305,21 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* Địa chỉ - dynamic theo role */}
+              {/* Địa chỉ */}
               <div className="form-group">
                 <label htmlFor="address" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  {addrConfig.label} <span className="text-rose-500">*</span>
+                  Địa chỉ nhà <span className="text-rose-500">*</span>
                   <span className="ml-2 text-emerald-600 dark:text-emerald-400 normal-case font-normal">(Quận Sơn Trà, Đà Nẵng)</span>
                 </label>
                 <div className="input-wrapper relative">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
-                    {formData.role === ROLES.MANAGER ? 'business' : formData.role === ROLES.COLLECTOR ? 'location_on' : 'home'}
-                  </span>
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">home</span>
                   <input
                     type="text"
                     id="address"
                     name="address"
                     value={formData.address}
                     onChange={handleChange}
-                    placeholder={addrConfig.placeholder}
+                    placeholder="VD: 123 Nguyễn Thị Định, Phường Mân Thái"
                     className={`w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border ${
                       errors.address ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-200'
                     } rounded-xl text-sm focus:outline-none focus:ring-4 focus:bg-white transition-all`}

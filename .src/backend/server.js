@@ -55,7 +55,10 @@ function normalizeUser(data, uid) {
  * Endpoint Đăng ký tài khoản
  */
 app.post('/api/auth/register', async (req, res) => {
-  const { fullName, email, phone, password, address, role } = req.body;
+  // Lưu ý: trường `role` từ client bị bỏ qua hoàn toàn vì lý do bảo mật.
+  // Mọi tài khoản đăng ký mới luôn được gán vai trò RESIDENT.
+  // Admin mới có quyền thay đổi vai trò qua trang Quản lý người dùng.
+  const { fullName, email, phone, password, address } = req.body;
 
   if (!email || !password || !fullName) {
     return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin (Họ và tên, Email, Mật khẩu)' });
@@ -114,7 +117,7 @@ app.post('/api/auth/register', async (req, res) => {
       email,
       phone: phone || '',
       address: address || '',
-      role: normalizeRole(role),
+      role: ROLES.RESIDENT,
       emailVerified: false,
       createdAt: new Date().toISOString(),
       area: 'Quận Sơn Trà, Đà Nẵng',

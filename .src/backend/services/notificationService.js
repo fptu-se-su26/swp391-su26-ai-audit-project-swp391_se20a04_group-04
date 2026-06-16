@@ -123,7 +123,7 @@ async function updateNotificationSettings(userId, settings) {
  * [ADMIN] Lấy toàn bộ thông báo từ hệ thống.
  */
 async function getAdminNotifications(roleFilter) {
-  let query = db.collection(NOTIFICATIONS_COLLECTION).orderBy('sent_at', 'desc');
+  let query = db.collection(NOTIFICATIONS_COLLECTION);
   if (roleFilter && roleFilter !== 'all') {
     query = query.where('targetRole', '==', roleFilter);
   }
@@ -131,7 +131,7 @@ async function getAdminNotifications(roleFilter) {
   
   if (snapshot.empty) return [];
   
-  return snapshot.docs.map(doc => {
+  const results = snapshot.docs.map(doc => {
     const data = doc.data();
     // Chuyển đổi an toàn kiểu dữ liệu thời gian về ISO String
     let sentAtISO = data.sent_at;
@@ -155,6 +155,9 @@ async function getAdminNotifications(roleFilter) {
       created_at: createdAtISO,
     };
   });
+
+  // Sắp xếp theo thời gian gửi giảm dần (mới nhất lên đầu) bằng JS để tránh composite index
+  return results.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
 }
 
 /**
