@@ -122,7 +122,6 @@ app.post('/api/auth/register', async (req, res) => {
     // Vì đang chạy ở Backend sử dụng Firebase Admin SDK, thao tác này vượt qua mọi rules bảo mật client!
     console.log(`[Register] Đang lưu thông tin tài khoản ${uid} vào Firestore database...`);
     await db.collection(USERS_COLLECTION).doc(uid).set(userData);
-    await db.collection('users').doc(uid).set(userData);
 
     console.log(`[Register] Đăng ký thành công cho user: ${email} (${uid})`);
     return res.status(201).json({ success: true });
@@ -184,10 +183,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     // 3. Lấy thông tin người dùng từ Firestore bằng Admin SDK (bảo mật tuyệt đối)
     console.log(`[Login] Đang tải thông tin Firestore của user ${uid}`);
-    let userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
-      userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
-    }
+    let userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
 
     let userData = {};
     if (userDoc.exists) {
@@ -195,7 +191,6 @@ app.post('/api/auth/login', async (req, res) => {
       
       // Cập nhật trạng thái emailVerified lên true trong Firestore nếu chưa đồng bộ
       if (!userDoc.data().emailVerified) {
-        await db.collection('users').doc(uid).update({ emailVerified: true });
         await db.collection(USERS_COLLECTION).doc(uid).update({ emailVerified: true });
         userData.emailVerified = true;
       }
@@ -243,16 +238,12 @@ app.post('/api/auth/google-login', async (req, res) => {
 
     const userRecord = await auth.getUser(uid);
 
-    let userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
-      userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
-    }
+    let userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
 
     let userData = {};
     if (userDoc.exists) {
       userData = normalizeUser(userDoc.data(), uid);
       if (!userDoc.data().emailVerified && emailVerified) {
-        await db.collection('users').doc(uid).update({ emailVerified: true });
         await db.collection(USERS_COLLECTION).doc(uid).update({ emailVerified: true });
         userData.emailVerified = true;
       }
@@ -270,7 +261,6 @@ app.post('/api/auth/google-login', async (req, res) => {
       };
 
       await db.collection(USERS_COLLECTION).doc(uid).set(userData);
-      await db.collection('users').doc(uid).set(userData);
     }
 
     console.log(`[GoogleLogin] Đăng nhập Google thành công: ${email}`);
