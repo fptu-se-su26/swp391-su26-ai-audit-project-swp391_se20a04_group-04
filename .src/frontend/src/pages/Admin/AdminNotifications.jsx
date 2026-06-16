@@ -338,25 +338,13 @@ export default function AdminNotifications() {
                             >
                               <Pencil size={16} />
                             </button>
-                            {isSystem ? (
-                              <button 
-                                onClick={() => handleOpenDelete(n)} 
-                                className="p-1.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors group relative" 
-                              >
-                                <Check size={16} />
-                                <span className="absolute bottom-full mb-2 right-0 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                                  Mark as Read
-                                </span>
-                              </button>
-                            ) : (
-                              <button 
-                                onClick={() => handleOpenDelete(n)} 
-                                className="p-1.5 text-rose-500 bg-rose-50 hover:bg-rose-100 rounded-md transition-colors" 
-                                title="Xóa"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
+                            <button 
+                              onClick={() => handleOpenDelete(n)} 
+                              className="p-1.5 text-rose-500 bg-rose-50 hover:bg-rose-100 rounded-md transition-colors" 
+                              title="Xóa"
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         </td>
                       </tr>

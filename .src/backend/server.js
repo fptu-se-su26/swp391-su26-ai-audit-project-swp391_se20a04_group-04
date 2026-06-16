@@ -419,60 +419,18 @@ async function ensureAdmin(req, res, next) {
 
 app.get('/api/admin/users', verifyToken, ensureAdmin, async (req, res) => {
   try {
-    const { search = '', role = '', page = 1, limit = 10 } = req.query;
-    const parsedLimit = parseInt(limit, 10) || 10;
-    const parsedPage = parseInt(page, 10) || 1;
-    const start = (parsedPage - 1) * parsedLimit;
+    // Tải toàn bộ user (giới hạn 1000 để an toàn RAM) cho frontend tự lọc và phân trang
+    const snapshot = await db.collection(USERS_COLLECTION).orderBy('createdAt', 'desc').limit(1000).get();
+    let users = snapshot.docs.map(doc => {
+      const u = normalizeUser(doc.data(), doc.id);
+      u.createdAt = doc.data().createdAt || '';
+      return u;
+    });
 
-    let query = db.collection(USERS_COLLECTION).orderBy('createdAt', 'desc');
-
-    if (role) {
-      query = query.where('role', '==', role);
-    }
-
-    if (search) {
-      const snapshot = await query.limit(100).get();
-      let users = snapshot.docs.map(doc => {
-        const u = normalizeUser(doc.data(), doc.id);
-        u.createdAt = doc.data().createdAt || '';
-        return u;
-      });
-      
-      const lowerSearch = search.toLowerCase();
-      users = users.filter(u => 
-        (u.fullName && u.fullName.toLowerCase().includes(lowerSearch)) || 
-        (u.email && u.email.toLowerCase().includes(lowerSearch))
-      );
-      
-      const total = users.length;
-      const paginated = users.slice(start, start + parsedLimit);
-      
-      return res.json({
-        data: paginated,
-        total,
-        page: parsedPage,
-        limit: parsedLimit,
-        totalPages: Math.ceil(total / parsedLimit) || 1
-      });
-    } else {
-      const countSnapshot = await query.count().get();
-      const total = countSnapshot.data().count;
-
-      const snapshot = await query.offset(start).limit(parsedLimit).get();
-      const paginated = snapshot.docs.map(doc => {
-        const u = normalizeUser(doc.data(), doc.id);
-        u.createdAt = doc.data().createdAt || '';
-        return u;
-      });
-
-      return res.json({
-        data: paginated,
-        total,
-        page: parsedPage,
-        limit: parsedLimit,
-        totalPages: Math.ceil(total / parsedLimit) || 1
-      });
-    }
+    return res.json({
+      data: users,
+      total: users.length
+    });
   } catch (error) {
     console.error('[Admin] Lỗi lấy danh sách user:', error);
     res.status(500).json({ error: 'Lỗi khi tải danh sách người dùng.' });
@@ -490,6 +448,7 @@ app.post('/api/admin/users', verifyToken, ensureAdmin, async (req, res) => {
       email,
       password,
       displayName: fullName,
+      emailVerified: true,
     });
 
     const userData = {
@@ -603,73 +562,17 @@ app.get('/api/admin/transactions', verifyToken, ensureAdmin, async (req, res) =>
 
 app.get('/api/admin/complaints', verifyToken, ensureAdmin, async (req, res) => {
   try {
-    const { search = '', role = '', page = 1, limit = 10 } = req.query;
-    const parsedLimit = parseInt(limit, 10) || 10;
-    const parsedPage = parseInt(page, 10) || 1;
-    const start = (parsedPage - 1) * parsedLimit;
+    const snapshot = await db.collection('complaints').orderBy('created_at', 'desc').limit(1000).get();
+    let complaints = [];
+    snapshot.forEach(doc => complaints.push({ id: doc.id, ...doc.data() }));
 
-    if (search || role) {
-      const snapshot = await db.collection('complaints').orderBy('created_at', 'desc').limit(100).get();
-      let complaints = [];
-      snapshot.forEach(doc => complaints.push({ id: doc.id, ...doc.data() }));
-
-      const userIds = [...new Set(complaints.map(c => c.userId).filter(Boolean))];
-      const usersMap = {};
-      if (userIds.length > 0) {
-        const refs = userIds.map(id => db.collection(USERS_COLLECTION).doc(id));
-        for (let i = 0; i < refs.length; i += 100) {
-          const chunkRefs = refs.slice(i, i + 100);
-          const userDocs = await db.getAll(...chunkRefs);
-          userDocs.forEach(doc => {
-            if (doc.exists) {
-              const u = normalizeUser(doc.data(), doc.id);
-              usersMap[doc.id] = normalizeRole(u.role);
-            }
-          });
-        }
-      }
-
-      complaints = complaints.map(c => ({
-        ...c,
-        userRole: usersMap[c.userId] || 'Unknown'
-      }));
-
-      if (role) {
-        complaints = complaints.filter(c => c.userRole === role);
-      }
-      if (search) {
-        const lowerSearch = search.toLowerCase();
-        complaints = complaints.filter(c => 
-          (c.title && c.title.toLowerCase().includes(lowerSearch)) || 
-          (c.description && c.description.toLowerCase().includes(lowerSearch)) ||
-          (c.userName && c.userName.toLowerCase().includes(lowerSearch))
-        );
-      }
-
-      const total = complaints.length;
-      const paginated = complaints.slice(start, start + parsedLimit);
-
-      return res.json({
-        data: paginated,
-        total,
-        page: parsedPage,
-        limit: parsedLimit,
-        totalPages: Math.ceil(total / parsedLimit) || 1
-      });
-    } else {
-      const query = db.collection('complaints').orderBy('created_at', 'desc');
-      const countSnapshot = await query.count().get();
-      const total = countSnapshot.data().count;
-
-      const snapshot = await query.offset(start).limit(parsedLimit).get();
-      let paginated = [];
-      snapshot.forEach(doc => paginated.push({ id: doc.id, ...doc.data() }));
-
-      const userIds = [...new Set(paginated.map(c => c.userId).filter(Boolean))];
-      const usersMap = {};
-      if (userIds.length > 0) {
-        const refs = userIds.map(id => db.collection(USERS_COLLECTION).doc(id));
-        const userDocs = await db.getAll(...refs);
+    const userIds = [...new Set(complaints.map(c => c.userId).filter(Boolean))];
+    const usersMap = {};
+    if (userIds.length > 0) {
+      const refs = userIds.map(id => db.collection(USERS_COLLECTION).doc(id));
+      for (let i = 0; i < refs.length; i += 100) {
+        const chunkRefs = refs.slice(i, i + 100);
+        const userDocs = await db.getAll(...chunkRefs);
         userDocs.forEach(doc => {
           if (doc.exists) {
             const u = normalizeUser(doc.data(), doc.id);
@@ -677,20 +580,17 @@ app.get('/api/admin/complaints', verifyToken, ensureAdmin, async (req, res) => {
           }
         });
       }
-
-      paginated = paginated.map(c => ({
-        ...c,
-        userRole: usersMap[c.userId] || 'Unknown'
-      }));
-
-      return res.json({
-        data: paginated,
-        total,
-        page: parsedPage,
-        limit: parsedLimit,
-        totalPages: Math.ceil(total / parsedLimit) || 1
-      });
     }
+
+    complaints = complaints.map(c => ({
+      ...c,
+      userRole: usersMap[c.userId] || 'Unknown'
+    }));
+
+    return res.json({
+      data: complaints,
+      total: complaints.length
+    });
   } catch (error) {
     console.error('[Admin] Lỗi lấy danh sách phản ánh:', error);
     res.status(500).json({ error: 'Lỗi khi tải danh sách phản ánh.' });
