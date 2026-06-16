@@ -124,7 +124,6 @@ app.post('/api/auth/register', async (req, res) => {
     // Vì đang chạy ở Backend sử dụng Firebase Admin SDK, thao tác này vượt qua mọi rules bảo mật client!
     console.log(`[Register] Đang lưu thông tin tài khoản ${uid} vào Firestore database...`);
     await db.collection(USERS_COLLECTION).doc(uid).set(userData);
-    await db.collection('users').doc(uid).set(userData);
 
     console.log(`[Register] Đăng ký thành công cho user: ${email} (${uid})`);
     return res.status(201).json({ success: true });
@@ -186,10 +185,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     // 3. Lấy thông tin người dùng từ Firestore bằng Admin SDK (bảo mật tuyệt đối)
     console.log(`[Login] Đang tải thông tin Firestore của user ${uid}`);
-    let userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
-      userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
-    }
+    let userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
 
     let userData = {};
     if (userDoc.exists) {
@@ -197,7 +193,6 @@ app.post('/api/auth/login', async (req, res) => {
       
       // Cập nhật trạng thái emailVerified lên true trong Firestore nếu chưa đồng bộ
       if (!userDoc.data().emailVerified) {
-        await db.collection('users').doc(uid).update({ emailVerified: true });
         await db.collection(USERS_COLLECTION).doc(uid).update({ emailVerified: true });
         userData.emailVerified = true;
       }
@@ -245,16 +240,12 @@ app.post('/api/auth/google-login', async (req, res) => {
 
     const userRecord = await auth.getUser(uid);
 
-    let userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
-      userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
-    }
+    let userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
 
     let userData = {};
     if (userDoc.exists) {
       userData = normalizeUser(userDoc.data(), uid);
       if (!userDoc.data().emailVerified && emailVerified) {
-        await db.collection('users').doc(uid).update({ emailVerified: true });
         await db.collection(USERS_COLLECTION).doc(uid).update({ emailVerified: true });
         userData.emailVerified = true;
       }
@@ -272,7 +263,6 @@ app.post('/api/auth/google-login', async (req, res) => {
       };
 
       await db.collection(USERS_COLLECTION).doc(uid).set(userData);
-      await db.collection('users').doc(uid).set(userData);
     }
 
     console.log(`[GoogleLogin] Đăng nhập Google thành công: ${email}`);
@@ -430,8 +420,16 @@ async function ensureAdmin(req, res, next) {
 app.get('/api/admin/users', verifyToken, ensureAdmin, async (req, res) => {
   try {
     const { search = '', role = '', page = 1, limit = 10 } = req.query;
-    const snapshot = await db.collection(USERS_COLLECTION).get();
-    let users = snapshot.docs.map(doc => normalizeUser(doc.data(), doc.id));
+    
+    // Bảo vệ RAM: Giới hạn lấy tối đa 1000 users để tìm kiếm/lọc thay vì toàn bộ DB
+    let query = db.collection(USERS_COLLECTION).orderBy('createdAt', 'desc').limit(1000);
+    const snapshot = await query.get();
+    
+    let users = snapshot.docs.map(doc => {
+      const u = normalizeUser(doc.data(), doc.id);
+      u.createdAt = doc.data().createdAt || '';
+      return u;
+    });
 
     if (role) {
       users = users.filter(u => normalizeRole(u.role) === role);
@@ -444,18 +442,18 @@ app.get('/api/admin/users', verifyToken, ensureAdmin, async (req, res) => {
       );
     }
 
-    users.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-
     const total = users.length;
-    const start = (page - 1) * limit;
-    const paginated = users.slice(start, start + parseInt(limit));
+    const parsedLimit = parseInt(limit, 10) || 10;
+    const parsedPage = parseInt(page, 10) || 1;
+    const start = (parsedPage - 1) * parsedLimit;
+    const paginated = users.slice(start, start + parsedLimit);
 
     res.json({
       data: paginated,
       total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(total / limit)
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages: Math.ceil(total / parsedLimit) || 1
     });
   } catch (error) {
     console.error('[Admin] Lỗi lấy danh sách user:', error);
@@ -589,16 +587,27 @@ app.get('/api/admin/complaints', verifyToken, ensureAdmin, async (req, res) => {
   try {
     const { search = '', role = '', page = 1, limit = 10 } = req.query;
     
-    const snapshot = await db.collection('complaints').orderBy('created_at', 'desc').get();
+    // Bảo vệ RAM: Giới hạn lấy tối đa 1000 complaints mới nhất để lọc
+    const snapshot = await db.collection('complaints').orderBy('created_at', 'desc').limit(1000).get();
     let complaints = [];
     snapshot.forEach(doc => complaints.push({ id: doc.id, ...doc.data() }));
 
-    const usersSnapshot = await db.collection(USERS_COLLECTION).get();
+    // Chỉ lấy thông tin User của những phản ánh trong danh sách, tránh join 100% db Users
+    const userIds = [...new Set(complaints.map(c => c.userId).filter(Boolean))];
     const usersMap = {};
-    usersSnapshot.forEach(doc => {
-      const u = normalizeUser(doc.data(), doc.id);
-      usersMap[doc.id] = normalizeRole(u.role);
-    });
+    if (userIds.length > 0) {
+      const refs = userIds.map(id => db.collection(USERS_COLLECTION).doc(id));
+      for (let i = 0; i < refs.length; i += 100) {
+        const chunkRefs = refs.slice(i, i + 100);
+        const userDocs = await db.getAll(...chunkRefs);
+        userDocs.forEach(doc => {
+          if (doc.exists) {
+            const u = normalizeUser(doc.data(), doc.id);
+            usersMap[doc.id] = normalizeRole(u.role);
+          }
+        });
+      }
+    }
 
     complaints = complaints.map(c => ({
       ...c,
@@ -618,15 +627,17 @@ app.get('/api/admin/complaints', verifyToken, ensureAdmin, async (req, res) => {
     }
 
     const total = complaints.length;
-    const start = (page - 1) * limit;
-    const paginated = complaints.slice(start, start + parseInt(limit));
+    const parsedLimit = parseInt(limit, 10) || 10;
+    const parsedPage = parseInt(page, 10) || 1;
+    const start = (parsedPage - 1) * parsedLimit;
+    const paginated = complaints.slice(start, start + parsedLimit);
 
     res.json({
       data: paginated,
       total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(total / limit)
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages: Math.ceil(total / parsedLimit) || 1
     });
   } catch (error) {
     console.error('[Admin] Lỗi lấy danh sách phản ánh:', error);
