@@ -12,16 +12,28 @@ export default function AdminComplaints({ hideHeader = false }) {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   
   // UI State
   const [expandedComplaintId, setExpandedComplaintId] = useState(null);
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  useEffect(() => {
+    fetchComplaints();
+  }, [page, debouncedSearch, roleFilter]);
+
   const fetchComplaints = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await complaintService.getAdminComplaints(page, limit, search, roleFilter);
+      const res = await complaintService.getAdminComplaints(page, limit, debouncedSearch, roleFilter);
       setComplaints(res.data || []);
       setTotalPages(res.totalPages || 1);
       setTotal(res.total || 0);
@@ -31,12 +43,6 @@ export default function AdminComplaints({ hideHeader = false }) {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchComplaints();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, roleFilter]);
 
   const getStatusBadge = (status) => {
     const s = status ? status.toLowerCase() : 'open';
