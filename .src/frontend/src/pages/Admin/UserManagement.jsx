@@ -18,6 +18,8 @@ export default function UserManagement({ hideHeader = false }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('add'); // 'add' or 'edit'
@@ -31,11 +33,22 @@ export default function UserManagement({ hideHeader = false }) {
   });
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  useEffect(() => {
+    fetchData();
+  }, [page, debouncedSearch, roleFilter]);
+
   const fetchData = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await getUsers(page, limit, search, roleFilter);
+      const res = await getUsers(page, limit, debouncedSearch, roleFilter);
       setUsers(res.data);
       setTotal(res.total);
       setTotalPages(res.totalPages);
@@ -45,17 +58,6 @@ export default function UserManagement({ hideHeader = false }) {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser || normalizeRole(currentUser.role) !== ROLES.ADMIN) {
-      navigate('/');
-      return;
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, roleFilter]);
 
   const handleSearchChange = (e) => {
     setSearch(e.target.value);
