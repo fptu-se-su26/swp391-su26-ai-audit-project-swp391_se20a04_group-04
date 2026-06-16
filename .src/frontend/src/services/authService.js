@@ -95,40 +95,31 @@ const authService = {
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
       const firebaseUser = result.user;
-      const token = await firebaseUser.getIdToken();
+      const idToken = await firebaseUser.getIdToken();
 
-      // Kiểm tra và lấy dữ liệu user từ Firestore
-      let userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-      if (!userDoc.exists()) {
-        userDoc = await getDoc(doc(db, USERS_COLLECTION, firebaseUser.uid));
+      // Gọi Backend để xác thực và đồng bộ dữ liệu Firestore thông qua Admin SDK
+      const response = await fetch(`${BACKEND_URL}/google-login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idToken }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Đăng nhập Google thất bại.');
       }
 
-      let userData = {};
-      if (userDoc.exists()) {
-        userData = normalizeUser(userDoc.data(), firebaseUser.uid);
-      } else {
-        // Tạo tài khoản mặc định nếu đăng nhập lần đầu bằng Google
-        userData = {
-          uid: firebaseUser.uid,
-          fullName: firebaseUser.displayName || firebaseUser.email.split('@')[0],
-          email: firebaseUser.email,
-          phone: firebaseUser.phoneNumber || '',
-          address: '',
-          role: ROLES.RESIDENT,
-          area: 'Quận Sơn Trà, Đà Nẵng',
-          emailVerified: true,
-          createdAt: new Date().toISOString(),
-        };
-        await setDoc(doc(db, 'users', firebaseUser.uid), userData);
-        await setDoc(doc(db, USERS_COLLECTION, firebaseUser.uid), userData);
-      }
+      const { user, token } = data;
 
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem('eco_token', token);
-      storage.setItem('eco_user', JSON.stringify(userData));
+      storage.setItem('eco_user', JSON.stringify(user));
 
       window.dispatchEvent(new Event('authChange'));
-      return { user: userData, token };
+      return { user, token };
     } catch (error) {
       let message = error.message || 'Đăng nhập Google thất bại.';
       if (error.code === 'auth/popup-closed-by-user') {
