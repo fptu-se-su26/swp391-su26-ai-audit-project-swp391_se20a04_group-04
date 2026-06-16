@@ -17,6 +17,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+// eslint-disable-next-line no-unused-vars
 async function checkRealtimeDB() {
     console.log("Checking Realtime Database...");
     try {

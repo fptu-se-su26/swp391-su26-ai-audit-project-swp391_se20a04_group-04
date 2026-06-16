@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
 import { ROLES, normalizeRole } from '../../constants/roles';
@@ -8,27 +8,19 @@ import AdminComplaints from './AdminComplaints';
 export default function AdminManagement() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState('users');
+
+  // Tính toán trực tiếp từ URL thay vì dùng state, tránh setState trong useEffect
+  const searchParams = new URLSearchParams(location.search);
+  const activeTab = searchParams.get('tab') === 'complaints' ? 'complaints' : 'users';
 
   useEffect(() => {
     const user = authService.getCurrentUser();
     if (!user || normalizeRole(user.role) !== ROLES.ADMIN) {
       navigate('/');
-      return;
     }
-
-    // Parse tab from URL
-    const searchParams = new URLSearchParams(location.search);
-    const tab = searchParams.get('tab');
-    if (tab === 'complaints') {
-      setActiveTab('complaints');
-    } else {
-      setActiveTab('users');
-    }
-  }, [location, navigate]);
+  }, [navigate]);
 
   const handleTabChange = (tab) => {
-    setActiveTab(tab);
     navigate(`/quan-ly?tab=${tab}`, { replace: true });
   };
 

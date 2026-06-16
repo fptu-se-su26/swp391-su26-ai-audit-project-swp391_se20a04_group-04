@@ -76,7 +76,10 @@ export default function Header() {
       if (!currentUser) { setUnreadCount(0); setNotifications([]); }
     }, 3000);
 
-    fetchNotifications();
+    if (authService.isAuthenticated()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchNotifications();
+    }
 
     return () => {
       window.removeEventListener('authChange', handleAuthChange);

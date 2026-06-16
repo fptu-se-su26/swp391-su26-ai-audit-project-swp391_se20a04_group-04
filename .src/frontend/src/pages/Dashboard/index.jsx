@@ -29,7 +29,8 @@ function formatDate(dateString) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  // Khởi tạo user trực tiếp để tránh setState-in-effect
+  const [user, setUser] = useState(() => authService.getCurrentUser());
   const [managerLoading, setManagerLoading] = useState(false);
   const [apiMessage, setApiMessage] = useState('');
   const [managerError, setManagerError] = useState('');
@@ -70,8 +71,8 @@ export default function Dashboard() {
       navigate('/login');
       return;
     }
-    setUser(currentUser);
-
+    // setUser được khởi tạo trực tiếp từ useState, không cần gọi lại ở đây
+    // Chỉ lắng nghe sự kiện thay đổi auth để cập nhật khi logout/login
     const handleAuthChange = () => {
       setUser(authService.getCurrentUser());
     };
@@ -82,39 +83,12 @@ export default function Dashboard() {
     };
   }, [navigate]);
 
-  useEffect(() => {
-    if (user === null) {
-      return;
-    }
-
-    const role = normalizeRole(user.role);
-    if (role === ROLES.RESIDENT) {
-      navigate('/');
-      return;
-    }
-
-    if (role === ROLES.MANAGER || role === ROLES.ADMIN) {
-      loadManagerData();
-    }
-  }, [user, navigate]);
-
   const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${authService.getToken()}`,
   });
 
-  const loadManagerData = async () => {
-    setManagerLoading(true);
-    setManagerError('');
-    try {
-      await Promise.all([fetchSchedules(), fetchComplaints(), fetchReport()]);
-    } catch (error) {
-      setManagerError(error.message || 'Không thể tải dữ liệu quản lý.');
-    } finally {
-      setManagerLoading(false);
-    }
-  };
-
+  // Khai báo fetch functions TRƯỚC loadManagerData để tránh TDZ
   const fetchSchedules = async () => {
     const response = await fetch(`${API_BASE}/api/manager/schedules`, {
       headers: getAuthHeaders(),
@@ -158,6 +132,36 @@ export default function Dashboard() {
     setReport(data);
     return data;
   };
+
+  const loadManagerData = async () => {
+    setManagerLoading(true);
+    setManagerError('');
+    try {
+      await Promise.all([fetchSchedules(), fetchComplaints(), fetchReport()]);
+    } catch (error) {
+      setManagerError(error.message || 'Không thể tải dữ liệu quản lý.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user === null) {
+      return;
+    }
+
+    const role = normalizeRole(user.role);
+    if (role === ROLES.RESIDENT) {
+      navigate('/');
+      return;
+    }
+
+    if (role === ROLES.MANAGER || role === ROLES.ADMIN) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadManagerData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, navigate]);
 
   const handleCreateSchedule = async (event) => {
     event.preventDefault();

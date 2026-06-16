@@ -40,46 +40,44 @@ const getDefaultInvoice = () => ({
 
 export default function ManagerInvoice() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [invoice, setInvoice] = useState(getDefaultInvoice());
+  // Lấy user trực tiếp thay vì dùng useState + useEffect để tránh setState-in-effect
+  const user = authService.getCurrentUser();
+  
+  const [invoice, setInvoice] = useState(() => {
+    const defaults = getDefaultInvoice();
+    return {
+      ...defaults,
+      createdBy: user ? (user.fullName || user.email || user.uid) : '',
+    };
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser) {
+    if (!user) {
       navigate('/login');
       return;
     }
 
-    const role = normalizeRole(currentUser.role);
+    const role = normalizeRole(user.role);
     if (role !== ROLES.MANAGER && role !== ROLES.ADMIN) {
       navigate('/dashboard');
-      return;
     }
-
-    setUser(currentUser);
-    setInvoice((prev) => ({
-      ...prev,
-      createdAt: new Date().toISOString(),
-      createdBy: currentUser.fullName || currentUser.email || currentUser.uid,
-    }));
-  }, [navigate]);
-
-  useEffect(() => {
-    if (!invoice.userId) return;
-    if (!invoice.invoiceId || invoice.invoiceId.startsWith('invoice_')) {
-      setInvoice((prev) => ({
-        ...prev,
-        invoiceId: `invoice_${prev.userId}_${prev.billingYear}_${String(prev.billingMonth).padStart(2, '0')}`,
-      }));
-    }
-  }, [invoice.userId, invoice.billingMonth, invoice.billingYear]);
+  }, [navigate, user]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setInvoice((prev) => ({ ...prev, [name]: value }));
+    setInvoice((prev) => {
+      const updated = { ...prev, [name]: value };
+      // Tự động tạo invoiceId khi userId, billingMonth, hoặc billingYear thay đổi
+      if ((name === 'userId' || name === 'billingMonth' || name === 'billingYear') && updated.userId) {
+        if (!updated.invoiceId || updated.invoiceId.startsWith('invoice_')) {
+          updated.invoiceId = `invoice_${updated.userId}_${updated.billingYear}_${String(updated.billingMonth).padStart(2, '0')}`;
+        }
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async (event) => {

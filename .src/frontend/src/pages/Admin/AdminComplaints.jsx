@@ -17,10 +17,6 @@ export default function AdminComplaints({ hideHeader = false }) {
   // UI State
   const [expandedComplaintId, setExpandedComplaintId] = useState(null);
 
-  useEffect(() => {
-    fetchComplaints();
-  }, [page, search, roleFilter]);
-
   const fetchComplaints = async () => {
     setLoading(true);
     setError(null);
@@ -35,6 +31,12 @@ export default function AdminComplaints({ hideHeader = false }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchComplaints();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search, roleFilter]);
 
   const getStatusBadge = (status) => {
     const s = status ? status.toLowerCase() : 'open';
