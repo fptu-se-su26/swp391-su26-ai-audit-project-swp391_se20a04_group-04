@@ -339,15 +339,18 @@ app.get('/api/schedules', async (req, res) => {
  */
 async function ensureManager(req, res, next) {
   try {
-    const userDoc = await db.collection(USERS_COLLECTION).doc(req.uid).get();
+    let userDoc = await db.collection(USERS_COLLECTION).doc(req.uid).get();
+    if (!userDoc.exists) {
+      userDoc = await db.collection('users').doc(req.uid).get();
+    }
     if (!userDoc.exists) {
       return res.status(403).json({ error: 'Không tìm thấy thông tin người dùng để xác thực vai trò.' });
     }
 
     const userData = normalizeUser(userDoc.data(), req.uid);
     const role = normalizeRole(userData.role);
-    if (role !== ROLES.MANAGER) {
-      return res.status(403).json({ error: 'Chỉ có Collection Company Manager mới được phép truy cập chức năng này.' });
+    if (role !== ROLES.MANAGER && role !== ROLES.ADMIN) {
+      return res.status(403).json({ error: 'Chỉ có Collection Company Manager hoặc Admin mới được phép truy cập chức năng này.' });
     }
 
     req.userProfile = userData;
@@ -534,6 +537,26 @@ app.delete('/api/admin/users/:uid', verifyToken, ensureAdmin, async (req, res) =
   } catch (error) {
     console.error('[Admin] Lỗi xóa user:', error);
     res.status(500).json({ error: error.message || 'Lỗi khi xóa người dùng.' });
+  }
+});
+
+app.get('/api/manager/collectors', verifyToken, ensureManager, async (req, res) => {
+  try {
+    const snapshot = await db.collection(USERS_COLLECTION).where('role', '==', 'collector').get();
+    const collectors = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        uid: doc.id,
+        fullName: data.fullName || data['Họ và tên'] || '',
+        email: data.email || '',
+        area: data.area || '',
+      };
+    });
+    collectors.sort((a, b) => a.fullName.localeCompare(b.fullName, 'vi'));
+    return res.status(200).json(collectors);
+  } catch (error) {
+    console.error('[API] Lỗi lấy danh sách nhân viên thu gom:', error.message);
+    return res.status(500).json({ error: 'Không thể tải danh sách nhân viên thu gom.' });
   }
 });
 
@@ -867,6 +890,33 @@ app.put('/api/manager/schedules/:scheduleId', verifyToken, ensureManager, async 
   } catch (error) {
     console.error('[API] Lỗi cập nhật tuyến cho lịch thu gom:', error.message);
     return res.status(500).json({ error: 'Không thể cập nhật tuyến cho lịch. Vui lòng thử lại sau.' });
+  }
+});
+
+app.delete('/api/manager/schedules/:scheduleId', verifyToken, ensureManager, async (req, res) => {
+  const { scheduleId } = req.params;
+  if (!scheduleId) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch cần xóa.' });
+  }
+
+  try {
+    const docRef = db.collection('collection_schedules').doc(scheduleId);
+    const snapshot = await docRef.get();
+    if (!snapshot.exists) {
+      return res.status(404).json({ error: 'Không tìm thấy lịch thu gom cần xóa.' });
+    }
+
+    const scheduleData = snapshot.data();
+    if (scheduleData?.collector_confirmed) {
+      return res.status(400).json({ error: 'Không thể xóa lịch đã được nhân viên xác nhận.' });
+    }
+
+    await docRef.delete();
+    console.log(`[API] Đã xóa lịch thu gom: ${scheduleId} bởi ${req.userProfile?.fullName || req.uid}`);
+    return res.status(200).json({ success: true, message: 'Đã xóa lịch thu gom thành công.' });
+  } catch (error) {
+    console.error('[API] Lỗi xóa lịch thu gom:', error.message);
+    return res.status(500).json({ error: 'Không thể xóa lịch thu gom. Vui lòng thử lại sau.' });
   }
 });
 

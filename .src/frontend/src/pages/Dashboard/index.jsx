@@ -5,7 +5,9 @@ import managerReportService from '../../services/managerReportService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace('/api/auth', '')
+  : 'http://localhost:5001';
 
 function getStatusBadge(status) {
   const state = (status || '').toLowerCase();
@@ -37,19 +39,21 @@ export default function Dashboard() {
   const [schedules, setSchedules] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [feedbackReports, setFeedbackReports] = useState([]);
+  const [collectors, setCollectors] = useState([]);
   const [report, setReport] = useState(null);
 
   const [newSchedule, setNewSchedule] = useState({
     routeName: 'North Route A',
     serviceType: 'Recycling',
-    date: '2026-06-10',
+    date: new Date().toISOString().slice(0, 10),
     time: '08:00',
     city: 'Đà Nẵng',
     ward: 'Phường An Hải Tây',
     neighborhood: 'Tổ 12',
     assignedTruck: 'TRUCK-402',
     assignedDriver: 'Nguyễn Văn A',
-    notes: 'Gán tuyến thu gom khu dân cư phía Bắc.',
+    assignedCollector: '',
+    notes: '',
   });
 
   const [assignment, setAssignment] = useState({
@@ -104,16 +108,33 @@ export default function Dashboard() {
     }
   }, [user, navigate]);
 
-  const getAuthHeaders = () => ({
+  const getAuthHeaders = async () => ({
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${authService.getToken()}`,
+    Authorization: `Bearer ${await authService.getFreshToken()}`,
   });
+
+  // Parse response safely — returns parsed JSON or throws a clean error
+  // even when the server returns an HTML error page (e.g. expired token → 401)
+  const safeJson = async (response) => {
+    const text = await response.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      if (response.status === 401) {
+        throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      }
+      if (response.status === 403) {
+        throw new Error('Bạn không có quyền thực hiện thao tác này.');
+      }
+      throw new Error(`Lỗi máy chủ (${response.status}). Vui lòng thử lại.`);
+    }
+  };
 
   const loadManagerData = async () => {
     setManagerLoading(true);
     setManagerError('');
     try {
-      await Promise.all([fetchSchedules(), fetchComplaints(), fetchReport(), fetchFeedbackReports()]);
+      await Promise.all([fetchSchedules(), fetchComplaints(), fetchReport(), fetchFeedbackReports(), fetchCollectors()]);
     } catch (error) {
       setManagerError(error.message || 'Không thể tải dữ liệu quản lý.');
     } finally {
@@ -121,11 +142,26 @@ export default function Dashboard() {
     }
   };
 
+  const fetchCollectors = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/manager/collectors`, {
+        headers: await getAuthHeaders(),
+      });
+      const data = await safeJson(response);
+      if (!response.ok) throw new Error(data.error || 'Không thể tải danh sách nhân viên.');
+      setCollectors(data);
+      return data;
+    } catch {
+      // Non-critical: silently fail, the dropdown just won't have options
+      return [];
+    }
+  };
+
   const fetchSchedules = async () => {
     const response = await fetch(`${API_BASE}/api/manager/schedules`, {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
-    const data = await response.json();
+    const data = await safeJson(response);
     if (!response.ok) throw new Error(data.error || 'Không thể tải lịch thu gom.');
     setSchedules(data);
     if (data.length > 0) {
@@ -147,9 +183,9 @@ export default function Dashboard() {
 
   const fetchComplaints = async () => {
     const response = await fetch(`${API_BASE}/api/manager/complaints`, {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
-    const data = await response.json();
+    const data = await safeJson(response);
     if (!response.ok) throw new Error(data.error || 'Không thể tải phản ánh.');
     setComplaints(data);
     return data;
@@ -178,9 +214,9 @@ export default function Dashboard() {
 
   const fetchReport = async () => {
     const response = await fetch(`${API_BASE}/api/manager/reports`, {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
-    const data = await response.json();
+    const data = await safeJson(response);
     if (!response.ok) throw new Error(data.error || 'Không thể tải báo cáo.');
     setReport(data);
     return data;
@@ -195,13 +231,13 @@ export default function Dashboard() {
     try {
       const response = await fetch(`${API_BASE}/api/manager/schedules`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           ...newSchedule,
           routePoints,
         }),
       });
-      const data = await response.json();
+      const data = await safeJson(response);
       if (!response.ok) throw new Error(data.error || 'Không thể tạo lịch thu gom mới.');
 
       setApiMessage('Lịch thu gom mới đã được tạo thành công.');
@@ -234,10 +270,10 @@ export default function Dashboard() {
     try {
       const response = await fetch(`${API_BASE}/api/manager/schedules/${assignment.scheduleId}`, {
         method: 'PUT',
-        headers: getAuthHeaders(),
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ routePoints }),
       });
-      const data = await response.json();
+      const data = await safeJson(response);
       if (!response.ok) throw new Error(data.error || 'Không thể lưu tuyến.');
 
       setApiMessage('Tuyến đã được lưu thành công.');
@@ -268,7 +304,7 @@ export default function Dashboard() {
     try {
       const response = await fetch(`${API_BASE}/api/manager/assign-route`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           scheduleId: assignment.scheduleId,
           assignedTruck: assignment.assignedTruck,
@@ -276,7 +312,7 @@ export default function Dashboard() {
           assignedCollector: assignment.assignedCollector,
         }),
       });
-      const data = await response.json();
+      const data = await safeJson(response);
       if (!response.ok) throw new Error(data.error || 'Không thể gán tuyến.');
 
       setApiMessage('Gán tuyến thành công cho lịch thu gom.');
@@ -301,10 +337,10 @@ export default function Dashboard() {
     try {
       const response = await fetch(`${API_BASE}/api/manager/confirm-route`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ scheduleId: assignment.scheduleId }),
       });
-      const data = await response.json();
+      const data = await safeJson(response);
       if (!response.ok) throw new Error(data.error || 'Không thể xác nhận tuyến.');
 
       setApiMessage('Tuyến đã được xác nhận thành công.');
@@ -328,6 +364,32 @@ export default function Dashboard() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDeleteSchedule = async (scheduleId, routeName) => {
+    if (!window.confirm(`Xóa lịch thu gom "${routeName || scheduleId}"?\nHành động này không thể hoàn tác.`)) return;
+
+    setManagerLoading(true);
+    setApiMessage('');
+    setManagerError('');
+    try {
+      const response = await fetch(`${API_BASE}/api/manager/schedules/${scheduleId}`, {
+        method: 'DELETE',
+        headers: await getAuthHeaders(),
+      });
+      const data = await safeJson(response);
+      if (!response.ok) throw new Error(data.error || 'Không thể xóa lịch thu gom.');
+      setApiMessage(data.message || 'Đã xóa lịch thu gom thành công.');
+      // Clear assignment if the deleted schedule was selected
+      setAssignment((prev) => prev.scheduleId === scheduleId
+        ? { scheduleId: '', assignedTruck: '', assignedDriver: '', assignedCollector: '' }
+        : prev);
+      await fetchSchedules();
+    } catch (error) {
+      setManagerError(error.message || 'Lỗi khi xóa lịch thu gom.');
+    } finally {
+      setManagerLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -594,7 +656,7 @@ export default function Dashboard() {
                   </label>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-3">
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Tài xế</span>
                     <input
@@ -604,6 +666,22 @@ export default function Dashboard() {
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       placeholder="Nguyễn Văn A"
                     />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Nhân viên thu gom</span>
+                    <select
+                      name="assignedCollector"
+                      value={newSchedule.assignedCollector}
+                      onChange={handleChangeNewSchedule}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="">-- Chưa gán --</option>
+                      {collectors.map((c) => (
+                        <option key={c.uid} value={c.fullName}>
+                          {c.fullName}{c.area ? ` — ${c.area}` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Ghi chú</span>
@@ -680,15 +758,21 @@ export default function Dashboard() {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Nhân viên</span>
-                    <input
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Nhân viên thu gom</span>
+                    <select
                       name="assignedCollector"
                       value={assignment.assignedCollector}
                       onChange={handleChangeAssignment}
                       disabled={managerLoading || isAssignmentLocked}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      placeholder="Collector placeholder"
-                    />
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white disabled:opacity-60"
+                    >
+                      <option value="">-- Chưa gán --</option>
+                      {collectors.map((c) => (
+                        <option key={c.uid} value={c.fullName}>
+                          {c.fullName}{c.area ? ` — ${c.area}` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
 
@@ -857,12 +941,13 @@ export default function Dashboard() {
                   <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3">Xe</th>
                   <th className="px-4 py-3">Tài xế</th>
+                  <th className="px-4 py-3 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                 {schedules.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">Không có lịch thu gom nào.</td>
+                    <td colSpan="6" className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">Không có lịch thu gom nào.</td>
                   </tr>
                 ) : (
                   schedules.map((schedule) => (
@@ -876,6 +961,24 @@ export default function Dashboard() {
                       </td>
                       <td className="px-4 py-4">{schedule.assigned_truck || 'Chưa gán'}</td>
                       <td className="px-4 py-4">{schedule.assigned_driver || 'Chưa gán'}</td>
+                      <td className="px-4 py-4 text-right">
+                        {schedule.collector_confirmed ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
+                            <span className="material-symbols-outlined text-sm">lock</span>
+                            Đã khóa
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={managerLoading}
+                            onClick={() => handleDeleteSchedule(schedule.id, schedule.route_name)}
+                            className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-400"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                            Xóa
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}

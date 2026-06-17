@@ -80,11 +80,19 @@ async function getRouteMap() {
 }
 
 function matchesCollector(data, collectorId, collectorName) {
-  const assigned = data.assigned_collector || data.collector_id || data.collectorId || '';
-  if (!assigned) return false;
-  if (assigned === collectorId) return true;
-  if (collectorName && assigned === collectorName) return true;
-  return false;
+  // Check all fields where a collector could be referenced
+  const candidates = [
+    data.assigned_collector,
+    data.collector_id,
+    data.collectorId,
+    data.assigned_driver, // managers sometimes put the collector name in driver field
+  ].filter(Boolean);
+
+  if (candidates.length === 0) return false;
+
+  return candidates.some(
+    (v) => v === collectorId || (collectorName && v === collectorName),
+  );
 }
 
 function mapAssignment(doc, routes, targetDate) {
