@@ -9,6 +9,8 @@ import Notifications from './pages/Notifications';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import Dashboard from './pages/Dashboard';
+import CollectorDashboard from './pages/Collector';
+import AssignedReports from './pages/Collector/AssignedReports';
 import ManagerInvoice from './pages/ManagerInvoice';
 import ResidentSchedules from './resident/ResidentSchedules';
 import Complaints from './pages/Complaints';
@@ -30,6 +32,8 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/collector" element={<CollectorDashboard />} />
+            <Route path="/collector/reports" element={<AssignedReports />} />
             <Route path="/dashboard/invoices/new" element={<ManagerInvoice />} />
             <Route path="/phan-anh" element={<Complaints />} />
             <Route path="/admin/users" element={<UserManagement />} />

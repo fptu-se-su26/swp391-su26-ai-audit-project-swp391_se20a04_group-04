@@ -88,12 +88,16 @@ export default function CollectionRouteMap({
   const center = points.length > 0 ? points[0] : defaultRoutePoints[0];
 
   return (
-    <div className="rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+    <div className={`rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 relative z-0 ${readOnly ? 'collector-route-map--readonly' : ''}`}>
       <div className="p-5 border-b border-slate-100 dark:border-slate-700">
         <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Map preview</p>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Assigned collector: {collectorName}</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Nhấp vào bản đồ để đặt điểm, kéo marker để điều chỉnh và tạo tuyến thu gom.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          {readOnly ? `Nhân viên: ${collectorName}` : `Assigned collector: ${collectorName}`}
+        </p>
+        {!readOnly && (
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Nhấp vào bản đồ để đặt điểm, kéo marker để điều chỉnh và tạo tuyến thu gom.</p>
+        )}
       </div>
 
       <div className="h-96">
@@ -138,6 +142,7 @@ export default function CollectionRouteMap({
       </div>
 
       <div className="p-5 border-t border-slate-100 dark:border-slate-700">
+        {!readOnly && (
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-slate-900 dark:text-white">Route points</p>
@@ -152,14 +157,15 @@ export default function CollectionRouteMap({
             Clear route
           </button>
         </div>
+        )}
 
         {points.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Chưa có điểm nào. Nhấp vào bản đồ để thêm điểm dừng.</p>
+          <p className={`text-sm text-slate-500 dark:text-slate-400 ${readOnly ? '' : 'mt-4'}`}>Chưa có điểm trên tuyến.</p>
         ) : (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className={`grid gap-3 sm:grid-cols-2 ${readOnly ? '' : 'mt-4'}`}>
             {points.map((point, index) => (
               <div key={`${point[0]}-${point[1]}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200">
-                <p className="font-semibold">Point {index + 1}</p>
+                <p className="font-semibold">Điểm {index + 1}</p>
                 <p>{point[0].toFixed(5)}, {point[1].toFixed(5)}</p>
               </div>
             ))}

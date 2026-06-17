@@ -1,0 +1,12 @@
+{
+  "name": "ecoschedule",
+  "private": true,
+  "description": "EcoSchedule - root scripts (backend & frontend live in .src/)",
+  "scripts": {
+    "install:backend": "npm install --prefix .src/backend",
+    "install:frontend": "npm install --prefix .src/frontend",
+    "install:all": "npm run install:backend && npm run install:frontend",
+    "backend": "npm run dev --prefix .src/backend",
+    "frontend": "npm run dev --prefix .src/frontend"
+  }
+}

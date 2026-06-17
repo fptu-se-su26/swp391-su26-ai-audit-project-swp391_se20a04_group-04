@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
+import managerReportService from '../../services/managerReportService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
 
@@ -35,6 +36,7 @@ export default function Dashboard() {
   const [managerError, setManagerError] = useState('');
   const [schedules, setSchedules] = useState([]);
   const [complaints, setComplaints] = useState([]);
+  const [feedbackReports, setFeedbackReports] = useState([]);
   const [report, setReport] = useState(null);
 
   const [newSchedule, setNewSchedule] = useState({
@@ -92,6 +94,10 @@ export default function Dashboard() {
       navigate('/');
       return;
     }
+    if (role === ROLES.COLLECTOR) {
+      navigate('/collector');
+      return;
+    }
 
     if (role === ROLES.MANAGER || role === ROLES.ADMIN) {
       loadManagerData();
@@ -107,7 +113,7 @@ export default function Dashboard() {
     setManagerLoading(true);
     setManagerError('');
     try {
-      await Promise.all([fetchSchedules(), fetchComplaints(), fetchReport()]);
+      await Promise.all([fetchSchedules(), fetchComplaints(), fetchReport(), fetchFeedbackReports()]);
     } catch (error) {
       setManagerError(error.message || 'Không thể tải dữ liệu quản lý.');
     } finally {
@@ -147,6 +153,27 @@ export default function Dashboard() {
     if (!response.ok) throw new Error(data.error || 'Không thể tải phản ánh.');
     setComplaints(data);
     return data;
+  };
+
+  const fetchFeedbackReports = async () => {
+    const data = await managerReportService.listFeedbackReports();
+    setFeedbackReports(data);
+    return data;
+  };
+
+  const handleApproveReport = async (reportId) => {
+    setManagerLoading(true);
+    setApiMessage('');
+    setManagerError('');
+    try {
+      await managerReportService.approveReport(reportId, 'Đã kiểm tra và duyệt kết quả xử lý.');
+      setApiMessage('Đã duyệt phản ánh. Cư dân sẽ nhận thông báo.');
+      await fetchFeedbackReports();
+    } catch (error) {
+      setManagerError(error.message || 'Không thể duyệt phản ánh.');
+    } finally {
+      setManagerLoading(false);
+    }
   };
 
   const fetchReport = async () => {
@@ -736,6 +763,48 @@ export default function Dashboard() {
                   <p className="text-sm text-slate-500 dark:text-slate-400">Phản ánh mở</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">{summary.openComplaints}</p>
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Duyệt kết quả</p>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Phản ánh chờ duyệt</h2>
+                </div>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {feedbackReports.filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase())).length} chờ duyệt
+                </span>
+              </div>
+              <div className="space-y-4">
+                {feedbackReports.filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase())).length === 0 ? (
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-950/50 p-4 text-sm text-slate-500 dark:text-slate-400">
+                    Không có phản ánh chờ duyệt.
+                  </div>
+                ) : (
+                  feedbackReports
+                    .filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase()))
+                    .slice(0, 5)
+                    .map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-amber-200 dark:border-amber-900/50 p-4 bg-amber-50/50 dark:bg-amber-950/20">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-900 dark:text-white">{item.title}</p>
+                            <p className="mt-1 text-sm text-slate-500 line-clamp-2">{item.description}</p>
+                            <p className="mt-2 text-xs text-slate-400">{item.ward}{item.neighborhood ? ` · ${item.neighborhood}` : ''}</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={managerLoading}
+                            onClick={() => handleApproveReport(item.id)}
+                            className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                          >
+                            Duyệt
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                )}
               </div>
             </div>
 

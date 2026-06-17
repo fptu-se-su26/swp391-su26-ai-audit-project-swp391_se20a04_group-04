@@ -620,16 +620,11 @@ warning
 
 ---
 
-## 7. Seed Database
+## 7. Kết nối Database chung
 
-Script: `.src/backend/scripts/seedDatabase.js`
+Nhóm dùng **Firestore chung** — không có script seed trong repo. Xem [DATABASE_SEED.md](./DATABASE_SEED.md) để cấu hình kết nối.
 
-```bash
-cd .src/backend
-npm run seed:full
-```
-
-Tài khoản demo (mật khẩu: `EcoSchedule@2026`):
+Tài khoản demo (nếu leader đã tạo trên Firebase Auth chung):
 
 | Role      | Email                         |
 | --------- | ----------------------------- |
@@ -639,6 +634,8 @@ Tài khoản demo (mật khẩu: `EcoSchedule@2026`):
 | collector | `collector2@ecoschedule.test` |
 | manager   | `manager@ecoschedule.test`    |
 | admin     | `admin@ecoschedule.test`      |
+
+Mật khẩu và UID thực tế do leader nhóm cung cấp — không tự seed trên máy local.
 
 Triển khai rules và indexes (chạy từ **thư mục gốc repo**):
 

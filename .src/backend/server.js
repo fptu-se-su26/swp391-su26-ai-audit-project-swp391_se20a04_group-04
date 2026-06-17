@@ -11,6 +11,8 @@ const scheduleService = require('./services/scheduleService');
 const notificationService = require('./services/notificationService');
 const invoiceService = require('./services/invoiceService');
 const complaintService = require('./services/complaintService');
+const collectorService = require('./services/collectorService');
+const reportService = require('./services/reportService');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -26,7 +28,8 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // Tên collection chính trên Firestore
 const USERS_COLLECTION = 'users';
@@ -661,6 +664,143 @@ app.post('/api/manager/confirm-route', verifyToken, ensureManager, async (req, r
   }
 });
 
+app.get('/api/dashboard/collector', verifyToken, ensureCollector, async (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const data = await collectorService.getDashboardSummary(
+      req.uid,
+      req.userProfile.fullName,
+      date,
+    );
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('[API] Lỗi dashboard collector:', error.message);
+    return res.status(500).json({ error: 'Không thể tải dashboard collector.' });
+  }
+});
+
+app.get('/api/collector/schedules', verifyToken, ensureCollector, async (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const result = await collectorService.getDailySchedules(
+      req.uid,
+      req.userProfile.fullName,
+      date,
+    );
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error('[API] Lỗi lấy lịch collector:', error.message);
+    return res.status(500).json({ error: 'Không thể tải lịch làm việc.' });
+  }
+});
+
+app.get('/api/route-assignments/my', verifyToken, ensureCollector, async (req, res) => {
+  try {
+    const from = req.query.from || req.query.date || new Date().toISOString().slice(0, 10);
+    const to = req.query.to || from;
+    const data = await collectorService.getAssignmentsInRange(req.uid, from, to);
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('[API] Lỗi lấy route assignments:', error.message);
+    return res.status(500).json({ error: 'Không thể tải tuyến được gán.' });
+  }
+});
+
+app.patch('/api/collector/schedules/:sourceType/:id/status', verifyToken, ensureCollector, async (req, res) => {
+  const { sourceType, id } = req.params;
+  const { action, imageUrls, incidentType, description } = req.body;
+
+  try {
+    const result = await collectorService.updateItemStatus(req.uid, req.userProfile.fullName, {
+      sourceType,
+      id,
+      action,
+      imageUrls,
+      incidentType,
+      description,
+    });
+    return res.status(200).json({
+      success: true,
+      message: 'Cập nhật trạng thái thành công.',
+      data: result,
+    });
+  } catch (error) {
+    const status = error.status || 500;
+    if (status >= 500) {
+      console.error('[API] Lỗi cập nhật trạng thái collector:', error.message);
+    }
+    return res.status(status).json({ error: error.message || 'Không thể cập nhật trạng thái.' });
+  }
+});
+
+app.patch('/api/route-assignments/:assignmentId/status', verifyToken, ensureCollector, async (req, res) => {
+  const { assignmentId } = req.params;
+  const statusMap = {
+    in_progress: 'start',
+    completed: 'complete',
+    delayed: 'incident',
+  };
+  const action = statusMap[req.body.status] || req.body.action;
+
+  try {
+    const result = await collectorService.updateItemStatus(req.uid, req.userProfile.fullName, {
+      sourceType: 'assignment',
+      id: assignmentId,
+      action,
+      imageUrls: req.body.imageUrls,
+      incidentType: req.body.incidentType,
+      description: req.body.description || req.body.message,
+    });
+    return res.status(200).json({ success: true, message: 'Assignment status updated successfully', data: result });
+  } catch (error) {
+    const httpStatus = error.status || 500;
+    return res.status(httpStatus).json({ error: error.message || 'Không thể cập nhật trạng thái tuyến.' });
+  }
+});
+
+app.get('/api/collector/reports', verifyToken, ensureCollector, async (req, res) => {
+  try {
+    const data = await collectorService.getAssignedReports(req.uid);
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('[API] Lỗi lấy phản ánh collector:', error.message);
+    return res.status(500).json({ error: 'Không thể tải phản ánh được giao.' });
+  }
+});
+
+app.get('/api/reports/:reportId/comments', verifyToken, ensureCollector, async (req, res) => {
+  try {
+    const data = await collectorService.getReportComments(req.params.reportId, req.uid);
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const status = error.status || 500;
+    return res.status(status).json({ error: error.message || 'Không thể tải lịch sử xử lý.' });
+  }
+});
+
+app.patch('/api/reports/:reportId/status', verifyToken, ensureCollector, async (req, res) => {
+  const { status, message, imageUrls } = req.body;
+  try {
+    const result = await collectorService.updateReportStatus(
+      req.uid,
+      req.userProfile,
+      req.params.reportId,
+      { status, message, imageUrls },
+    );
+    return res.status(200).json({
+      success: true,
+      message: 'Report status updated successfully',
+      data: result,
+    });
+  } catch (error) {
+    const httpStatus = error.status || 500;
+    if (httpStatus >= 500) {
+      console.error('[API] Lỗi cập nhật phản ánh:', error.message);
+    }
+    return res.status(httpStatus).json({ error: error.message || 'Không thể cập nhật phản ánh.' });
+  }
+});
+
 app.post('/api/collector/confirm-route', verifyToken, ensureCollector, async (req, res) => {
   const { scheduleId } = req.body;
   if (!scheduleId) {
@@ -674,9 +814,16 @@ app.post('/api/collector/confirm-route', verifyToken, ensureCollector, async (re
       return res.status(404).json({ error: 'Không tìm thấy lịch để xác nhận.' });
     }
 
+    const scheduleData = snapshot.data();
+    const assigned = scheduleData.assigned_collector || scheduleData.collector_id || '';
+    const isOwner = assigned === req.uid || assigned === req.userProfile.fullName;
+    if (assigned && !isOwner) {
+      return res.status(403).json({ error: 'Lịch này không được gán cho bạn.' });
+    }
+
     await docRef.update({
       collector_confirmed: true,
-      status: 'Confirmed',
+      status: 'confirmed',
       updated_at: new Date().toISOString(),
     });
 
@@ -732,6 +879,45 @@ app.get('/api/manager/complaints', verifyToken, ensureManager, async (req, res) 
   } catch (error) {
     console.error('[API] Lỗi lấy phản ánh:', error.message);
     return res.status(500).json({ error: 'Không thể tải danh sách phản ánh.' });
+  }
+});
+
+app.get('/api/manager/feedback-reports', verifyToken, ensureManager, async (req, res) => {
+  try {
+    const status = req.query.status || null;
+    const data = await reportService.listReports(status);
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('[API] Lỗi lấy feedback reports:', error.message);
+    return res.status(500).json({ error: 'Không thể tải danh sách phản ánh môi trường.' });
+  }
+});
+
+app.get('/api/manager/feedback-reports/:reportId/comments', verifyToken, ensureManager, async (req, res) => {
+  try {
+    const data = await reportService.getReportComments(req.params.reportId);
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('[API] Lỗi lấy comments phản ánh:', error.message);
+    return res.status(500).json({ error: 'Không thể tải lịch sử xử lý.' });
+  }
+});
+
+app.patch('/api/manager/feedback-reports/:reportId/approve', verifyToken, ensureManager, async (req, res) => {
+  try {
+    const result = await reportService.approveReport(
+      req.uid,
+      req.userProfile?.fullName || 'Manager',
+      req.params.reportId,
+      req.body || {},
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    const status = error.status || 500;
+    if (status >= 500) {
+      console.error('[API] Lỗi duyệt phản ánh:', error.message);
+    }
+    return res.status(status).json({ error: error.message || 'Không thể duyệt phản ánh.' });
   }
 });
 
