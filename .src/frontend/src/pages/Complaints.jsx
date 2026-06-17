@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import authService from '../services/authService';
 import complaintService from '../services/complaintService';
+import { ROLES, normalizeRole } from '../constants/roles';
 
 // Xác định base API URL động từ config authService
 const API_BASE = import.meta.env.VITE_API_URL 
@@ -8,7 +10,7 @@ const API_BASE = import.meta.env.VITE_API_URL
   : 'http://localhost:5001/api';
 
 export default function Complaints() {
-  const [user, setUser] = useState(authService.getCurrentUser());
+  const user = authService.getCurrentUser();
 
   // Form State
   const [title, setTitle] = useState('');
@@ -16,7 +18,8 @@ export default function Complaints() {
   const [description, setDescription] = useState('');
   const [selectedProvince, setSelectedProvince] = useState('');
   const [selectedWard, setSelectedWard] = useState('');
-  const [neighborhood, setNeighborhood] = useState('');
+  // Khởi tạo trực tiếp từ user để tránh setState trong useEffect
+  const [neighborhood, setNeighborhood] = useState(user?.neighborhood || '');
 
   // Dropdown options
   const [provinces, setProvinces] = useState([]);
@@ -35,6 +38,20 @@ export default function Complaints() {
   // Trạng thái mở rộng xem chi tiết phản ánh trong danh sách
   const [expandedComplaintId, setExpandedComplaintId] = useState(null);
 
+  // Lấy lịch sử phản ánh của cư dân (khai báo trước useEffect để tránh TDZ)
+  const fetchComplaintsHistory = async () => {
+    if (!authService.isAuthenticated()) return;
+    setLoadingHistory(true);
+    try {
+      const data = await complaintService.getComplaints();
+      setComplaints(data);
+    } catch (err) {
+      console.error('Lỗi lấy lịch sử phản ánh:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   // 1. Tải danh sách tỉnh thành và lịch sử phản ánh khi mount
   useEffect(() => {
     const fetchProvinces = async () => {
@@ -52,51 +69,29 @@ export default function Complaints() {
     };
 
     fetchProvinces();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchComplaintsHistory();
+  }, []);
 
-    // Prefill tổ dân cư từ tài khoản
-    if (user && user.neighborhood) {
-      setNeighborhood(user.neighborhood);
-    }
-  }, [user]);
+  // Handler đổi tỉnh thành: reset phường xã và tải mới
+  const handleProvinceChange = async (e) => {
+    const newProvince = e.target.value;
+    setSelectedProvince(newProvince);
+    setSelectedWard('');
+    setWards([]); // Reset wards trong event handler thay vì useEffect
 
-  // 2. Tải danh sách phường xã khi đổi tỉnh thành
-  useEffect(() => {
-    if (!selectedProvince) {
-      setWards([]);
-      setSelectedWard('');
-      return;
-    }
+    if (!newProvince) return;
 
-    const fetchWards = async () => {
-      setLoadingWards(true);
-      try {
-        const res = await fetch(`${API_BASE}/address/wards?provinceCode=${selectedProvince}`);
-        if (!res.ok) throw new Error('Không thể tải danh sách Phường/Xã');
-        const data = await res.json();
-        setWards(data);
-        setSelectedWard('');
-      } catch (err) {
-        console.error('Lỗi tải phường xã:', err);
-      } finally {
-        setLoadingWards(false);
-      }
-    };
-
-    fetchWards();
-  }, [selectedProvince]);
-
-  // Lấy lịch sử phản ánh của cư dân
-  const fetchComplaintsHistory = async () => {
-    if (!authService.isAuthenticated()) return;
-    setLoadingHistory(true);
+    setLoadingWards(true);
     try {
-      const data = await complaintService.getComplaints();
-      setComplaints(data);
+      const res = await fetch(`${API_BASE}/address/wards?provinceCode=${newProvince}`);
+      if (!res.ok) throw new Error('Không thể tải danh sách Phường/Xã');
+      const data = await res.json();
+      setWards(data);
     } catch (err) {
-      console.error('Lỗi lấy lịch sử phản ánh:', err);
+      console.error('Lỗi tải phường xã:', err);
     } finally {
-      setLoadingHistory(false);
+      setLoadingWards(false);
     }
   };
 
@@ -193,6 +188,11 @@ export default function Complaints() {
       minute: '2-digit'
     });
   };
+
+  // Render luồng Admin
+  if (user && normalizeRole(user.role) === ROLES.ADMIN) {
+    return <Navigate to="/quan-ly?tab=complaints" replace />;
+  }
 
   return (
     <div className="min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-950 py-10 px-4 md:px-8">
@@ -307,7 +307,7 @@ export default function Complaints() {
                     <div className="space-y-1">
                       <select
                         value={selectedProvince}
-                        onChange={(e) => setSelectedProvince(e.target.value)}
+                        onChange={handleProvinceChange}
                         disabled={loadingProvinces}
                         className="w-full h-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 text-sm text-slate-800 dark:text-white focus:border-emerald-600 outline-none disabled:opacity-60"
                       >

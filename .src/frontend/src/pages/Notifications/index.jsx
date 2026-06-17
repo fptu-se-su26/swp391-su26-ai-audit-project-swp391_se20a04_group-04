@@ -6,16 +6,19 @@
  *   - NotificationSettings → sidebar cài đặt kênh nhận thông báo
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import notificationService from '../../services/notificationService';
 import authService from '../../services/authService';
+import { ROLES, normalizeRole } from '../../constants/roles';
 import NotificationCard from './NotificationCard';
 import NotificationSettings from './NotificationSettings';
+import AdminNotifications from '../Admin/AdminNotifications';
 import { TABS } from './notificationUtils';
 
 export default function Notifications() {
   const navigate = useNavigate();
+  const currentUser = authService.getCurrentUser();
 
   // ─── State ────────────────────────────────────────────────────────────────
   const [notifications, setNotifications]   = useState([]);
@@ -25,7 +28,6 @@ export default function Notifications() {
   const [error, setError]                   = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSaved, setSettingsSaved]   = useState(false);
-  const [seeding, setSeeding]               = useState(false); // [DEV] Xóa khi production
 
   // ─── Kiểm tra đăng nhập ───────────────────────────────────────────────────
   useEffect(() => {
@@ -33,7 +35,8 @@ export default function Notifications() {
   }, [navigate]);
 
   // ─── Tải dữ liệu ──────────────────────────────────────────────────────────
-  const loadData = useCallback(async () => {
+  // Dùng useRef để giữ reference tới loadData mà không cần useCallback
+  const loadData = async () => {
     setLoading(true);
     setError('');
     try {
@@ -53,30 +56,21 @@ export default function Notifications() {
     } catch {
       // Im lặng: Dùng settings mặc định { email: true, sms: false, push: true }
     }
-  }, []);
+  };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
     window.addEventListener('notificationsUpdated', loadData);
     return () => window.removeEventListener('notificationsUpdated', loadData);
-  }, [loadData]);
+  }, []);
+
+  // ─── Kiểm tra quyền ADMIN sau khi tất cả Hooks đã được gọi ───────────────
+  if (currentUser && normalizeRole(currentUser.role) === ROLES.ADMIN) {
+    return <AdminNotifications />;
+  }
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
-
-  /** [DEV] Tạo dữ liệu mẫu để kiểm thử — Xóa khi production */
-  const handleSeed = async () => {
-    setSeeding(true);
-    try {
-      const result = await notificationService.seedNotifications();
-      alert(`✅ Đã tạo ${result.seeded} thông báo mẫu! Đang tải lại...`);
-      await loadData();
-      window.dispatchEvent(new Event('notificationsUpdated'));
-    } catch (err) {
-      alert(`❌ Lỗi: ${err.message}`);
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   /** Đánh dấu một thông báo đã đọc */
   const handleMarkAsRead = async (id) => {
@@ -161,17 +155,6 @@ export default function Notifications() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* [DEV] Xóa button này trước khi deploy production */}
-            <button
-              onClick={handleSeed}
-              disabled={seeding}
-              title="[DEV] Tạo 4 thông báo mẫu để kiểm thử"
-              className="flex items-center gap-2 px-4 py-3 bg-amber-500 text-white rounded-xl font-label-md hover:bg-amber-400 active:scale-95 transition-all shadow-sm disabled:opacity-60 text-sm"
-            >
-              <span className="material-symbols-outlined text-base">science</span>
-              {seeding ? 'Đang tạo...' : 'Tạo dữ liệu mẫu'}
-            </button>
-
             <button
               onClick={handleMarkAllAsRead}
               disabled={unreadCount === 0}

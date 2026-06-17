@@ -4,8 +4,9 @@ import authService from '../../services/authService';
 import { getUsers, createUser, updateUser, deleteUser } from '../../services/userService';
 import { ROLES, normalizeRole, REGISTER_ROLES } from '../../constants/roles';
 
-export default function UserManagement() {
+export default function UserManagement({ hideHeader = false }) {
   const navigate = useNavigate();
+  const [allUsers, setAllUsers] = useState([]);
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -18,6 +19,8 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('add'); // 'add' or 'edit'
@@ -32,28 +35,51 @@ export default function UserManagement() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser || normalizeRole(currentUser.role) !== ROLES.ADMIN) {
-      navigate('/');
-      return;
-    }
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  useEffect(() => {
     fetchData();
-  }, [page, search, roleFilter]);
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await getUsers(page, limit, search, roleFilter);
-      setUsers(res.data);
-      setTotal(res.total);
-      setTotalPages(res.totalPages);
+      const res = await getUsers('', '', '', ''); // Call API without limit to get all
+      setAllUsers(res.data || []);
     } catch (err) {
       setError(err.message || 'Lỗi khi tải danh sách người dùng.');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let filtered = allUsers;
+    
+    if (roleFilter) {
+      filtered = filtered.filter(u => u.role === roleFilter);
+    }
+    
+    if (debouncedSearch) {
+      const lowerSearch = debouncedSearch.toLowerCase();
+      filtered = filtered.filter(u => 
+        (u.fullName && u.fullName.toLowerCase().includes(lowerSearch)) || 
+        (u.email && u.email.toLowerCase().includes(lowerSearch)) ||
+        (u.uid && u.uid.toLowerCase().includes(lowerSearch))
+      );
+    }
+    
+    setTotal(filtered.length);
+    setTotalPages(Math.ceil(filtered.length / limit) || 1);
+    
+    const start = (page - 1) * limit;
+    setUsers(filtered.slice(start, start + limit));
+  }, [allUsers, page, debouncedSearch, roleFilter]);
 
   const handleSearchChange = (e) => {
     setSearch(e.target.value);
@@ -126,25 +152,39 @@ export default function UserManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-10 px-4 md:px-8 animate-fade-in">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <nav className="flex items-center gap-2 text-slate-500 text-sm mb-2">
-              <Link to="/dashboard" className="hover:text-primary">Bảng điều khiển</Link>
-              <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-              <span className="text-primary font-semibold">Quản lý</span>
-            </nav>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Quản lý người dùng</h1>
+    <div className={hideHeader ? "" : "min-h-screen bg-slate-50 dark:bg-slate-900 py-10 px-4 md:px-8 animate-fade-in"}>
+      <div className={hideHeader ? "space-y-6" : "max-w-7xl mx-auto space-y-6"}>
+        {!hideHeader && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <nav className="flex items-center gap-2 text-slate-500 text-sm mb-2">
+                <Link to="/dashboard" className="hover:text-primary">Bảng điều khiển</Link>
+                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+                <span className="text-primary font-semibold">Quản lý</span>
+              </nav>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Quản lý người dùng</h1>
+            </div>
+            <button
+              onClick={openAddModal}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-emerald-600 transition-colors"
+            >
+              <span className="material-symbols-outlined">person_add</span>
+              Thêm người dùng
+            </button>
           </div>
-          <button
-            onClick={openAddModal}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-emerald-600 transition-colors"
-          >
-            <span className="material-symbols-outlined">person_add</span>
-            Thêm người dùng
-          </button>
-        </div>
+        )}
+
+        {hideHeader && (
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={openAddModal}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-emerald-600 transition-colors"
+            >
+              <span className="material-symbols-outlined">person_add</span>
+              Thêm người dùng
+            </button>
+          </div>
+        )}
 
         <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 p-6">
           <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -179,6 +219,7 @@ export default function UserManagement() {
                 <tr className="border-b border-slate-100 dark:border-slate-700">
                   <th className="py-4 px-5 text-xs uppercase tracking-wider text-slate-500 font-semibold">Tên hiển thị</th>
                   <th className="py-4 px-5 text-xs uppercase tracking-wider text-slate-500 font-semibold">Email</th>
+                  <th className="py-4 px-5 text-xs uppercase tracking-wider text-slate-500 font-semibold">Trạng thái Email</th>
                   <th className="py-4 px-5 text-xs uppercase tracking-wider text-slate-500 font-semibold">Vai trò</th>
                   <th className="py-4 px-5 text-xs uppercase tracking-wider text-slate-500 font-semibold">Mã UID</th>
                   <th className="py-4 px-5 text-xs uppercase tracking-wider text-slate-500 font-semibold text-right">Thao tác</th>
@@ -187,11 +228,11 @@ export default function UserManagement() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="5" className="py-10 text-center text-slate-400">Đang tải dữ liệu...</td>
+                    <td colSpan="6" className="py-10 text-center text-slate-400">Đang tải dữ liệu...</td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="py-10 text-center text-slate-400">Không tìm thấy người dùng nào.</td>
+                    <td colSpan="6" className="py-10 text-center text-slate-400">Không tìm thấy người dùng nào.</td>
                   </tr>
                 ) : (
                   users.map(u => (
@@ -205,6 +246,19 @@ export default function UserManagement() {
                         </div>
                       </td>
                       <td className="py-4 px-5 text-sm text-slate-600 dark:text-slate-300">{u.email}</td>
+                      <td className="py-4 px-5">
+                        {u.emailVerified ? (
+                          <span className="px-2 py-1 flex items-center gap-1 w-max rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold border border-emerald-200 dark:border-emerald-800">
+                            <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                            Đã xác nhận
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 flex items-center gap-1 w-max rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-semibold border border-slate-200 dark:border-slate-700">
+                            <span className="material-symbols-outlined text-[14px]">cancel</span>
+                            Chưa xác nhận
+                          </span>
+                        )}
+                      </td>
                       <td className="py-4 px-5">{getRoleBadge(u.role)}</td>
                       <td className="py-4 px-5 text-xs text-slate-400 font-mono truncate max-w-[100px]">{u.uid}</td>
                       <td className="py-4 px-5 text-right">
