@@ -6,6 +6,7 @@
 import {
   signOut,
   signInWithPopup,
+  signInWithEmailAndPassword,
   GoogleAuthProvider,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -79,6 +80,14 @@ const authService = {
       }
 
       const { user, token } = data;
+
+      // Thiết lập phiên Firebase client SDK để hỗ trợ tự động làm mới token (getFreshToken)
+      // Lỗi này bị bỏ qua vì backend đã xác thực thành công rồi
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch {
+        // Không ảnh hưởng đăng nhập - chỉ mất khả năng tự làm mới token
+      }
 
       // Lưu thông tin vào storage
       const storage = rememberMe ? localStorage : sessionStorage;
