@@ -16,7 +16,7 @@ import { ROLES, normalizeRole } from '../constants/roles';
 // Tên collection chính trên Firestore
 const USERS_COLLECTION = 'users';
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api/auth';
+const BACKEND_URL = import.meta.env.VITE_AUTH_URL || (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/auth` : 'http://localhost:5001/api/auth');
 
 /**
  * Chuẩn hóa dữ liệu user từ Firestore (hỗ trợ cả tên trường tiếng Việt lẫn tiếng Anh)
@@ -56,7 +56,7 @@ const authService = {
 
       return { success: true };
     } catch (error) {
-      throw new Error(error.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+      throw new Error(error.message || 'Đăng ký thất bại. Vui lòng thử lại.', { cause: error });
     }
   },
 
@@ -64,42 +64,29 @@ const authService = {
    * Đăng nhập thông qua Backend (Yêu cầu email đã xác nhận)
    */
   async login(email, password, rememberMe) {
-    try {
-      const response = await fetch(`${BACKEND_URL}/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+    const response = await fetch(`${BACKEND_URL}/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Đăng nhập thất bại.');
-      }
-
-      const { user, token } = data;
-
-      // Thiết lập phiên Firebase client SDK để hỗ trợ tự động làm mới token (getFreshToken)
-      // Lỗi này bị bỏ qua vì backend đã xác thực thành công rồi
-      try {
-        await signInWithEmailAndPassword(auth, email, password);
-      } catch {
-        // Không ảnh hưởng đăng nhập - chỉ mất khả năng tự làm mới token
-      }
-
-      // Lưu thông tin vào storage
-      const storage = rememberMe ? localStorage : sessionStorage;
-      storage.setItem('eco_token', token);
-      storage.setItem('eco_user', JSON.stringify(user));
-
-      window.dispatchEvent(new Event('authChange'));
-      return { user, token };
-    } catch (error) {
-      // eslint-disable-next-line no-useless-catch
-      throw error;
+    if (!response.ok) {
+      throw new Error(data.error || 'Đăng nhập thất bại.');
     }
+
+    const { user, token } = data;
+
+    // Lưu thông tin vào storage
+    const storage = rememberMe ? localStorage : sessionStorage;
+    storage.setItem('eco_token', token);
+    storage.setItem('eco_user', JSON.stringify(user));
+
+    window.dispatchEvent(new Event('authChange'));
+    return { user, token };
   },
 
   /**
@@ -109,49 +96,40 @@ const authService = {
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
       const firebaseUser = result.user;
-      const token = await firebaseUser.getIdToken();
+      const idToken = await firebaseUser.getIdToken();
 
-      // Kiểm tra và lấy dữ liệu user từ Firestore
-      let userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-      if (!userDoc.exists()) {
-        userDoc = await getDoc(doc(db, USERS_COLLECTION, firebaseUser.uid));
+      // Gọi Backend để xác thực và đồng bộ dữ liệu Firestore thông qua Admin SDK
+      const response = await fetch(`${BACKEND_URL}/google-login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idToken }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Đăng nhập Google thất bại.');
       }
 
-      let userData = {};
-      if (userDoc.exists()) {
-        userData = normalizeUser(userDoc.data(), firebaseUser.uid);
-      } else {
-        // Tạo tài khoản mặc định nếu đăng nhập lần đầu bằng Google
-        userData = {
-          uid: firebaseUser.uid,
-          fullName: firebaseUser.displayName || firebaseUser.email.split('@')[0],
-          email: firebaseUser.email,
-          phone: firebaseUser.phoneNumber || '',
-          address: '',
-          role: ROLES.RESIDENT,
-          area: 'Quận Sơn Trà, Đà Nẵng',
-          emailVerified: true,
-          createdAt: new Date().toISOString(),
-        };
-        await setDoc(doc(db, 'users', firebaseUser.uid), userData);
-        await setDoc(doc(db, USERS_COLLECTION, firebaseUser.uid), userData);
-      }
+      const { user, token } = data;
 
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem('eco_token', token);
-      storage.setItem('eco_user', JSON.stringify(userData));
+      storage.setItem('eco_user', JSON.stringify(user));
 
       window.dispatchEvent(new Event('authChange'));
-      return { user: userData, token };
+      return { user, token };
     } catch (error) {
       let message = error.message || 'Đăng nhập Google thất bại.';
       if (error.code === 'auth/popup-closed-by-user') {
         message = 'Bạn đã đóng cửa sổ đăng nhập Google.';
       }
       if (error.code === 'auth/too-many-requests') {
-        throw new Error('Tài khoản bị tạm khóa do đăng nhập sai nhiều lần. Vui lòng thử lại sau.');
+        throw new Error('Tài khoản bị tạm khóa do đăng nhập sai nhiều lần. Vui lòng thử lại sau.', { cause: error });
       }
-      throw new Error(message);
+      throw new Error(message, { cause: error });
     }
   },
 
@@ -179,7 +157,7 @@ const authService = {
     if (!userStr) return null;
     try {
       return JSON.parse(userStr);
-    } catch (e) {
+    } catch {
       return null;
     }
   },

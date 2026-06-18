@@ -9,6 +9,8 @@ import {
   verifyPaymentStatus,
 } from '../services/paymentService';
 
+import AdminPaymentHistory from './Admin/AdminPaymentHistory';
+
 const SAMPLE_INVOICE_TEMPLATE = (userId) => ({
   invoiceId: `invoice_${userId}_2026_6`,
   amount: 50000,
@@ -49,48 +51,12 @@ export default function Payment() {
   const [paymentMethod, setPaymentMethod] = useState('payos');
   const [paymentRequest, setPaymentRequest] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState('');
-  const [loading, setLoading] = useState(true);
+  // Khởi tạo loading dựa trên sự hiện diện của user để tránh setState trong useEffect
+  const [loading, setLoading] = useState(!!currentUser);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    if (!currentUser) {
-      setLoading(false);
-      return;
-    }
-
-    const role = normalizeRole(currentUser.role);
-    if (role !== ROLES.RESIDENT) {
-      setError('Chỉ cư dân mới được phép truy cập và thanh toán hóa đơn.');
-      setLoading(false);
-      return;
-    }
-
-    const load = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const existingInvoice = await fetchCurrentInvoice();
-        setInvoice(existingInvoice);
-        setPaymentStatus(existingInvoice.status || 'unpaid');
-        if (existingInvoice?.paymentUrl) {
-          setPaymentRequest({ paymentUrl: existingInvoice.paymentUrl });
-        }
-      } catch (err) {
-        const message = buildErrorMessage(err);
-        if (message.includes('Không tìm thấy')) {
-          await createDefaultInvoice();
-        } else {
-          setError(message);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, [currentUser?.uid, currentUser?.role]);
-
+  // Khai báo trước useEffect để tránh Temporal Dead Zone
   const createDefaultInvoice = async () => {
     if (!currentUser) {
       setError('Vui lòng đăng nhập trước khi thanh toán.');
@@ -107,6 +73,46 @@ export default function Payment() {
       setError(buildErrorMessage(err));
     }
   };
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    const role = normalizeRole(currentUser.role);
+    if (role !== ROLES.RESIDENT) {
+      // Không gọi setError trong useEffect; hiển thị thông báo trong render
+      return;
+    }
+
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const existingInvoice = await fetchCurrentInvoice();
+        setInvoice(existingInvoice);
+        setPaymentStatus(existingInvoice.status || 'unpaid');
+        if (existingInvoice?.paymentUrl) {
+          setPaymentRequest({
+            paymentUrl: existingInvoice.paymentUrl,
+            qrCode: existingInvoice.qrCode || null,
+          });
+        }
+      } catch (err) {
+        const message = buildErrorMessage(err);
+        if (message.includes('Không tìm thấy')) {
+          await createDefaultInvoice();
+        } else {
+          setError(message);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.uid, currentUser?.role]);
 
   const handleRequestPayment = async () => {
     if (!invoice) {
@@ -151,7 +157,24 @@ export default function Payment() {
     }
   };
 
+  // Kiểm tra quyền admin PHẢI đặt SAU tất cả các Hook
+  if (currentUser && normalizeRole(currentUser.role) === ROLES.ADMIN) {
+    return <AdminPaymentHistory />;
+  }
+
+  // Kiểm tra quyền non-resident trong render, không dùng useState trong useEffect
+  if (currentUser && normalizeRole(currentUser.role) !== ROLES.RESIDENT) {
+    return (
+      <main className="max-w-container-max-width mx-auto px-margin-desktop py-8">
+        <div className="rounded-xl border border-surface-container p-8 text-center bg-surface-container-lowest">
+          <p className="font-body-md text-on-surface">Chỉ cư dân mới được phép truy cập và thanh toán hóa đơn.</p>
+        </div>
+      </main>
+    );
+  }
+
   if (!currentUser) {
+
     return (
       <main className="max-w-container-max-width mx-auto px-margin-desktop py-8">
         <section className="mb-8">
@@ -223,9 +246,9 @@ export default function Payment() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8 border-t border-b border-surface-container py-6 mb-6">
-              <div>
+              <div className="md:col-span-2">
                 <p className="text-label-sm font-label-sm text-on-surface-variant mb-1 uppercase tracking-wider">Mã hóa đơn</p>
-                <p className="font-body-md font-semibold text-on-surface">{invoice?.invoiceId}</p>
+                <p className="font-body-md font-semibold text-on-surface break-all">{invoice?.invoiceId}</p>
               </div>
               <div>
                 <p className="text-label-sm font-label-sm text-on-surface-variant mb-1 uppercase tracking-wider">Người tạo</p>
@@ -341,17 +364,69 @@ export default function Payment() {
             <div className="bg-surface-container-lowest rounded-xl p-8 card-shadow border border-surface-container">
               <h3 className="font-headline-md text-headline-md mb-6 text-on-surface">Quét mã QR để thanh toán</h3>
               <div className="flex flex-col items-center gap-6">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(paymentRequest.paymentUrl)}`}
-                  alt="QR PayOS"
-                  className="w-72 h-72 rounded-2xl bg-white p-4"
-                />
-                <p className="break-words text-center text-on-surface-variant">Quét mã QR bằng ứng dụng PayOS hoặc nhập liên kết thanh toán.</p>
-                <p className="text-sm text-on-surface-variant break-all">{paymentRequest.paymentUrl}</p>
+
+                {/* Thông tin thanh toán */}
+                <div className="w-full rounded-xl bg-surface-container-low border border-surface-container p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                      <span className="material-symbols-outlined text-on-primary text-[20px]">receipt_long</span>
+                    </div>
+                    <div>
+                      <p className="text-label-sm text-on-surface-variant">Nội dung chuyển khoản</p>
+                      <p className="font-semibold text-on-surface text-sm">Thanh toan phi ve sinh</p>
+                      <p className="text-xs text-on-surface-variant break-all">{invoice?.invoiceId}</p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-label-sm text-on-surface-variant">Số tiền</p>
+                    <p className="font-headline-md text-headline-md text-primary">{invoice?.amount?.toLocaleString('vi-VN')} <span className="text-base">{invoice?.currency}</span></p>
+                  </div>
+                </div>
+
+                {/* Ưu tiên dùng qrCode VietQR Pro (MoMo/MB Bank quét được) */}
+                {paymentRequest.qrCode ? (
+                  <>
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(paymentRequest.qrCode)}`}
+                      alt="QR VietQR Pro"
+                      className="w-72 h-72 rounded-2xl bg-white p-4"
+                    />
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+                      <span className="material-symbols-outlined text-emerald-600 text-[18px]">verified</span>
+                      <p className="text-sm font-semibold text-emerald-700">VietQR Pro – Quét được bằng MoMo, MB Bank, VCB...</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(paymentRequest.paymentUrl)}`}
+                      alt="QR PayOS"
+                      className="w-72 h-72 rounded-2xl bg-white p-4"
+                    />
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200">
+                      <span className="material-symbols-outlined text-amber-600 text-[18px]">info</span>
+                      <p className="text-sm text-amber-700">Mã này chỉ dùng mở trên browser. Dùng nút bên dưới để thanh toán.</p>
+                    </div>
+                  </>
+                )}
+
+                <p className="text-center text-on-surface-variant text-sm">
+                  Hoặc mở link thanh toán trực tiếp:
+                </p>
+                <a
+                  href={paymentRequest.paymentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-semibold text-sm"
+                >
+                  <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                  Mở trang thanh toán PayOS
+                </a>
+
                 <button
                   type="button"
                   onClick={handleVerifyPayment}
-                  className="mt-4 inline-flex px-8 py-3 rounded-full bg-secondary text-on-secondary font-semibold"
+                  className="mt-2 inline-flex px-8 py-3 rounded-full bg-secondary text-on-secondary font-semibold"
                 >
                   Kiểm tra trạng thái thanh toán
                 </button>

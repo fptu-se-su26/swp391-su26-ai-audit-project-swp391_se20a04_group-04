@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -39,7 +39,7 @@ function MapResizeHandler({ center }) {
       try {
         map.invalidateSize();
         if (center) map.setView(center, map.getZoom());
-      } catch (e) {
+      } catch {
         // ignore
       }
     }, 120);
@@ -55,14 +55,11 @@ export default function CollectionRouteMap({
   setRoutePoints,
   readOnly = false,
 }) {
-  const [points, setPoints] = useState(routePoints);
-
-  useEffect(() => {
-    setPoints(routePoints);
-  }, [routePoints]);
+  // Sử dụng trực tiếp prop routePoints thay vì đồng bộ sang state cục bộ
+  // để tránh gọi setState trong useEffect gây cascading renders.
+  const points = routePoints;
 
   const updatePoints = (nextPoints) => {
-    setPoints(nextPoints);
     if (typeof setRoutePoints === 'function') {
       setRoutePoints(nextPoints);
     }

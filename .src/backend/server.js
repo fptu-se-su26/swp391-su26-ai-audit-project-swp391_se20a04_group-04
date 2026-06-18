@@ -17,10 +17,12 @@ const reportService = require('./services/reportService');
 const app = express();
 const PORT = process.env.PORT || 5001;
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
-const PAYOS_API_BASE_URL = process.env.PAYOS_API_BASE_URL || '';
 const PAYOS_CLIENT_ID = process.env.PAYOS_CLIENT_ID || '';
 const PAYOS_API_KEY = process.env.PAYOS_API_KEY || '';
 const PAYOS_CHECKSUM_KEY = process.env.PAYOS_CHECKSUM_KEY || '';
+const PAYOS_API_BASE_URL = (process.env.PAYOS_API_BASE_URL && !process.env.PAYOS_API_BASE_URL.includes('example.com'))
+  ? process.env.PAYOS_API_BASE_URL
+  : 'https://api-merchant.payos.vn';
 
 // CORS configuration - Allow frontend server
 app.use(cors({
@@ -56,7 +58,10 @@ function normalizeUser(data, uid) {
  * Endpoint Đăng ký tài khoản
  */
 app.post('/api/auth/register', async (req, res) => {
-  const { fullName, email, phone, password, address, role } = req.body;
+  // Lưu ý: trường `role` từ client bị bỏ qua hoàn toàn vì lý do bảo mật.
+  // Mọi tài khoản đăng ký mới luôn được gán vai trò RESIDENT.
+  // Admin mới có quyền thay đổi vai trò qua trang Quản lý người dùng.
+  const { fullName, email, phone, password, address } = req.body;
 
   if (!email || !password || !fullName) {
     return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin (Họ và tên, Email, Mật khẩu)' });
@@ -115,7 +120,7 @@ app.post('/api/auth/register', async (req, res) => {
       email,
       phone: phone || '',
       address: address || '',
-      role: normalizeRole(role),
+      role: ROLES.RESIDENT,
       emailVerified: false,
       createdAt: new Date().toISOString(),
       area: 'Quận Sơn Trà, Đà Nẵng',
@@ -125,7 +130,6 @@ app.post('/api/auth/register', async (req, res) => {
     // Vì đang chạy ở Backend sử dụng Firebase Admin SDK, thao tác này vượt qua mọi rules bảo mật client!
     console.log(`[Register] Đang lưu thông tin tài khoản ${uid} vào Firestore database...`);
     await db.collection(USERS_COLLECTION).doc(uid).set(userData);
-    await db.collection('users').doc(uid).set(userData);
 
     console.log(`[Register] Đăng ký thành công cho user: ${email} (${uid})`);
     return res.status(201).json({ success: true });
@@ -187,10 +191,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     // 3. Lấy thông tin người dùng từ Firestore bằng Admin SDK (bảo mật tuyệt đối)
     console.log(`[Login] Đang tải thông tin Firestore của user ${uid}`);
-    let userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
-      userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
-    }
+    let userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
 
     let userData = {};
     if (userDoc.exists) {
@@ -198,7 +199,6 @@ app.post('/api/auth/login', async (req, res) => {
       
       // Cập nhật trạng thái emailVerified lên true trong Firestore nếu chưa đồng bộ
       if (!userDoc.data().emailVerified) {
-        await db.collection('users').doc(uid).update({ emailVerified: true });
         await db.collection(USERS_COLLECTION).doc(uid).update({ emailVerified: true });
         userData.emailVerified = true;
       }
@@ -246,16 +246,12 @@ app.post('/api/auth/google-login', async (req, res) => {
 
     const userRecord = await auth.getUser(uid);
 
-    let userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
-      userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
-    }
+    let userDoc = await db.collection(USERS_COLLECTION).doc(uid).get();
 
     let userData = {};
     if (userDoc.exists) {
       userData = normalizeUser(userDoc.data(), uid);
       if (!userDoc.data().emailVerified && emailVerified) {
-        await db.collection('users').doc(uid).update({ emailVerified: true });
         await db.collection(USERS_COLLECTION).doc(uid).update({ emailVerified: true });
         userData.emailVerified = true;
       }
@@ -273,7 +269,6 @@ app.post('/api/auth/google-login', async (req, res) => {
       };
 
       await db.collection(USERS_COLLECTION).doc(uid).set(userData);
-      await db.collection('users').doc(uid).set(userData);
     }
 
     console.log(`[GoogleLogin] Đăng nhập Google thành công: ${email}`);
@@ -433,33 +428,17 @@ async function ensureAdmin(req, res, next) {
 
 app.get('/api/admin/users', verifyToken, ensureAdmin, async (req, res) => {
   try {
-    const { search = '', role = '', page = 1, limit = 10 } = req.query;
-    const snapshot = await db.collection(USERS_COLLECTION).get();
-    let users = snapshot.docs.map(doc => normalizeUser(doc.data(), doc.id));
+    // Tải toàn bộ user (giới hạn 1000 để an toàn RAM) cho frontend tự lọc và phân trang
+    const snapshot = await db.collection(USERS_COLLECTION).orderBy('createdAt', 'desc').limit(1000).get();
+    let users = snapshot.docs.map(doc => {
+      const u = normalizeUser(doc.data(), doc.id);
+      u.createdAt = doc.data().createdAt || '';
+      return u;
+    });
 
-    if (role) {
-      users = users.filter(u => normalizeRole(u.role) === role);
-    }
-    if (search) {
-      const lowerSearch = search.toLowerCase();
-      users = users.filter(u => 
-        (u.fullName && u.fullName.toLowerCase().includes(lowerSearch)) || 
-        (u.email && u.email.toLowerCase().includes(lowerSearch))
-      );
-    }
-
-    users.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-
-    const total = users.length;
-    const start = (page - 1) * limit;
-    const paginated = users.slice(start, start + parseInt(limit));
-
-    res.json({
-      data: paginated,
-      total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(total / limit)
+    return res.json({
+      data: users,
+      total: users.length
     });
   } catch (error) {
     console.error('[Admin] Lỗi lấy danh sách user:', error);
@@ -478,6 +457,7 @@ app.post('/api/admin/users', verifyToken, ensureAdmin, async (req, res) => {
       email,
       password,
       displayName: fullName,
+      emailVerified: true,
     });
 
     const userData = {
@@ -540,23 +520,131 @@ app.delete('/api/admin/users/:uid', verifyToken, ensureAdmin, async (req, res) =
   }
 });
 
-app.get('/api/manager/collectors', verifyToken, ensureManager, async (req, res) => {
+app.get('/api/admin/transactions', verifyToken, ensureAdmin, async (req, res) => {
   try {
-    const snapshot = await db.collection(USERS_COLLECTION).where('role', '==', 'collector').get();
-    const collectors = snapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        uid: doc.id,
-        fullName: data.fullName || data['Họ và tên'] || '',
-        email: data.email || '',
-        area: data.area || '',
+    const { role = '' } = req.query;
+
+    const paymentsSnapshot = await db.collection('payments').get();
+    const payments = [];
+    paymentsSnapshot.forEach(doc => {
+      payments.push({ id: doc.id, ...doc.data() });
+    });
+
+    const usersSnapshot = await db.collection(USERS_COLLECTION).get();
+    const usersMap = {};
+    usersSnapshot.forEach(doc => {
+      const u = normalizeUser(doc.data(), doc.id);
+      usersMap[doc.id] = {
+        fullName: u.fullName,
+        email: u.email,
+        role: normalizeRole(u.role),
       };
     });
-    collectors.sort((a, b) => a.fullName.localeCompare(b.fullName, 'vi'));
-    return res.status(200).json(collectors);
+
+    let transactions = payments.map(pm => {
+      const user = usersMap[pm.userId] || {};
+      return {
+        ...pm,
+        transactionId: pm.transactionCode || pm.paymentId || pm.id,
+        userName: user.fullName || 'Ẩn danh',
+        userEmail: user.email || '',
+        userRole: user.role || 'Resident',
+      };
+    });
+
+    if (role) {
+      transactions = transactions.filter(t => t.userRole === role);
+    }
+
+    transactions.sort((a, b) => {
+      const dateA = a.createdAt || a.paidAt || '';
+      const dateB = b.createdAt || b.paidAt || '';
+      return dateB.localeCompare(dateA);
+    });
+
+    return res.status(200).json({ data: transactions });
   } catch (error) {
-    console.error('[API] Lỗi lấy danh sách nhân viên thu gom:', error.message);
-    return res.status(500).json({ error: 'Không thể tải danh sách nhân viên thu gom.' });
+    console.error('[Admin] Lỗi lấy danh sách giao dịch:', error);
+    return res.status(500).json({ error: 'Lỗi khi tải lịch sử giao dịch.' });
+  }
+});
+
+app.get('/api/admin/complaints', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const snapshot = await db.collection('complaints').orderBy('created_at', 'desc').limit(1000).get();
+    let complaints = [];
+    snapshot.forEach(doc => complaints.push({ id: doc.id, ...doc.data() }));
+
+    const userIds = [...new Set(complaints.map(c => c.userId).filter(Boolean))];
+    const usersMap = {};
+    if (userIds.length > 0) {
+      const refs = userIds.map(id => db.collection(USERS_COLLECTION).doc(id));
+      for (let i = 0; i < refs.length; i += 100) {
+        const chunkRefs = refs.slice(i, i + 100);
+        const userDocs = await db.getAll(...chunkRefs);
+        userDocs.forEach(doc => {
+          if (doc.exists) {
+            const u = normalizeUser(doc.data(), doc.id);
+            usersMap[doc.id] = normalizeRole(u.role);
+          }
+        });
+      }
+    }
+
+    complaints = complaints.map(c => ({
+      ...c,
+      userRole: usersMap[c.userId] || 'Unknown'
+    }));
+
+    return res.json({
+      data: complaints,
+      total: complaints.length
+    });
+  } catch (error) {
+    console.error('[Admin] Lỗi lấy danh sách phản ánh:', error);
+    res.status(500).json({ error: 'Lỗi khi tải danh sách phản ánh.' });
+  }
+});
+
+app.get('/api/admin/transactions', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const { role = '' } = req.query;
+    const snapshot = await db.collection('invoices').orderBy('createdAt', 'desc').limit(500).get();
+    let transactions = [];
+    snapshot.forEach(doc => transactions.push({ id: doc.id, ...doc.data() }));
+
+    const userIds = [...new Set(transactions.map(t => t.userId).filter(Boolean))];
+    const usersMap = {};
+    if (userIds.length > 0) {
+      const refs = userIds.map(id => db.collection(USERS_COLLECTION).doc(id));
+      for (let i = 0; i < refs.length; i += 100) {
+        const chunkRefs = refs.slice(i, i + 100);
+        const userDocs = await db.getAll(...chunkRefs);
+        userDocs.forEach(doc => {
+          if (doc.exists) {
+            const u = normalizeUser(doc.data(), doc.id);
+            usersMap[doc.id] = normalizeRole(u.role);
+          }
+        });
+      }
+    }
+
+    transactions = transactions.map(t => ({
+      ...t,
+      userRole: usersMap[t.userId] || 'Unknown'
+    }));
+
+    if (role) {
+      transactions = transactions.filter(t => t.userRole === role);
+    }
+
+    res.json({
+      data: transactions,
+      total: transactions.length,
+    });
+  } catch (error) {
+    console.error('[Admin] Lỗi lấy danh sách giao dịch:', error);
+    res.status(500).json({ error: 'Lỗi khi tải danh sách giao dịch.' });
   }
 });
 
@@ -1065,8 +1153,9 @@ app.get('/api/invoices/current', verifyToken, ensureResident, async (req, res) =
 
     if (invoice.status !== 'paid') {
       try {
-        const { paymentUrl } = await createPayOSPaymentSession(invoice, req.uid);
+        const { paymentUrl, qrCode } = await createPayOSPaymentSession(invoice, req.uid, req.headers.origin);
         invoice.paymentUrl = paymentUrl;
+        invoice.qrCode = qrCode || null;
       } catch (paymentError) {
         console.warn('[API] Không thể tạo session PayOS tự động:', paymentError.message);
       }
@@ -1092,33 +1181,106 @@ app.get('/api/invoices/:invoiceId', verifyToken, ensureResident, async (req, res
   }
 });
 
-function buildPayOSChecksum(payload) {
-  return crypto.createHmac('sha256', PAYOS_CHECKSUM_KEY).update(JSON.stringify(payload)).digest('hex');
+function normalizeDescription(text) {
+  if (!text) return 'Thanh toan';
+  const map = {
+    'à':'a','á':'a','ả':'a','ã':'a','ạ':'a','ă':'a','ằ':'a','ắ':'a','ẳ':'a','ẵ':'a','ặ':'a','â':'a','ầ':'a','ấ':'a','ẩ':'a','ẫ':'a','ậ':'a',
+    'đ':'d',
+    'è':'e','é':'e','ẻ':'e','ẽ':'e','ẹ':'e','ê':'e','ề':'e','ế':'e','ể':'e','ễ':'e','ệ':'e',
+    'ì':'i','í':'i','ỉ':'i','ĩ':'i','ị':'i',
+    'ò':'o','ó':'o','ỏ':'o','õ':'o','ọ':'o','ô':'o','ồ':'o','ố':'o','ổ':'o','ỗ':'o','ộ':'o','ơ':'o','ờ':'o','ớ':'o','ở':'o','ỡ':'o','ợ':'o',
+    'ù':'u','ú':'u','ủ':'u','ũ':'u','ụ':'u','ư':'u','ừ':'u','ứ':'u','ử':'u','ữ':'u','ự':'u',
+    'ỳ':'y','ý':'y','ỷ':'y','ỹ':'y','ỵ':'y',
+    'À':'A','Á':'A','Ả':'A','Ã':'A','Ạ':'A','Ă':'A','Ằ':'A','Ắ':'A','Ẳ':'A','Ẵ':'A','Ặ':'A','Â':'A','Ầ':'A','Ấ':'A','Ẩ':'A','Ẫ':'A','Ậ':'A',
+    'Đ':'D',
+    'È':'E','É':'E','Ẻ':'E','Ẽ':'E','Ẹ':'E','Ê':'E','Ề':'E','Ế':'E','Ể':'E','Ễ':'E','Ệ':'E',
+    'Ì':'I','Í':'I','Ỉ':'I','Ĩ':'I','Ị':'I',
+    'Ò':'O','Ó':'O','Ỏ':'O','Õ':'O','Ọ':'O','Ô':'O','Ồ':'O','Ố':'O','Ổ':'O','Ỗ':'O','Ộ':'O','Ơ':'O','Ờ':'O','Ớ':'O','Ở':'O','Ỡ':'O','Ợ':'O',
+    'Ù':'U','Ú':'U','Ủ':'U','Ũ':'U','Ụ':'U','Ư':'U','Ừ':'U','Ứ':'U','Ử':'U','Ữ':'U','Ự':'U',
+    'Ỳ':'Y','Ý':'Y','Ỷ':'Y','Ỹ':'Y','Ỵ':'Y'
+  };
+  let result = text.split('').map(char => map[char] || char).join('');
+  result = result.replace(/[^a-zA-Z0-9 ]/g, '');
+  return result.substring(0, 25).trim();
 }
 
-async function createPayOSPaymentSession(invoice, userId) {
-  const payload = {
-    clientId: PAYOS_CLIENT_ID,
-    apiKey: PAYOS_API_KEY,
-    invoiceId: invoice.invoiceId,
-    amount: invoice.amount,
-    currency: invoice.currency,
-    userId,
-    description: `Thanh toán ${invoice.feeType}`,
-  };
+function buildPayOSSignature(amount, cancelUrl, description, orderCode, returnUrl, checksumKey) {
+  const data = `amount=${amount}&cancelUrl=${cancelUrl}&description=${description}&orderCode=${orderCode}&returnUrl=${returnUrl}`;
+  return crypto.createHmac('sha256', checksumKey).update(data).digest('hex');
+}
 
-  if (PAYOS_API_BASE_URL && PAYOS_CLIENT_ID && PAYOS_API_KEY && PAYOS_CHECKSUM_KEY) {
-    const checksum = buildPayOSChecksum(payload);
-    const response = await fetch(`${PAYOS_API_BASE_URL}/payments/create`, {
+async function createPayOSPaymentSession(invoice, userId, originUrl) {
+  let orderCode = invoice.orderCode;
+  if (!orderCode) {
+    // Generate orderCode as a unique integer (safe for JS double-precision floats up to 9007199254740991)
+    orderCode = Date.now();
+    await invoiceService.updateInvoice(invoice.invoiceId, { orderCode });
+    invoice.orderCode = orderCode;
+  }
+
+  const origin = originUrl || 'http://localhost:5173';
+  const returnUrl = `${origin}/thanh-toan`;
+  const cancelUrl = `${origin}/thanh-toan`;
+
+  const isPayOSConfigured = 
+    PAYOS_CLIENT_ID && 
+    PAYOS_CLIENT_ID !== 'YOUR_PAYOS_CLIENT_ID' && 
+    PAYOS_API_KEY && 
+    PAYOS_API_KEY !== 'YOUR_PAYOS_API_KEY' && 
+    PAYOS_CHECKSUM_KEY && 
+    PAYOS_CHECKSUM_KEY !== 'YOUR_PAYOS_CHECKSUM_KEY';
+
+  if (isPayOSConfigured) {
+    const description = normalizeDescription(`Thanh toan phi ve sinh`);
+    const amount = Number(invoice.amount);
+    
+    const signature = buildPayOSSignature(
+      amount,
+      cancelUrl,
+      description,
+      orderCode,
+      returnUrl,
+      PAYOS_CHECKSUM_KEY
+    );
+
+    const payload = {
+      orderCode,
+      amount,
+      description,
+      cancelUrl,
+      returnUrl,
+      signature
+    };
+
+    console.log('[PayOS] Gửi yêu cầu tạo link thanh toán với orderCode:', orderCode);
+    const response = await fetch(`${PAYOS_API_BASE_URL}/v2/payment-requests`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, checksum }),
+      headers: {
+        'x-client-id': PAYOS_CLIENT_ID,
+        'x-api-key': PAYOS_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
     });
+
     const data = await response.json();
+    console.log('[PayOS] Phản hồi từ PayOS API:', JSON.stringify(data));
     if (!response.ok) {
-      throw new Error(data.error || 'Không thể tạo yêu cầu PayOS.');
+      console.error('[PayOS] Lỗi từ PayOS API:', data);
+      throw new Error(data.desc || data.error || 'Không thể tạo yêu cầu PayOS.');
     }
-    return { paymentUrl: data.paymentUrl || data.qrUrl || data.redirectUrl };
+
+    const checkoutUrl = data?.data?.checkoutUrl;
+    // qrCode là chuỗi VietQR Pro (EMVCo) – MoMo/MB Bank/banking apps quét được
+    const qrCode = data?.data?.qrCode || null;
+
+    if (!checkoutUrl) {
+      console.error('[PayOS] Không tìm thấy checkoutUrl trong phản hồi:', data);
+      throw new Error(`PayOS không trả về link thanh toán. Mã: ${data?.code}, Mô tả: ${data?.desc}`);
+    }
+
+    console.log('[PayOS] qrCode (VietQR):', qrCode ? 'Có' : 'Không có');
+    return { paymentUrl: checkoutUrl, qrCode };
   }
 
   return {
@@ -1127,24 +1289,37 @@ async function createPayOSPaymentSession(invoice, userId) {
 }
 
 async function verifyPayOSPayment(invoice) {
-  if (PAYOS_API_BASE_URL && PAYOS_CLIENT_ID && PAYOS_API_KEY && PAYOS_CHECKSUM_KEY) {
-    const payload = {
-      clientId: PAYOS_CLIENT_ID,
-      apiKey: PAYOS_API_KEY,
-      invoiceId: invoice.invoiceId,
-      amount: invoice.amount,
-    };
-    const checksum = buildPayOSChecksum(payload);
-    const response = await fetch(`${PAYOS_API_BASE_URL}/payments/status`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, checksum }),
+  const isPayOSConfigured = 
+    PAYOS_CLIENT_ID && 
+    PAYOS_CLIENT_ID !== 'YOUR_PAYOS_CLIENT_ID' && 
+    PAYOS_API_KEY && 
+    PAYOS_API_KEY !== 'YOUR_PAYOS_API_KEY' && 
+    PAYOS_CHECKSUM_KEY && 
+    PAYOS_CHECKSUM_KEY !== 'YOUR_PAYOS_CHECKSUM_KEY';
+
+  if (isPayOSConfigured) {
+    const orderCode = invoice.orderCode;
+    if (!orderCode) {
+      throw new Error('Hóa đơn chưa được khởi tạo giao dịch thanh toán.');
+    }
+
+    console.log('[PayOS] Đang kiểm tra trạng thái cho orderCode:', orderCode);
+    const response = await fetch(`${PAYOS_API_BASE_URL}/v2/payment-requests/${orderCode}`, {
+      method: 'GET',
+      headers: {
+        'x-client-id': PAYOS_CLIENT_ID,
+        'x-api-key': PAYOS_API_KEY,
+        'Content-Type': 'application/json'
+      }
     });
+
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error || 'Không thể kiểm tra trạng thái PayOS.');
+      console.error('[PayOS] Lỗi khi lấy trạng thái giao dịch:', data);
+      throw new Error(data.desc || data.error || 'Không thể kiểm tra trạng thái PayOS.');
     }
-    return data.status === 'PAID' || data.status === 'COMPLETED';
+
+    return data.data && (data.data.status === 'PAID' || data.data.status === 'COMPLETED');
   }
 
   return true;
@@ -1161,8 +1336,8 @@ app.post('/api/invoices/:invoiceId/payment-request', verifyToken, ensureResident
       return res.status(400).json({ error: 'Hóa đơn đã được thanh toán.' });
     }
 
-    const { paymentUrl } = await createPayOSPaymentSession(invoice, req.uid);
-    return res.status(200).json({ paymentUrl });
+    const { paymentUrl, qrCode } = await createPayOSPaymentSession(invoice, req.uid, req.headers.origin);
+    return res.status(200).json({ paymentUrl, qrCode });
   } catch (error) {
     console.error('[API] Lỗi tạo yêu cầu thanh toán PayOS:', error.message);
     return res.status(500).json({ error: error.message });
@@ -1189,6 +1364,22 @@ app.post('/api/invoices/:invoiceId/verify-payment', verifyToken, ensureResident,
       status: 'paid',
       paidAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+    });
+
+    // Tạo bản ghi giao dịch trong collection 'payments'
+    const paymentId = `payment_${Date.now()}`;
+    await db.collection('payments').doc(paymentId).set({
+      paymentId,
+      invoiceId: invoice.invoiceId,
+      userId: req.uid,
+      amount: invoice.amount,
+      currency: invoice.currency || 'VND',
+      method: 'PayOS',
+      transactionCode: `PAYOS_${invoice.invoiceId}`,
+      status: 'success',
+      gatewayResponse: { code: '00', message: 'Success' },
+      createdAt: new Date().toISOString(),
+      paidAt: new Date().toISOString(),
     });
 
     return res.status(200).json({ invoice: updatedInvoice, paid: true });
@@ -1384,17 +1575,60 @@ app.post('/api/notifications/settings', verifyToken, async (req, res) => {
   }
 });
 
+
 /**
- * POST /api/notifications/seed
- * [DEV ONLY] Tạo dữ liệu thông báo mẫu cho cư dân đang đăng nhập để kiểm thử.
- * LƯU Ý: Xóa hoặc bảo vệ route này trước khi deploy lên production!
+ * GET /api/notifications/admin
+ * [ADMIN] Lấy toàn bộ danh sách thông báo.
  */
-app.post('/api/notifications/seed', verifyToken, async (req, res) => {
+app.get('/api/notifications/admin', verifyToken, ensureAdmin, async (req, res) => {
   try {
-    const result = await notificationService.seedNotificationsForUser(req.uid);
-    return res.status(201).json({ success: true, ...result });
+    const { role } = req.query;
+    const notifications = await notificationService.getAdminNotifications(role);
+    return res.status(200).json(notifications);
   } catch (error) {
-    console.error('[API] Lỗi seed dữ liệu thông báo:', error.message);
+    console.error('[API] Lỗi lấy danh sách thông báo admin:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/notifications/admin
+ * [ADMIN] Tạo một thông báo mới.
+ */
+app.post('/api/notifications/admin', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const result = await notificationService.createAdminNotification(req.body);
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi tạo thông báo admin:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/notifications/admin/:id
+ * [ADMIN] Cập nhật thông báo.
+ */
+app.put('/api/notifications/admin/:id', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const result = await notificationService.updateAdminNotification(req.params.id, req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi cập nhật thông báo admin:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/notifications/admin/:id
+ * [ADMIN] Xóa thông báo.
+ */
+app.delete('/api/notifications/admin/:id', verifyToken, ensureAdmin, async (req, res) => {
+  try {
+    const result = await notificationService.deleteAdminNotification(req.params.id);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi xóa thông báo admin:', error.message);
     return res.status(500).json({ error: error.message });
   }
 });

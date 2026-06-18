@@ -14,8 +14,7 @@ import AssignedReports from './pages/Collector/AssignedReports';
 import ManagerInvoice from './pages/ManagerInvoice';
 import ResidentSchedules from './resident/ResidentSchedules';
 import Complaints from './pages/Complaints';
-import UserManagement from './pages/Admin/UserManagement';
-
+import AdminManagement from './pages/Admin/AdminManagement';
 
 function App() {
   return (
@@ -36,7 +35,7 @@ function App() {
             <Route path="/collector/reports" element={<AssignedReports />} />
             <Route path="/dashboard/invoices/new" element={<ManagerInvoice />} />
             <Route path="/phan-anh" element={<Complaints />} />
-            <Route path="/admin/users" element={<UserManagement />} />
+            <Route path="/quan-ly" element={<AdminManagement />} />
           </Routes>
         </div>
         <Footer />

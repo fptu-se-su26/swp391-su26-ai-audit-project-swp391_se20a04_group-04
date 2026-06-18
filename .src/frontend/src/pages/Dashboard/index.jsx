@@ -32,7 +32,8 @@ function formatDate(dateString) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  // Khởi tạo user trực tiếp để tránh setState-in-effect
+  const [user, setUser] = useState(() => authService.getCurrentUser());
   const [managerLoading, setManagerLoading] = useState(false);
   const [apiMessage, setApiMessage] = useState('');
   const [managerError, setManagerError] = useState('');
@@ -77,8 +78,8 @@ export default function Dashboard() {
       navigate('/login');
       return;
     }
-    setUser(currentUser);
-
+    // setUser được khởi tạo trực tiếp từ useState, không cần gọi lại ở đây
+    // Chỉ lắng nghe sự kiện thay đổi auth để cập nhật khi logout/login
     const handleAuthChange = () => {
       setUser(authService.getCurrentUser());
     };
@@ -89,75 +90,12 @@ export default function Dashboard() {
     };
   }, [navigate]);
 
-  useEffect(() => {
-    if (user === null) {
-      return;
-    }
-
-    const role = normalizeRole(user.role);
-    if (role === ROLES.RESIDENT) {
-      navigate('/');
-      return;
-    }
-    if (role === ROLES.COLLECTOR) {
-      navigate('/collector');
-      return;
-    }
-
-    if (role === ROLES.MANAGER || role === ROLES.ADMIN) {
-      loadManagerData();
-    }
-  }, [user, navigate]);
-
-  const getAuthHeaders = async () => ({
+  const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${await authService.getFreshToken()}`,
   });
 
-  // Parse response safely — returns parsed JSON or throws a clean error
-  // even when the server returns an HTML error page (e.g. expired token → 401)
-  const safeJson = async (response) => {
-    const text = await response.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      if (response.status === 401) {
-        throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-      }
-      if (response.status === 403) {
-        throw new Error('Bạn không có quyền thực hiện thao tác này.');
-      }
-      throw new Error(`Lỗi máy chủ (${response.status}). Vui lòng thử lại.`);
-    }
-  };
-
-  const loadManagerData = async () => {
-    setManagerLoading(true);
-    setManagerError('');
-    try {
-      await Promise.all([fetchSchedules(), fetchComplaints(), fetchReport(), fetchFeedbackReports(), fetchCollectors()]);
-    } catch (error) {
-      setManagerError(error.message || 'Không thể tải dữ liệu quản lý.');
-    } finally {
-      setManagerLoading(false);
-    }
-  };
-
-  const fetchCollectors = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/manager/collectors`, {
-        headers: await getAuthHeaders(),
-      });
-      const data = await safeJson(response);
-      if (!response.ok) throw new Error(data.error || 'Không thể tải danh sách nhân viên.');
-      setCollectors(data);
-      return data;
-    } catch {
-      // Non-critical: silently fail, the dropdown just won't have options
-      return [];
-    }
-  };
-
+  // Khai báo fetch functions TRƯỚC loadManagerData để tránh TDZ
   const fetchSchedules = async () => {
     const response = await fetch(`${API_BASE}/api/manager/schedules`, {
       headers: await getAuthHeaders(),
@@ -222,6 +160,36 @@ export default function Dashboard() {
     setReport(data);
     return data;
   };
+
+  const loadManagerData = async () => {
+    setManagerLoading(true);
+    setManagerError('');
+    try {
+      await Promise.all([fetchSchedules(), fetchComplaints(), fetchReport()]);
+    } catch (error) {
+      setManagerError(error.message || 'Không thể tải dữ liệu quản lý.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user === null) {
+      return;
+    }
+
+    const role = normalizeRole(user.role);
+    if (role === ROLES.RESIDENT) {
+      navigate('/');
+      return;
+    }
+
+    if (role === ROLES.MANAGER || role === ROLES.ADMIN) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadManagerData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, navigate]);
 
   const handleCreateSchedule = async (event) => {
     event.preventDefault();
@@ -477,8 +445,16 @@ export default function Dashboard() {
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h1 className="text-xl font-bold text-slate-800 dark:text-white">{user.fullName || 'Manager'}</h1>
-                <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">Manager</span>
+                <h1 className="text-xl font-bold text-slate-800 dark:text-white">
+                  {user.fullName || (normalizeRole(user.role) === ROLES.ADMIN ? 'Admin' : 'Manager')}
+                </h1>
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                  normalizeRole(user.role) === ROLES.ADMIN 
+                    ? 'bg-rose-100 text-rose-700' 
+                    : 'bg-emerald-100 text-emerald-700'
+                }`}>
+                  {normalizeRole(user.role) === ROLES.ADMIN ? 'Admin' : 'Manager'}
+                </span>
               </div>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-base">mail</span> {user.email}
@@ -491,22 +467,14 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/dashboard/invoices/new')}
-              className="py-2.5 px-4 bg-primary text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
-            >
-              <span className="material-symbols-outlined">receipt_long</span>
-              Tạo hóa đơn
-            </button>
-            {normalizeRole(user.role) === ROLES.ADMIN && (
+            {normalizeRole(user.role) !== ROLES.ADMIN && (
               <button
                 type="button"
-                onClick={() => navigate('/admin/users')}
-                className="py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
+                onClick={() => navigate('/dashboard/invoices/new')}
+                className="py-2.5 px-4 bg-primary text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2"
               >
-                <span className="material-symbols-outlined">manage_accounts</span>
-                Quản lý người dùng
+                <span className="material-symbols-outlined">receipt_long</span>
+                Tạo hóa đơn
               </button>
             )}
             <button
