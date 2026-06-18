@@ -90,7 +90,7 @@ export default function Dashboard() {
     };
   }, [navigate]);
 
-  const getAuthHeaders = () => ({
+  const getAuthHeaders = async () => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${await authService.getFreshToken()}`,
   });
