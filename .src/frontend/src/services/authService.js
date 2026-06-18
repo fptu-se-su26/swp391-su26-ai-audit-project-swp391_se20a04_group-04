@@ -6,6 +6,7 @@
 import {
   signOut,
   signInWithPopup,
+  signInWithEmailAndPassword,
   GoogleAuthProvider,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -162,10 +163,31 @@ const authService = {
   },
 
   /**
-   * Lấy token hiện tại
+   * Lấy token hiện tại (có thể đã hết hạn)
    */
   getToken() {
     return localStorage.getItem('eco_token') || sessionStorage.getItem('eco_token');
+  },
+
+  /**
+   * Lấy token mới (tự động làm mới nếu đã hết hạn)
+   * Firebase ID tokens hết hạn sau 1 giờ — luôn dùng hàm này khi gọi API.
+   */
+  async getFreshToken() {
+    try {
+      // Nếu Firebase client đang có user đăng nhập, lấy token mới nhất
+      if (auth.currentUser) {
+        const freshToken = await auth.currentUser.getIdToken(/* forceRefresh */ false);
+        // Cập nhật token trong storage để đồng bộ
+        const storage = localStorage.getItem('eco_token') ? localStorage : sessionStorage;
+        storage.setItem('eco_token', freshToken);
+        return freshToken;
+      }
+    } catch (e) {
+      console.warn('[Auth] Không thể làm mới token Firebase:', e.message);
+    }
+    // Fallback: trả về token đã lưu (có thể hết hạn)
+    return this.getToken();
   },
 
   /**

@@ -145,7 +145,10 @@ export default function Header() {
 
   const previewNotifications = notifications.slice(0, 5);
   const userRole = user ? normalizeRole(user.role) : null;
-  const isManagerOrCollector = userRole === ROLES.MANAGER || userRole === ROLES.COLLECTOR || userRole === ROLES.ADMIN;
+  const isManager = userRole === ROLES.MANAGER || userRole === ROLES.ADMIN;
+  const isCollector = userRole === ROLES.COLLECTOR;
+  const isManagerOrCollector = isManager || isCollector;
+  const dashboardPath = isCollector ? '/collector' : '/dashboard';
 
   return (
     <header className="header bg-surface dark:bg-inverse-surface shadow-sm docked full-width">
@@ -342,11 +345,11 @@ export default function Header() {
                   <div className="py-1.5">
                     {isManagerOrCollector && (
                       <button
-                        onClick={() => { setShowUserMenu(false); navigate('/dashboard'); }}
+                        onClick={() => { setShowUserMenu(false); navigate(dashboardPath); }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                       >
                         <span className="material-symbols-outlined text-base text-slate-400">dashboard</span>
-                        Bảng điều khiển
+                        {isCollector ? 'Lịch làm việc' : 'Bảng điều khiển'}
                       </button>
                     )}
                     <button
@@ -360,6 +363,14 @@ export default function Header() {
                           {unreadCount}
                         </span>
                       )}
+                    </button>
+                    {!isCollector && (
+                    <button
+                      onClick={() => { setShowUserMenu(false); navigate('/phan-anh'); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                    >
+                      <span className="material-symbols-outlined text-base text-slate-400">rate_review</span>
+                      Phản ánh của tôi
                     </button>
                     {userRole !== ROLES.ADMIN && (
                       <button

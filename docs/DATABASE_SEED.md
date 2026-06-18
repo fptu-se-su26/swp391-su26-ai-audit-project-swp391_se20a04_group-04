@@ -1,90 +1,70 @@
-# Hướng dẫn khởi tạo Database Firebase (EcoSchedule)
+# Kết nối Database Firebase chung (EcoSchedule)
+
+Nhóm sử dụng **một Firebase project / Firestore chung**. Không chạy script seed cục bộ — dữ liệu do nhóm quản trị trên Firebase Console hoặc qua backend deploy chung.
 
 | | |
 |---|---|
-| **Project ID** | `swp391-database` |
-| **Phạm vi** | Quận Sơn Trà, Đà Nẵng (7 phường) |
+| **Project ID** | Lấy từ leader nhóm (ví dụ `swp391-database`) |
+| **Database** | Cloud Firestore |
 
-## Yêu cầu trước khi chạy
+## Cấu hình backend (bắt buộc)
 
-1. **Firebase Project** đã tạo và bật **Firestore Database** (chế độ Production hoặc Test).
-2. **Service Account Key** từ Firebase Console:
-   - Project Settings → Service accounts → Generate new private key
-   - Lưu file tại: `.src/backend/serviceAccountKey.json` (không commit lên Git)
-3. Hoặc cấu hình biến môi trường trong `.src/backend/.env`:
+1. Nhận từ leader nhóm:
+   - File **service account JSON** (hoặc biến môi trường tương đương)
+   - **Web API Key** (`FIREBASE_API_KEY`)
+   - **Project ID**
+
+2. Tạo `.src/backend/.env` (copy từ `.env.example`):
 
 ```env
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-FIREBASE_API_KEY=your-web-api-key
-PORT=5000
+FIREBASE_PROJECT_ID=<project-id-cua-nhom>
+FIREBASE_API_KEY=<web-api-key-cua-nhom>
+PORT=5001
 ```
 
-## Chạy seed
+3. Đặt credentials (chọn **một** cách):
 
-```bash
+- **Cách A:** Lưu file service account tại `.src/backend/serviceAccountKey.json` (đã có trong `.gitignore`)
+- **Cách B:** Biến môi trường `FIREBASE_CLIENT_EMAIL` + `FIREBASE_PRIVATE_KEY`
+- **Cách C:** `SERVICE_ACCOUNT_PATH` hoặc `SERVICE_ACCOUNT_JSON`
+
+4. Chạy backend:
+
+```powershell
 cd .src/backend
 npm install
-npm run seed:full
+npm run dev
 ```
 
-| Lệnh | Mô tả |
-|------|-------|
-| `npm run seed` | Ghi dữ liệu (không xóa cũ, không tạo Auth) |
-| `npm run seed:clear` | Xóa toàn bộ 14 collections rồi seed lại |
-| `npm run seed:full` | Xóa + seed + tạo 4 tài khoản Firebase Auth demo |
+Backend kết nối trực tiếp Firestore của nhóm qua `firebaseAdmin.js` — **không ghi/xóa dữ liệu seed tự động**.
 
-## Dữ liệu được tạo (Quận Sơn Trà)
+## Cấu hình frontend
 
-| Collection | Số document | Ghi chú |
-|------------|-------------|---------|
-| waste_types | 4 | Hữu cơ, tái chế, nguy hại, cồng kềnh |
-| areas | ~30 | 1 TP + 1 quận + 7 phường + ~18 tổ dân phố |
-| users | 6 | 2 resident, 2 collector, 1 manager, 1 admin |
-| collection_companies | 1 | Công ty Môi Trường Đô Thị Sơn Trà |
-| routes | 4 | Bắc / Tây / Đông / Nam Sơn Trà |
-| route_assignments | 4 | Phân công 2 collector |
-| collection_schedules | ~21 | Lịch theo phường + tổ (7 phường) |
-| reports | 3 | Phản ánh tại Thọ Quang, Phước Mỹ, An Hải Bắc |
-| report_comments | 3 | Lịch sử xử lý |
-| invoices | 3 | Phí vệ sinh Quận Sơn Trà |
-| payments | 1 | Thanh toán VNPay |
-| notifications | 3 | Thông báo residents |
-| notification_settings | 4 | Cài đặt users |
-| system_logs | 2 | Audit log mẫu |
+Tạo `.src/frontend/.env` (copy từ `.env.example`):
 
-### Tài khoản demo thêm
+```env
+VITE_API_URL=http://localhost:5001/api/auth
+```
 
-| Role | Email |
-|------|-------|
-| resident | resident2@ecoschedule.test |
-| collector | collector2@ecoschedule.test |
+Firebase client config (`src/services/firebase.js`) phải trỏ cùng **project ID** với backend. Nếu nhóm đổi project, cập nhật config theo hướng dẫn leader.
 
-Mật khẩu chung: `EcoSchedule@2026`
+## Tài khoản & dữ liệu
 
-## Triển khai Security Rules & Indexes
+- Tài khoản demo và dữ liệu mẫu do **leader / người quản lý DB nhóm** tạo trên Firebase Auth + Firestore.
+- Mỗi thành viên chỉ cần credentials đúng project — **không** chạy `seed:full` hay script xóa collections.
+
+## Triển khai Security Rules (một lần / khi leader yêu cầu)
 
 ```bash
-# Cài Firebase CLI (nếu chưa có)
-npm install -g firebase-tools
 firebase login
-firebase init firestore   # chọn project, trỏ tới firestore.rules và firestore.indexes.json ở root repo
+firebase use <project-id-cua-nhom>
 firebase deploy --only firestore
 ```
 
-Files cấu hình nằm tại root repo:
-- `firestore.rules`
-- `firestore.indexes.json`
+Files: `firestore.rules`, `firestore.indexes.json` (root repo).
 
-## Kiểm tra sau seed
+## Lưu ý
 
-1. Mở Firebase Console → Firestore → xác nhận 14 collections có dữ liệu.
-2. Đăng nhập app với `resident@ecoschedule.test` / `EcoSchedule@2026`.
-3. Tra cứu lịch: Tỉnh **Đà Nẵng**, Phường **Thọ Quang**, Tổ **12**.
-
-## Lưu ý production
-
-- Đổi mật khẩu tài khoản demo trước khi deploy.
-- Không commit `serviceAccountKey.json`.
-- Chạy `seed:clear` chỉ trên môi trường dev/test.
+- **Không commit** `serviceAccountKey.json` hoặc `.env`.
+- **Không** chạy lệnh xóa toàn bộ collections trên DB chung.
+- Nếu thiếu dữ liệu test, liên hệ leader để được cấp tài khoản hoặc bổ sung dữ liệu trên Firestore chung.

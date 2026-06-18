@@ -85,9 +85,11 @@ export default function Login() {
 
       setSuccessMessage('Đăng nhập thành công! Đang chuyển hướng...');
 
-      // Redirect dựa theo role: Resident → trang chủ; Manager/Collector → dashboard
+      // Redirect dựa theo role
       const role = normalizeRole(user?.role);
-      const redirectPath = role === ROLES.RESIDENT ? '/' : '/dashboard';
+      let redirectPath = '/';
+      if (role === ROLES.MANAGER || role === ROLES.ADMIN) redirectPath = '/dashboard';
+      else if (role === ROLES.COLLECTOR) redirectPath = '/collector';
 
       setTimeout(() => {
         window.dispatchEvent(new Event('authChange'));
@@ -115,9 +117,11 @@ export default function Login() {
       const { user } = await authService.loginWithGoogle(formData.rememberMe);
       setSuccessMessage('Đăng nhập bằng Google thành công! Đang chuyển hướng...');
 
-      // Redirect dựa theo role: Resident → trang chủ; Manager/Collector → dashboard
+      // Redirect dựa theo role
       const role = normalizeRole(user?.role);
-      const redirectPath = role === ROLES.RESIDENT ? '/' : '/dashboard';
+      let redirectPath = '/';
+      if (role === ROLES.MANAGER || role === ROLES.ADMIN) redirectPath = '/dashboard';
+      else if (role === ROLES.COLLECTOR) redirectPath = '/collector';
 
       setTimeout(() => {
         window.dispatchEvent(new Event('authChange'));

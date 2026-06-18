@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
+import managerReportService from '../../services/managerReportService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace('/api/auth', '')
+  : 'http://localhost:5001';
 
 function getStatusBadge(status) {
   const state = (status || '').toLowerCase();
@@ -36,19 +39,23 @@ export default function Dashboard() {
   const [managerError, setManagerError] = useState('');
   const [schedules, setSchedules] = useState([]);
   const [complaints, setComplaints] = useState([]);
+  const [feedbackReports, setFeedbackReports] = useState([]);
+  const [collectors, setCollectors] = useState([]);
   const [report, setReport] = useState(null);
+  const [viewingIncident, setViewingIncident] = useState(null);
 
   const [newSchedule, setNewSchedule] = useState({
     routeName: 'North Route A',
     serviceType: 'Recycling',
-    date: '2026-06-10',
+    date: new Date().toISOString().slice(0, 10),
     time: '08:00',
     city: 'Đà Nẵng',
     ward: 'Phường An Hải Tây',
     neighborhood: 'Tổ 12',
     assignedTruck: 'TRUCK-402',
     assignedDriver: 'Nguyễn Văn A',
-    notes: 'Gán tuyến thu gom khu dân cư phía Bắc.',
+    assignedCollector: '',
+    notes: '',
   });
 
   const [assignment, setAssignment] = useState({
@@ -85,15 +92,15 @@ export default function Dashboard() {
 
   const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${authService.getToken()}`,
+    Authorization: `Bearer ${await authService.getFreshToken()}`,
   });
 
   // Khai báo fetch functions TRƯỚC loadManagerData để tránh TDZ
   const fetchSchedules = async () => {
     const response = await fetch(`${API_BASE}/api/manager/schedules`, {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
-    const data = await response.json();
+    const data = await safeJson(response);
     if (!response.ok) throw new Error(data.error || 'Không thể tải lịch thu gom.');
     setSchedules(data);
     if (data.length > 0) {
@@ -115,19 +122,40 @@ export default function Dashboard() {
 
   const fetchComplaints = async () => {
     const response = await fetch(`${API_BASE}/api/manager/complaints`, {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
-    const data = await response.json();
+    const data = await safeJson(response);
     if (!response.ok) throw new Error(data.error || 'Không thể tải phản ánh.');
     setComplaints(data);
     return data;
   };
 
+  const fetchFeedbackReports = async () => {
+    const data = await managerReportService.listFeedbackReports();
+    setFeedbackReports(data);
+    return data;
+  };
+
+  const handleApproveReport = async (reportId) => {
+    setManagerLoading(true);
+    setApiMessage('');
+    setManagerError('');
+    try {
+      await managerReportService.approveReport(reportId, 'Đã kiểm tra và duyệt kết quả xử lý.');
+      setApiMessage('Đã duyệt phản ánh. Cư dân sẽ nhận thông báo.');
+      await fetchFeedbackReports();
+    } catch (error) {
+      setManagerError(error.message || 'Không thể duyệt phản ánh.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
   const fetchReport = async () => {
     const response = await fetch(`${API_BASE}/api/manager/reports`, {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
     });
-    const data = await response.json();
+    const data = await safeJson(response);
     if (!response.ok) throw new Error(data.error || 'Không thể tải báo cáo.');
     setReport(data);
     return data;
@@ -172,13 +200,13 @@ export default function Dashboard() {
     try {
       const response = await fetch(`${API_BASE}/api/manager/schedules`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           ...newSchedule,
           routePoints,
         }),
       });
-      const data = await response.json();
+      const data = await safeJson(response);
       if (!response.ok) throw new Error(data.error || 'Không thể tạo lịch thu gom mới.');
 
       setApiMessage('Lịch thu gom mới đã được tạo thành công.');
@@ -211,10 +239,10 @@ export default function Dashboard() {
     try {
       const response = await fetch(`${API_BASE}/api/manager/schedules/${assignment.scheduleId}`, {
         method: 'PUT',
-        headers: getAuthHeaders(),
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ routePoints }),
       });
-      const data = await response.json();
+      const data = await safeJson(response);
       if (!response.ok) throw new Error(data.error || 'Không thể lưu tuyến.');
 
       setApiMessage('Tuyến đã được lưu thành công.');
@@ -245,7 +273,7 @@ export default function Dashboard() {
     try {
       const response = await fetch(`${API_BASE}/api/manager/assign-route`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           scheduleId: assignment.scheduleId,
           assignedTruck: assignment.assignedTruck,
@@ -253,7 +281,7 @@ export default function Dashboard() {
           assignedCollector: assignment.assignedCollector,
         }),
       });
-      const data = await response.json();
+      const data = await safeJson(response);
       if (!response.ok) throw new Error(data.error || 'Không thể gán tuyến.');
 
       setApiMessage('Gán tuyến thành công cho lịch thu gom.');
@@ -278,10 +306,10 @@ export default function Dashboard() {
     try {
       const response = await fetch(`${API_BASE}/api/manager/confirm-route`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ scheduleId: assignment.scheduleId }),
       });
-      const data = await response.json();
+      const data = await safeJson(response);
       if (!response.ok) throw new Error(data.error || 'Không thể xác nhận tuyến.');
 
       setApiMessage('Tuyến đã được xác nhận thành công.');
@@ -305,6 +333,32 @@ export default function Dashboard() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDeleteSchedule = async (scheduleId, routeName) => {
+    if (!window.confirm(`Xóa lịch thu gom "${routeName || scheduleId}"?\nHành động này không thể hoàn tác.`)) return;
+
+    setManagerLoading(true);
+    setApiMessage('');
+    setManagerError('');
+    try {
+      const response = await fetch(`${API_BASE}/api/manager/schedules/${scheduleId}`, {
+        method: 'DELETE',
+        headers: await getAuthHeaders(),
+      });
+      const data = await safeJson(response);
+      if (!response.ok) throw new Error(data.error || 'Không thể xóa lịch thu gom.');
+      setApiMessage(data.message || 'Đã xóa lịch thu gom thành công.');
+      // Clear assignment if the deleted schedule was selected
+      setAssignment((prev) => prev.scheduleId === scheduleId
+        ? { scheduleId: '', assignedTruck: '', assignedDriver: '', assignedCollector: '' }
+        : prev);
+      await fetchSchedules();
+    } catch (error) {
+      setManagerError(error.message || 'Lỗi khi xóa lịch thu gom.');
+    } finally {
+      setManagerLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -571,7 +625,7 @@ export default function Dashboard() {
                   </label>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-3">
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Tài xế</span>
                     <input
@@ -581,6 +635,22 @@ export default function Dashboard() {
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       placeholder="Nguyễn Văn A"
                     />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Nhân viên thu gom</span>
+                    <select
+                      name="assignedCollector"
+                      value={newSchedule.assignedCollector}
+                      onChange={handleChangeNewSchedule}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="">-- Chưa gán --</option>
+                      {collectors.map((c) => (
+                        <option key={c.uid} value={c.fullName}>
+                          {c.fullName}{c.area ? ` — ${c.area}` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Ghi chú</span>
@@ -657,15 +727,21 @@ export default function Dashboard() {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Nhân viên</span>
-                    <input
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Nhân viên thu gom</span>
+                    <select
                       name="assignedCollector"
                       value={assignment.assignedCollector}
                       onChange={handleChangeAssignment}
                       disabled={managerLoading || isAssignmentLocked}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      placeholder="Collector placeholder"
-                    />
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white disabled:opacity-60"
+                    >
+                      <option value="">-- Chưa gán --</option>
+                      {collectors.map((c) => (
+                        <option key={c.uid} value={c.fullName}>
+                          {c.fullName}{c.area ? ` — ${c.area}` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
 
@@ -746,6 +822,48 @@ export default function Dashboard() {
             <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Duyệt kết quả</p>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Phản ánh chờ duyệt</h2>
+                </div>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {feedbackReports.filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase())).length} chờ duyệt
+                </span>
+              </div>
+              <div className="space-y-4">
+                {feedbackReports.filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase())).length === 0 ? (
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-950/50 p-4 text-sm text-slate-500 dark:text-slate-400">
+                    Không có phản ánh chờ duyệt.
+                  </div>
+                ) : (
+                  feedbackReports
+                    .filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase()))
+                    .slice(0, 5)
+                    .map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-amber-200 dark:border-amber-900/50 p-4 bg-amber-50/50 dark:bg-amber-950/20">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-900 dark:text-white">{item.title}</p>
+                            <p className="mt-1 text-sm text-slate-500 line-clamp-2">{item.description}</p>
+                            <p className="mt-2 text-xs text-slate-400">{item.ward}{item.neighborhood ? ` · ${item.neighborhood}` : ''}</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={managerLoading}
+                            onClick={() => handleApproveReport(item.id)}
+                            className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                          >
+                            Duyệt
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Yêu cầu</p>
                   <h2 className="text-lg font-bold text-slate-900 dark:text-white">View Complaints</h2>
                 </div>
@@ -792,17 +910,28 @@ export default function Dashboard() {
                   <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3">Xe</th>
                   <th className="px-4 py-3">Tài xế</th>
+                  <th className="px-4 py-3 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                 {schedules.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">Không có lịch thu gom nào.</td>
+                    <td colSpan="6" className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">Không có lịch thu gom nào.</td>
                   </tr>
                 ) : (
                   schedules.map((schedule) => (
                     <tr key={schedule.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/70 transition-colors">
-                      <td className="px-4 py-4 font-medium text-slate-900 dark:text-white">{schedule.route_name || 'Không xác định'}</td>
+                      <td className="px-4 py-4 font-medium text-slate-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          {schedule.route_name || 'Không xác định'}
+                          {schedule.incident && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                              <span className="material-symbols-outlined text-xs">warning</span>
+                              Sự cố
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-4 text-slate-600 dark:text-slate-300">{formatDate(schedule.schedule_date)} {schedule.schedule_time || ''}</td>
                       <td className="px-4 py-4">
                         <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusBadge(schedule.status)}`}>
@@ -811,6 +940,36 @@ export default function Dashboard() {
                       </td>
                       <td className="px-4 py-4">{schedule.assigned_truck || 'Chưa gán'}</td>
                       <td className="px-4 py-4">{schedule.assigned_driver || 'Chưa gán'}</td>
+                      <td className="px-4 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {schedule.incident && (
+                            <button
+                              type="button"
+                              onClick={() => setViewingIncident(schedule)}
+                              className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
+                            >
+                              <span className="material-symbols-outlined text-sm">visibility</span>
+                              Xem sự cố
+                            </button>
+                          )}
+                          {schedule.collector_confirmed ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
+                              <span className="material-symbols-outlined text-sm">lock</span>
+                              Đã khóa
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={managerLoading}
+                              onClick={() => handleDeleteSchedule(schedule.id, schedule.route_name)}
+                              className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-400"
+                            >
+                              <span className="material-symbols-outlined text-sm">delete</span>
+                              Xóa
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -818,6 +977,119 @@ export default function Dashboard() {
             </table>
           </div>
         </section>
+
+        {viewingIncident && viewingIncident.incident && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingIncident(null)}>
+            <div
+              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-3xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-slate-100 dark:border-slate-700 p-6 flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400">
+                      <span className="material-symbols-outlined text-lg">report</span>
+                    </span>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Báo cáo sự cố</h3>
+                  </div>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Tuyến: {viewingIncident.route_name || 'Không xác định'}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingIncident(null)}
+                  className="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 p-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Loại sự cố</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                      {{
+                        vehicle_breakdown: 'Xe hỏng / sự cố phương tiện',
+                        road_blocked: 'Đường tắc / không thể di chuyển',
+                        overload: 'Điểm tập kết quá tải',
+                        hazardous_waste: 'Rác nguy hại sai quy định',
+                        other: 'Sự cố khác',
+                      }[viewingIncident.incident.incidentType] || viewingIncident.incident.incidentType || 'Không xác định'}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 p-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Thời gian báo cáo</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                      {viewingIncident.incident.reportedAt ? new Date(viewingIncident.incident.reportedAt).toLocaleString('vi-VN') : 'Không rõ'}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 p-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Nhân viên thu gom</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                      {viewingIncident.assigned_collector || viewingIncident.assigned_driver || 'Chưa gán'}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Mô tả sự cố</p>
+                  <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-4 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
+                    {viewingIncident.incident.description || 'Không có mô tả.'}
+                  </div>
+                </div>
+
+                {viewingIncident.incident.evidenceUrls && viewingIncident.incident.evidenceUrls.length > 0 && (
+                  <div>
+                    <p className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
+                      Bằng chứng ({viewingIncident.incident.evidenceUrls.length} ảnh)
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {viewingIncident.incident.evidenceUrls.map((url, idx) => (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group relative block overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 aspect-square bg-slate-100 dark:bg-slate-900"
+                        >
+                          <img
+                            src={url}
+                            alt={`Bằng chứng ${idx + 1}`}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                          />
+                          <div className="hidden items-center justify-center w-full h-full text-slate-400">
+                            <span className="material-symbols-outlined text-3xl">broken_image</span>
+                          </div>
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                            <span className="material-symbols-outlined text-white opacity-0 group-hover:opacity-100 transition-opacity text-2xl drop-shadow-lg">zoom_in</span>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(!viewingIncident.incident.evidenceUrls || viewingIncident.incident.evidenceUrls.length === 0) && (
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 p-4 text-sm text-slate-500 dark:text-slate-400 text-center">
+                    <span className="material-symbols-outlined text-2xl opacity-30 block mb-1">image_not_supported</span>
+                    Không có ảnh bằng chứng đính kèm.
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-slate-100 dark:border-slate-700 p-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setViewingIncident(null)}
+                  className="rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

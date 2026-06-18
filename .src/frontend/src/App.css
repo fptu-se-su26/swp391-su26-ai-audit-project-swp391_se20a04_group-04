@@ -182,3 +182,11 @@
     border-right-color: var(--border);
   }
 }
+
+/* Leaflet map panes default z-index (400+) can cover modals — keep map below overlays */
+.collector-route-map--readonly .leaflet-container,
+.collector-route-map--readonly .leaflet-pane,
+.collector-route-map--readonly .leaflet-top,
+.collector-route-map--readonly .leaflet-bottom {
+  z-index: 1 !important;
+}
