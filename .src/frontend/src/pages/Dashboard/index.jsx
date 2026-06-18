@@ -9,6 +9,18 @@ const API_BASE = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace('/api/auth', '')
   : 'http://localhost:5001';
 
+const safeJson = async (response) => {
+  try {
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await response.json();
+    }
+  } catch (e) {
+    // Ignore error
+  }
+  return {};
+};
+
 function getStatusBadge(status) {
   const state = (status || '').toLowerCase();
   if (state.includes('confirmed')) return 'bg-emerald-200 text-emerald-800';

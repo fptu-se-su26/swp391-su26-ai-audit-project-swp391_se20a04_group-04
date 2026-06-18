@@ -18,10 +18,6 @@ export default function AdminPaymentHistory() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-    setCurrentPage(1);
-  }, []);
   const fetchData = async () => {
     setLoading(true);
     setError('');
@@ -34,6 +30,11 @@ export default function AdminPaymentHistory() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  }, []);
 
   const handleOpenDetail = (tx) => {
     setSelectedItem(tx);

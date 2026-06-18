@@ -32,11 +32,6 @@ export default function AdminNotifications() {
     targetRole: 'all',
   });
 
-  useEffect(() => {
-    fetchNotifications();
-    setCurrentPage(1);
-  }, []);
-
   const fetchNotifications = async () => {
     setLoading(true);
     setError('');
@@ -50,6 +45,11 @@ export default function AdminNotifications() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchNotifications();
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

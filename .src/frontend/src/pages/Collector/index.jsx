@@ -47,7 +47,7 @@ function canComplete(status) {
 
 export default function CollectorDashboard() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const [user] = useState(() => authService.getCurrentUser());
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [summary, setSummary] = useState(null);
   const [schedules, setSchedules] = useState([]);
@@ -66,18 +66,16 @@ export default function CollectorDashboard() {
   });
 
   useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser) {
+    if (!user) {
       navigate('/login');
       return;
     }
-    const role = normalizeRole(currentUser.role);
+    const role = normalizeRole(user.role);
     if (role !== ROLES.COLLECTOR) {
       navigate(role === ROLES.MANAGER || role === ROLES.ADMIN ? '/dashboard' : '/');
       return;
     }
-    setUser(currentUser);
-  }, [navigate]);
+  }, [user, navigate]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -102,7 +100,10 @@ export default function CollectorDashboard() {
   }, [selectedDate]);
 
   useEffect(() => {
-    if (user) loadData();
+    if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadData();
+    }
   }, [user, loadData]);
 
   const handleAction = async (action, extra = {}) => {

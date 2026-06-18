@@ -7,9 +7,6 @@ import { ROLES, normalizeRole, REGISTER_ROLES } from '../../constants/roles';
 export default function UserManagement({ hideHeader = false }) {
   const navigate = useNavigate();
   const [allUsers, setAllUsers] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
   const limit = 10;
   
@@ -34,17 +31,6 @@ export default function UserManagement({ hideHeader = false }) {
   });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [search]);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
     setLoading(true);
     setError('');
@@ -59,27 +45,32 @@ export default function UserManagement({ hideHeader = false }) {
   };
 
   useEffect(() => {
-    let filtered = allUsers;
-    
-    if (roleFilter) {
-      filtered = filtered.filter(u => u.role === roleFilter);
-    }
-    
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  }, []);
+
+  const filteredUsers = allUsers.filter(u => {
+    if (roleFilter && u.role !== roleFilter) return false;
     if (debouncedSearch) {
       const lowerSearch = debouncedSearch.toLowerCase();
-      filtered = filtered.filter(u => 
-        (u.fullName && u.fullName.toLowerCase().includes(lowerSearch)) || 
-        (u.email && u.email.toLowerCase().includes(lowerSearch)) ||
-        (u.uid && u.uid.toLowerCase().includes(lowerSearch))
-      );
+      return (u.fullName && u.fullName.toLowerCase().includes(lowerSearch)) || 
+             (u.email && u.email.toLowerCase().includes(lowerSearch)) ||
+             (u.uid && u.uid.toLowerCase().includes(lowerSearch));
     }
-    
-    setTotal(filtered.length);
-    setTotalPages(Math.ceil(filtered.length / limit) || 1);
-    
-    const start = (page - 1) * limit;
-    setUsers(filtered.slice(start, start + limit));
-  }, [allUsers, page, debouncedSearch, roleFilter]);
+    return true;
+  });
+
+  const total = filteredUsers.length;
+  const totalPages = Math.ceil(total / limit) || 1;
+  const start = (page - 1) * limit;
+  const users = filteredUsers.slice(start, start + limit);
 
   const handleSearchChange = (e) => {
     setSearch(e.target.value);

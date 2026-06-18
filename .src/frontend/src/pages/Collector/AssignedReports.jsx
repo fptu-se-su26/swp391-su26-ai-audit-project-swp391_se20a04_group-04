@@ -36,7 +36,7 @@ function formatDateTime(iso) {
 
 export default function AssignedReports() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const [user] = useState(() => authService.getCurrentUser());
   const [reports, setReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
   const [comments, setComments] = useState([]);
@@ -51,17 +51,15 @@ export default function AssignedReports() {
   const [evidenceFiles, setEvidenceFiles] = useState([]);
 
   useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser) {
+    if (!user) {
       navigate('/login');
       return;
     }
-    if (normalizeRole(currentUser.role) !== ROLES.COLLECTOR) {
+    if (normalizeRole(user.role) !== ROLES.COLLECTOR) {
       navigate('/');
       return;
     }
-    setUser(currentUser);
-  }, [navigate]);
+  }, [user, navigate]);
 
   const loadReports = useCallback(async () => {
     setLoading(true);
@@ -81,17 +79,23 @@ export default function AssignedReports() {
   }, []);
 
   useEffect(() => {
-    if (user) loadReports();
+    if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadReports();
+    }
   }, [user, loadReports]);
 
   useEffect(() => {
     if (!selectedReport) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setComments([]);
       return;
     }
     collectorService.getReportComments(selectedReport.id)
       .then(setComments)
-      .catch(() => setComments([]));
+      .catch(() => {
+        setComments([]);
+      });
   }, [selectedReport]);
 
   const filteredReports = reports.filter((r) => {

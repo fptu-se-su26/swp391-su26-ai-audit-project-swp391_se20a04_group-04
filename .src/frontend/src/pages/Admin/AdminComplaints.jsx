@@ -3,32 +3,18 @@ import complaintService from '../../services/complaintService';
 
 export default function AdminComplaints({ hideHeader = false }) {
   const [allComplaints, setAllComplaints] = useState([]);
-  const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
   // Pagination & Filtering
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   
   // UI State
   const [expandedComplaintId, setExpandedComplaintId] = useState(null);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [search]);
-
-  useEffect(() => {
-    fetchComplaints();
-  }, []);
 
   const fetchComplaints = async () => {
     setLoading(true);
@@ -44,27 +30,32 @@ export default function AdminComplaints({ hideHeader = false }) {
   };
 
   useEffect(() => {
-    let filtered = allComplaints;
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [search]);
 
-    if (roleFilter) {
-      filtered = filtered.filter(c => c.userRole === roleFilter);
-    }
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchComplaints();
+  }, []);
 
+  const filteredComplaints = allComplaints.filter(c => {
+    if (roleFilter && c.userRole !== roleFilter) return false;
     if (debouncedSearch) {
       const lowerSearch = debouncedSearch.toLowerCase();
-      filtered = filtered.filter(c => 
-        (c.title && c.title.toLowerCase().includes(lowerSearch)) || 
-        (c.description && c.description.toLowerCase().includes(lowerSearch)) ||
-        (c.userName && c.userName.toLowerCase().includes(lowerSearch))
-      );
+      return (c.title && c.title.toLowerCase().includes(lowerSearch)) || 
+             (c.description && c.description.toLowerCase().includes(lowerSearch)) ||
+             (c.userName && c.userName.toLowerCase().includes(lowerSearch));
     }
+    return true;
+  });
 
-    setTotal(filtered.length);
-    setTotalPages(Math.ceil(filtered.length / limit) || 1);
-
-    const start = (page - 1) * limit;
-    setComplaints(filtered.slice(start, start + limit));
-  }, [allComplaints, page, debouncedSearch, roleFilter]);
+  const total = filteredComplaints.length;
+  const totalPages = Math.ceil(total / limit) || 1;
+  const start = (page - 1) * limit;
+  const complaints = filteredComplaints.slice(start, start + limit);
 
   const getStatusBadge = (status) => {
     const s = status ? status.toLowerCase() : 'open';

@@ -6,33 +6,12 @@
 import {
   signOut,
   signInWithPopup,
-  signInWithEmailAndPassword,
   GoogleAuthProvider,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from './firebase';
-import { ROLES, normalizeRole } from '../constants/roles';
-
-// Tên collection chính trên Firestore
-const USERS_COLLECTION = 'users';
+import { auth } from './firebase';
 
 const BACKEND_URL = import.meta.env.VITE_AUTH_URL || (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/auth` : 'http://localhost:5001/api/auth');
 
-/**
- * Chuẩn hóa dữ liệu user từ Firestore (hỗ trợ cả tên trường tiếng Việt lẫn tiếng Anh)
- */
-function normalizeUser(data, uid) {
-  return {
-    uid:      data.uid      || uid,
-    fullName: data.fullName || data['Họ và tên']   || data['ho_va_ten'] || '',
-    email:    data.email    || data['e-mail']       || data['Email']     || '',
-    phone:    data.phone    || data['điện thoại']   || data['dien_thoai']|| '',
-    address:  data.address  || data['Địa chỉ']      || data['dia_chi']   || '',
-    area:     data.area     || data['khu vực']      || data['khu_vuc']   || 'Quận Sơn Trà, Đà Nẵng',
-    role:     normalizeRole(data.role || data['vai trò'] || data['Vai trò']),
-    emailVerified: data.emailVerified ?? true,
-  };
-}
 
 const authService = {
   /**
