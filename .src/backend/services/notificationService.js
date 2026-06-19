@@ -1,4 +1,5 @@
-const { db } = require('../firebaseAdmin');
+const { admin, db } = require('../firebaseAdmin');
+const { normalizeRole } = require('../constants/roles');
 
 const NOTIFICATIONS_COLLECTION = 'notifications';
 const USERS_COLLECTION = 'users';
@@ -10,25 +11,48 @@ const USERS_COLLECTION = 'users';
  * @returns {Array} Danh sách các thông báo
  */
 async function getNotifications(userId) {
-  // Lưu ý: Không dùng orderBy kết hợp where để tránh yêu cầu Composite Index trên Firestore.
-  // Thay vào đó, sắp xếp kết quả bằng JavaScript sau khi lấy về.
-  const snapshot = await db
+  const userDoc = await db.collection(USERS_COLLECTION).doc(userId).get();
+  const userRole = userDoc.exists ? normalizeRole(userDoc.data().role) : 'resident';
+
+  const personalSnapshot = await db
     .collection(NOTIFICATIONS_COLLECTION)
     .where('user_id', '==', userId)
     .get();
 
-  if (snapshot.empty) {
-    return [];
+  const roleSnapshot = await db
+    .collection(NOTIFICATIONS_COLLECTION)
+    .where('targetRole', 'in', ['all', userRole])
+    .get();
+
+  const resultsMap = new Map();
+
+  if (!personalSnapshot.empty) {
+    personalSnapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      resultsMap.set(doc.id, {
+        id: doc.id,
+        ...data,
+        sent_at: data.sent_at?.toDate?.()?.toISOString() || data.sent_at,
+      });
+    });
   }
 
-  const results = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-    // Chuyển Firestore Timestamp về ISO string để truyền qua API dễ dàng
-    sent_at: doc.data().sent_at?.toDate?.()?.toISOString() || doc.data().sent_at,
-  }));
+  if (!roleSnapshot.empty) {
+    roleSnapshot.docs.forEach((doc) => {
+      if (!resultsMap.has(doc.id)) {
+        const data = doc.data();
+        const readBy = data.read_by || [];
+        resultsMap.set(doc.id, {
+          id: doc.id,
+          ...data,
+          is_read: readBy.includes(userId),
+          sent_at: data.sent_at?.toDate?.()?.toISOString() || data.sent_at,
+        });
+      }
+    });
+  }
 
-  // Sắp xếp mới nhất lên đầu bằng JavaScript (tránh cần Composite Index trên Firestore)
+  const results = Array.from(resultsMap.values());
   return results.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
 }
 
@@ -46,12 +70,17 @@ async function markAsRead(notificationId, userId) {
     throw new Error('Thông báo không tồn tại.');
   }
 
-  // Kiểm tra quyền sở hữu: Chỉ chủ nhân mới được đánh dấu
-  if (doc.data().user_id !== userId) {
+  const data = doc.data();
+
+  if (data.user_id === userId) {
+    await docRef.update({ is_read: true });
+  } else if (data.targetRole) {
+    await docRef.update({
+      read_by: admin.firestore.FieldValue.arrayUnion(userId)
+    });
+  } else {
     throw new Error('Bạn không có quyền thực hiện hành động này.');
   }
-
-  await docRef.update({ is_read: true });
 }
 
 /**
@@ -60,24 +89,48 @@ async function markAsRead(notificationId, userId) {
  * @param {string} userId - UID của cư dân
  */
 async function markAllAsRead(userId) {
-  const snapshot = await db
+  const userDoc = await db.collection(USERS_COLLECTION).doc(userId).get();
+  const userRole = userDoc.exists ? normalizeRole(userDoc.data().role) : 'resident';
+
+  const personalSnapshot = await db
     .collection(NOTIFICATIONS_COLLECTION)
     .where('user_id', '==', userId)
     .where('is_read', '==', false)
     .get();
 
-  if (snapshot.empty) {
-    return { updated: 0 };
+  const roleSnapshot = await db
+    .collection(NOTIFICATIONS_COLLECTION)
+    .where('targetRole', 'in', ['all', userRole])
+    .get();
+
+  const batch = db.batch();
+  let updatedCount = 0;
+
+  if (!personalSnapshot.empty) {
+    personalSnapshot.docs.forEach((doc) => {
+      batch.update(doc.ref, { is_read: true });
+      updatedCount++;
+    });
   }
 
-  // Dùng Firestore Batch để ghi nhiều document cùng lúc (tối đa 500/batch)
-  const batch = db.batch();
-  snapshot.docs.forEach((doc) => {
-    batch.update(doc.ref, { is_read: true });
-  });
+  if (!roleSnapshot.empty) {
+    roleSnapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      const readBy = data.read_by || [];
+      if (!readBy.includes(userId)) {
+        batch.update(doc.ref, {
+          read_by: admin.firestore.FieldValue.arrayUnion(userId)
+        });
+        updatedCount++;
+      }
+    });
+  }
 
-  await batch.commit();
-  return { updated: snapshot.size };
+  if (updatedCount > 0) {
+    await batch.commit();
+  }
+
+  return { updated: updatedCount };
 }
 
 /**
