@@ -1210,9 +1210,14 @@ function buildPayOSSignature(amount, cancelUrl, description, orderCode, returnUr
 }
 
 async function createPayOSPaymentSession(invoice, userId, originUrl) {
+  // Nếu đã tạo link thanh toán rồi, ta chỉ việc trả về link cũ để tránh tạo lại (tránh lỗi 231)
+  if (invoice.paymentUrl && invoice.orderCode) {
+    return { paymentUrl: invoice.paymentUrl, qrCode: invoice.qrCode };
+  }
+
   let orderCode = invoice.orderCode;
   if (!orderCode) {
-    // Generate orderCode as a unique integer (safe for JS double-precision floats up to 9007199254740991)
+    // Generate orderCode as a unique integer
     orderCode = Date.now();
     await invoiceService.updateInvoice(invoice.invoiceId, { orderCode });
     invoice.orderCode = orderCode;
@@ -1234,7 +1239,7 @@ async function createPayOSPaymentSession(invoice, userId, originUrl) {
     const description = normalizeDescription(`Thanh toan phi ve sinh`);
     const amount = Number(invoice.amount);
     
-    const signature = buildPayOSSignature(
+    let signature = buildPayOSSignature(
       amount,
       cancelUrl,
       description,
@@ -1243,7 +1248,7 @@ async function createPayOSPaymentSession(invoice, userId, originUrl) {
       PAYOS_CHECKSUM_KEY
     );
 
-    const payload = {
+    let payload = {
       orderCode,
       amount,
       description,
@@ -1253,7 +1258,7 @@ async function createPayOSPaymentSession(invoice, userId, originUrl) {
     };
 
     console.log('[PayOS] Gửi yêu cầu tạo link thanh toán với orderCode:', orderCode);
-    const response = await fetch(`${PAYOS_API_BASE_URL}/v2/payment-requests`, {
+    let response = await fetch(`${PAYOS_API_BASE_URL}/v2/payment-requests`, {
       method: 'POST',
       headers: {
         'x-client-id': PAYOS_CLIENT_ID,
@@ -1263,21 +1268,85 @@ async function createPayOSPaymentSession(invoice, userId, originUrl) {
       body: JSON.stringify(payload),
     });
 
-    const data = await response.json();
+    let data = await response.json();
+
+    // PayOS trả về HTTP 200 nhưng code là '231' nếu lỗi Đơn đã tồn tại.
+    // Xử lý lỗi 231: Đơn thanh toán đã tồn tại (do code cũ bị kẹt trên PayOS mà chưa lưu URL)
+    if (String(data.code) === '231') {
+      console.log('[PayOS] Lỗi 231: Đơn đã tồn tại. Đang thử lấy lại thông tin đơn cũ...');
+      try {
+        const getResp = await fetch(`${PAYOS_API_BASE_URL}/v2/payment-requests/${orderCode}`, {
+          method: 'GET',
+          headers: {
+            'x-client-id': PAYOS_CLIENT_ID,
+            'x-api-key': PAYOS_API_KEY,
+            'Content-Type': 'application/json'
+          }
+        });
+        const getData = await getResp.json();
+        
+        // Nếu lấy thành công và có checkoutUrl
+        if (getResp.ok && String(getData.code) === '00' && getData.data?.checkoutUrl) {
+          console.log('[PayOS] Lấy lại link cũ thành công!');
+          await invoiceService.updateInvoice(invoice.invoiceId, {
+            paymentUrl: getData.data.checkoutUrl,
+            qrCode: getData.data.qrCode || null
+          });
+          return { paymentUrl: getData.data.checkoutUrl, qrCode: getData.data.qrCode || null };
+        }
+      } catch (err) {
+        console.warn('[PayOS] Không thể lấy thông tin đơn cũ:', err.message);
+      }
+
+      // Nếu không lấy được đơn cũ (hoặc bị hết hạn), ta tiến hành tạo orderCode mới
+      console.log('[PayOS] Không lấy được link cũ, tạo orderCode mới và thử lại...');
+      orderCode = Date.now() + Math.floor(Math.random() * 1000);
+      
+      signature = buildPayOSSignature(
+        amount, cancelUrl, description, orderCode, returnUrl, PAYOS_CHECKSUM_KEY
+      );
+      payload.orderCode = orderCode;
+      payload.signature = signature;
+
+      response = await fetch(`${PAYOS_API_BASE_URL}/v2/payment-requests`, {
+        method: 'POST',
+        headers: {
+          'x-client-id': PAYOS_CLIENT_ID,
+          'x-api-key': PAYOS_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      data = await response.json();
+      if (response.ok && String(data.code) === '00') {
+        await invoiceService.updateInvoice(invoice.invoiceId, { orderCode });
+        invoice.orderCode = orderCode;
+      }
+    }
+
     console.log('[PayOS] Phản hồi từ PayOS API:', JSON.stringify(data));
-    if (!response.ok) {
+    
+    // PayOS báo lỗi bằng code khác '00' dù HTTP có thể là 200 OK
+    if (!response.ok || (data.code && String(data.code) !== '00')) {
       console.error('[PayOS] Lỗi từ PayOS API:', data);
       throw new Error(data.desc || data.error || 'Không thể tạo yêu cầu PayOS.');
     }
 
     const checkoutUrl = data?.data?.checkoutUrl;
-    // qrCode là chuỗi VietQR Pro (EMVCo) – MoMo/MB Bank/banking apps quét được
+    // qrCode là chuỗi VietQR Pro (EMVCo)
     const qrCode = data?.data?.qrCode || null;
 
     if (!checkoutUrl) {
       console.error('[PayOS] Không tìm thấy checkoutUrl trong phản hồi:', data);
       throw new Error(`PayOS không trả về link thanh toán. Mã: ${data?.code}, Mô tả: ${data?.desc}`);
     }
+
+    // Lưu URL vào CSDL để dùng lại cho các lần fetch sau
+    await invoiceService.updateInvoice(invoice.invoiceId, {
+      paymentUrl: checkoutUrl,
+      qrCode: qrCode
+    });
 
     console.log('[PayOS] qrCode (VietQR):', qrCode ? 'Có' : 'Không có');
     return { paymentUrl: checkoutUrl, qrCode };
