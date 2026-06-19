@@ -555,11 +555,19 @@ app.get('/api/admin/transactions', verifyToken, ensureAdmin, async (req, res) =>
     if (role) {
       transactions = transactions.filter(t => t.userRole === role);
     }
+    const getTime = (dateVal) => {
+      if (!dateVal) return 0;
+      if (typeof dateVal === 'string') return new Date(dateVal).getTime();
+      if (dateVal.toDate) return dateVal.toDate().getTime(); // Firestore Timestamp
+      if (dateVal._seconds) return dateVal._seconds * 1000;
+      if (dateVal.seconds) return dateVal.seconds * 1000;
+      return new Date(dateVal).getTime();
+    };
 
     transactions.sort((a, b) => {
-      const dateA = a.createdAt || a.paidAt || '';
-      const dateB = b.createdAt || b.paidAt || '';
-      return dateB.localeCompare(dateA);
+      const timeA = getTime(a.createdAt || a.paidAt);
+      const timeB = getTime(b.createdAt || b.paidAt);
+      return timeB - timeA;
     });
 
     return res.status(200).json({ data: transactions });
