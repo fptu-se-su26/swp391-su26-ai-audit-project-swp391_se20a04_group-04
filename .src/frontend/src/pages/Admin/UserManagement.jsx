@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import authService from '../../services/authService';
+import { Link } from 'react-router-dom';
 import { getUsers, createUser, updateUser, deleteUser } from '../../services/userService';
 import { ROLES, normalizeRole, REGISTER_ROLES } from '../../constants/roles';
 
 export default function UserManagement({ hideHeader = false }) {
-  const navigate = useNavigate();
   const [allUsers, setAllUsers] = useState([]);
   const [page, setPage] = useState(1);
   const limit = 10;

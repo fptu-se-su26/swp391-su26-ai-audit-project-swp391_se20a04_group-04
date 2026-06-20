@@ -530,16 +530,25 @@ app.get('/api/admin/transactions', verifyToken, ensureAdmin, async (req, res) =>
       payments.push({ id: doc.id, ...doc.data() });
     });
 
-    const usersSnapshot = await db.collection(USERS_COLLECTION).get();
+    const userIds = [...new Set(payments.map(pm => pm.userId).filter(Boolean))];
     const usersMap = {};
-    usersSnapshot.forEach(doc => {
-      const u = normalizeUser(doc.data(), doc.id);
-      usersMap[doc.id] = {
-        fullName: u.fullName,
-        email: u.email,
-        role: normalizeRole(u.role),
-      };
-    });
+    if (userIds.length > 0) {
+      const refs = userIds.map(id => db.collection(USERS_COLLECTION).doc(id));
+      for (let i = 0; i < refs.length; i += 100) {
+        const chunkRefs = refs.slice(i, i + 100);
+        const userDocs = await db.getAll(...chunkRefs);
+        userDocs.forEach(doc => {
+          if (doc.exists) {
+            const u = normalizeUser(doc.data(), doc.id);
+            usersMap[doc.id] = {
+              fullName: u.fullName,
+              email: u.email,
+              role: normalizeRole(u.role),
+            };
+          }
+        });
+      }
+    }
 
     let transactions = payments.map(pm => {
       const user = usersMap[pm.userId] || {};
@@ -614,45 +623,19 @@ app.get('/api/admin/complaints', verifyToken, ensureAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/admin/transactions', verifyToken, ensureAdmin, async (req, res) => {
+
+
+app.get('/api/manager/collectors', verifyToken, ensureManager, async (req, res) => {
   try {
-    const { role = '' } = req.query;
-    const snapshot = await db.collection('invoices').orderBy('createdAt', 'desc').limit(500).get();
-    let transactions = [];
-    snapshot.forEach(doc => transactions.push({ id: doc.id, ...doc.data() }));
-
-    const userIds = [...new Set(transactions.map(t => t.userId).filter(Boolean))];
-    const usersMap = {};
-    if (userIds.length > 0) {
-      const refs = userIds.map(id => db.collection(USERS_COLLECTION).doc(id));
-      for (let i = 0; i < refs.length; i += 100) {
-        const chunkRefs = refs.slice(i, i + 100);
-        const userDocs = await db.getAll(...chunkRefs);
-        userDocs.forEach(doc => {
-          if (doc.exists) {
-            const u = normalizeUser(doc.data(), doc.id);
-            usersMap[doc.id] = normalizeRole(u.role);
-          }
-        });
-      }
-    }
-
-    transactions = transactions.map(t => ({
-      ...t,
-      userRole: usersMap[t.userId] || 'Unknown'
-    }));
-
-    if (role) {
-      transactions = transactions.filter(t => t.userRole === role);
-    }
-
-    res.json({
-      data: transactions,
-      total: transactions.length,
+    const snapshot = await db.collection(USERS_COLLECTION).where('role', '==', ROLES.COLLECTOR).get();
+    const collectors = [];
+    snapshot.forEach(doc => {
+      collectors.push(normalizeUser(doc.data(), doc.id));
     });
+    return res.status(200).json(collectors);
   } catch (error) {
-    console.error('[Admin] Lỗi lấy danh sách giao dịch:', error);
-    res.status(500).json({ error: 'Lỗi khi tải danh sách giao dịch.' });
+    console.error('[Manager] Lỗi lấy danh sách collector:', error);
+    return res.status(500).json({ error: 'Lỗi khi tải danh sách nhân viên thu gom.' });
   }
 });
 

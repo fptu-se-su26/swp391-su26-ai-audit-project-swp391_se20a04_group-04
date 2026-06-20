@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import notificationService from '../../services/notificationService';
 import { ROLES } from '../../constants/roles';
-import { Plus, RefreshCw, Search, ListFilter, Filter, Eye, Pencil, Trash2, Check } from 'lucide-react';
+import { RefreshCw, Search, ListFilter, Filter, Eye, Pencil, Trash2 } from 'lucide-react';
 
 export default function AdminNotifications() {
   const [notifications, setNotifications] = useState([]);
@@ -301,8 +300,6 @@ export default function AdminNotifications() {
                   </tr>
                 ) : (
                   currentData.map((n, idx) => {
-                    const isSystem = n.type === 'system';
-                    
                     return (
                       <tr key={n.id || idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                         <td className="py-4 px-5 text-sm text-gray-800 font-medium max-w-xs truncate">

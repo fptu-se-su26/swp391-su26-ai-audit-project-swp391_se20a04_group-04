@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getAdminTransactions } from '../../services/paymentService';
-import { ROLES, normalizeRole } from '../../constants/roles';
-import { RefreshCw, Search, ListFilter, Filter, Eye } from 'lucide-react';
+import { RefreshCw, Search, Eye } from 'lucide-react';
 
 export default function AdminPaymentHistory() {
   const [transactions, setTransactions] = useState([]);
