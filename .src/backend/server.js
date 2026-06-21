@@ -1694,9 +1694,13 @@ app.delete('/api/notifications/admin/:id', verifyToken, ensureAdmin, async (req,
 });
 
 // Khởi chạy Server Express
-app.listen(PORT, () => {
-  console.log(`==================================================`);
-  console.log(`  EcoSchedule Secure Backend is running on port ${PORT}`);
-  console.log(`  API Base URL: http://localhost:${PORT}`);
-  console.log(`==================================================`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`==================================================`);
+    console.log(`  EcoSchedule Secure Backend is running on port ${PORT}`);
+    console.log(`  API Base URL: http://localhost:${PORT}`);
+    console.log(`==================================================`);
+  });
+}
+
+module.exports = app;
