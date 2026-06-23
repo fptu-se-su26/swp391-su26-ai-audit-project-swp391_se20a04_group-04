@@ -97,7 +97,10 @@ export default function Login() {
       }, 1200);
 
     } catch (err) {
-      const msg = err.message || 'Tên đăng nhập hoặc mật khẩu không đúng.';
+      let msg = err.message || 'Tên đăng nhập hoặc mật khẩu không đúng.';
+      if (err.message === 'Failed to fetch') {
+        msg = 'Không thể kết nối đến máy chủ. Vui lòng đảm bảo Backend đang chạy.';
+      }
       if (msg.includes('chưa được xác nhận') || msg.includes('xác nhận')) {
         setIsEmailUnverified(true);
       }
@@ -128,7 +131,11 @@ export default function Login() {
         navigate(redirectPath);
       }, 1200);
     } catch (err) {
-      setApiError(err.message || 'Đăng nhập Google thất bại.');
+      let msg = err.message || 'Đăng nhập Google thất bại.';
+      if (err.message === 'Failed to fetch') {
+        msg = 'Không thể kết nối đến máy chủ. Vui lòng đảm bảo Backend đang chạy.';
+      }
+      setApiError(msg);
     } finally {
       setIsGoogleLoading(false);
     }
