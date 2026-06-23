@@ -107,7 +107,7 @@ export default function Register() {
       });
 
       setSuccessMessage(
-        `Đăng ký thành công! Một email xác nhận đã được gửi đến ${formData.email.trim()}. Vui lòng kiểm tra hộp thư và nhấp vào đường link xác nhận để kích hoạt tài khoản trước khi đăng nhập.`
+        `Một email xác nhận đã được gửi đến ${formData.email.trim()}. Vui lòng kiểm tra hộp thư và nhấp vào đường link xác nhận để kích hoạt tài khoản trước khi đăng nhập.`
       );
     } catch (err) {
       setApiError(err.message || 'Có lỗi xảy ra trong quá trình đăng ký.');
@@ -117,291 +117,351 @@ export default function Register() {
   };
 
   return (
-    <div className="register-container py-12 px-4 flex items-center justify-center min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900">
-      <div className="register-card w-full max-w-2xl bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden border border-slate-100 dark:border-slate-700 flex flex-col md:flex-row">
-
-        {/* Decorative Panel */}
-        <div className="register-info-panel md:w-1/3 bg-emerald-700 text-white p-8 flex flex-col justify-between items-center text-center relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
-
-          <div className="z-10 flex flex-col items-center gap-2 mt-4">
-            <span className="material-symbols-outlined text-emerald-300" style={{ fontSize: '48px' }}>
-              recycling
+    <main className="flex-grow flex flex-col lg:flex-row w-full min-h-[calc(100vh-80px)] overflow-hidden bg-background text-on-background">
+      {/* Left Side: Inspiring Imagery & Value Props */}
+      <section className="relative hidden lg:flex lg:w-5/12 xl:w-1/2 min-h-[calc(100vh-80px)] overflow-hidden">
+        <div
+          className="absolute inset-0 z-0 bg-cover bg-center"
+          data-alt="A cinematic, sun-drenched aerial view of a vibrant, lush green forest interwoven with clean, modern urban architecture. The lighting is high-contrast with deep emerald shadows and bright golden highlights, reflecting a sustainable future where nature and technology coexist. The aesthetic is clean and high-fidelity, following the Eco-Logic system's professional and environmental themes with a palette of deep greens and soft neutrals."
+          style={{
+            backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuASx_-7eAPoj0jEBclvz3XHZXotOaJbdQ8RM1bqZREV8xG1TySHkABXjosgCxOhSV_n7SR_qMYfHAb8qWjenfnR-WpIQPbp7o9OlVMQSS7BI6yOcC0mt9Vajr2Oko8FbhOnpobF49P7Gfh9wKsGmbA694yuix61JWFCR0DuEFLl4_ktXlvPIOB21lcQsfPr3sSsa1Y5DTl641w8rbD-FAB3dvFU-reC0HLCI0Eam-DOg68XcVRsVWka1x77HzV0jG6rI-CKTbG8bwM')"
+          }}
+        ></div>
+        <div className="relative z-10 glass-overlay w-full h-full p-16 flex flex-col justify-center text-white">
+          <div className="mb-12">
+            <span className="material-symbols-outlined text-6xl mb-6" style={{ fontVariationSettings: "'FILL' 1" }}>
+              eco
             </span>
-            <h2 className="font-headline-md text-headline-md font-bold tracking-wide">EcoSchedule</h2>
-            <p className="text-xs text-emerald-200 mt-1">Quận Sơn Trà, Đà Nẵng</p>
+            <h1 className="text-5xl font-bold leading-tight mb-6 tracking-tight">EcoSchedule</h1>
+            <p className="text-xl font-body opacity-90 max-w-lg leading-relaxed">
+              Join thousands of residents in Đà Nẵng building a cleaner, smarter city through streamlined waste management.
+            </p>
           </div>
-
-          <div className="z-10 my-6 hidden md:flex flex-col gap-4">
-            {[
-              { icon: 'calendar_today', title: 'Tra cứu lịch thu gom', desc: 'Biết chính xác lịch xe rác đến khu vực của bạn' },
-              { icon: 'notifications_active', title: 'Nhận thông báo', desc: 'Tự động nhắc nhở trước khi xe thu gom đến' },
-              { icon: 'receipt_long', title: 'Quản lý hóa đơn', desc: 'Xem và thanh toán phí vệ sinh môi trường' },
-              { icon: 'rate_review', title: 'Gửi phản ánh', desc: 'Phản ánh sự cố liên quan đến thu gom rác' },
-            ].map((item) => (
-              <div key={item.icon} className="flex items-start gap-3 text-left bg-white/10 rounded-xl p-3 border border-white/20">
-                <span className="material-symbols-outlined text-emerald-200 text-xl mt-0.5 flex-shrink-0">{item.icon}</span>
-                <div>
-                  <p className="text-xs font-bold">{item.title}</p>
-                  <p className="text-[11px] text-emerald-200 mt-0.5 font-light">{item.desc}</p>
-                </div>
+          <div className="space-y-8 max-w-md">
+            <div className="flex items-start gap-4">
+              <div className="bg-white/20 p-3 rounded-xl backdrop-blur-md shrink-0">
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  calendar_today
+                </span>
               </div>
-            ))}
+              <div>
+                <h3 className="text-lg font-bold">Tra cứu lịch thu gom</h3>
+                <p className="opacity-80 text-sm">Biết chính xác lịch xe rác đến khu vực của bạn theo thời gian thực.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="bg-white/20 p-3 rounded-xl backdrop-blur-md shrink-0">
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  notifications_active
+                </span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold">Nhận thông báo</h3>
+                <p className="opacity-80 text-sm">Tự động nhắc nhở trước khi xe thu gom đến 15 phút.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="bg-white/20 p-3 rounded-xl backdrop-blur-md shrink-0">
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  receipt_long
+                </span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold">Quản lý hóa đơn</h3>
+                <p className="opacity-80 text-sm">Xem và thanh toán phí vệ sinh môi trường trực tuyến minh bạch.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="bg-white/20 p-3 rounded-xl backdrop-blur-md shrink-0">
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  forum
+                </span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold">Gửi phản ánh</h3>
+                <p className="opacity-80 text-sm">Phản ánh sự cố liên quan đến thu gom rác ngay lập tức.</p>
+              </div>
+            </div>
           </div>
-
-          <div className="z-10 text-xs text-emerald-300 hidden md:block">
-            © 2026 EcoSchedule Inc.
+          <div className="mt-24 pt-12 border-t border-white/20">
+            <p className="text-sm opacity-60">© 2026 EcoSchedule. All rights reserved.</p>
           </div>
         </div>
+      </section>
 
-        {/* Form Panel */}
-        <div className="form-panel md:w-2/3 p-8 overflow-y-auto max-h-[90vh]">
-          <div className="text-center md:text-left mb-5">
-            <h1 className="font-headline-md text-2xl font-bold text-slate-800 dark:text-white">
-              Đăng ký tài khoản
-            </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Tạo tài khoản cư dân để tham gia hệ thống quản lý thu gom rác thải tại Quận Sơn Trà.
+      {/* Right Side: Registration Form */}
+      <section className="w-full lg:w-7/12 xl:w-1/2 p-6 md:p-12 lg:p-16 xl:p-24 flex items-center justify-center bg-surface">
+        <div className="w-full max-w-xl">
+          <div className="mb-10 text-center lg:text-left">
+            <h2 className="text-3xl md:text-4xl font-bold text-on-surface mb-3">Đăng ký tài khoản</h2>
+            <p className="text-on-surface-variant font-body">
+              Tạo tài khoản cư dân để tham gia hệ thống quản lý thu gom rác thải tại Quận Sơn Trà, Đà Nẵng.
             </p>
           </div>
 
-          {/* Banners */}
-          {successMessage && (
-            <div className="alert-success bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 rounded-lg p-4 mb-5 flex items-start gap-3 text-sm animate-fade-in">
-              <span className="material-symbols-outlined text-xl mt-0.5 flex-shrink-0">mark_email_read</span>
-              <span>{successMessage}</span>
+          {/* Success Banner */}
+          {successMessage ? (
+            <div className="text-center py-8">
+              <div className="alert-success bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 rounded-lg p-6 mb-8 flex items-start gap-3 text-sm text-left animate-fade-in">
+                <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0">
+                  mark_email_read
+                </span>
+                <div>
+                  <h4 className="font-bold text-base mb-1 text-emerald-800 dark:text-emerald-200">Đăng ký thành công!</h4>
+                  <p className="leading-relaxed">{successMessage}</p>
+                </div>
+              </div>
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-2 py-3 px-8 bg-primary hover:bg-on-primary-fixed-variant text-white font-bold rounded-xl text-sm transition-all shadow-lg active:scale-95"
+              >
+                <span className="material-symbols-outlined text-lg">login</span>
+                <span>Đi đến trang Đăng nhập</span>
+              </Link>
             </div>
-          )}
-          {apiError && (
-            <div className="alert-error bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 rounded-lg p-3.5 mb-5 flex items-start gap-2.5 text-sm animate-fade-in">
-              <span className="material-symbols-outlined text-lg mt-0.5 flex-shrink-0">error</span>
-              <span>{apiError}</span>
-            </div>
-          )}
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {apiError && (
+                <div className="alert-error bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 rounded-lg p-3.5 flex items-start gap-2.5 text-sm animate-fade-in">
+                  <span className="material-symbols-outlined text-lg mt-0.5 flex-shrink-0">error</span>
+                  <span>{apiError}</span>
+                </div>
+              )}
 
-          {!successMessage && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-
-              {/* Họ và tên */}
-              <div className="form-group">
-                <label htmlFor="fullName" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  Họ và tên <span className="text-rose-500">*</span>
+              {/* Họ và Tên */}
+              <div className="group">
+                <label className="block text-sm font-bold text-on-surface dark:text-slate-300 uppercase tracking-wider mb-2">
+                  Họ và Tên *
                 </label>
-                <div className="input-wrapper relative">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">person</span>
+                <div className="relative">
+                  <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200 ${errors.fullName ? 'text-error' : 'text-outline'}`}>
+                    person
+                  </span>
                   <input
                     type="text"
                     id="fullName"
                     name="fullName"
                     value={formData.fullName}
                     onChange={handleChange}
-                    placeholder="Nhập họ và tên đầy đủ"
-                    className={`w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border ${
-                      errors.fullName ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-200'
-                    } rounded-xl text-sm focus:outline-none focus:ring-4 focus:bg-white transition-all`}
                     disabled={isLoading}
+                    autoComplete="name"
+                    className={`w-full h-14 pl-12 pr-4 bg-white dark:bg-slate-900 border ${
+                      errors.fullName ? 'border-error focus:ring-error' : 'border-outline-variant dark:border-slate-700 focus:ring-primary focus:border-primary'
+                    } rounded-lg focus:ring-2 transition-all placeholder:text-outline/60 text-on-background dark:text-white`}
+                    placeholder="Nhập họ và tên đầy đủ"
                   />
                 </div>
-                {errors.fullName && <p className="text-xs text-rose-500 mt-1 pl-1">{errors.fullName}</p>}
+                {errors.fullName && <p className="text-xs text-error mt-1.5 pl-1">{errors.fullName}</p>}
               </div>
 
               {/* Email & Phone */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="form-group">
-                  <label htmlFor="email" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                    Email <span className="text-rose-500">*</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Email */}
+                <div className="group">
+                  <label className="block text-sm font-bold text-on-surface dark:text-slate-300 uppercase tracking-wider mb-2">
+                    Email *
                   </label>
-                  <div className="input-wrapper relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">mail</span>
+                  <div className="relative">
+                    <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200 ${errors.email ? 'text-error' : 'text-outline'}`}>
+                      mail
+                    </span>
                     <input
                       type="email"
                       id="email"
                       name="email"
                       value={formData.email}
                       onChange={handleChange}
-                      placeholder="example@gmail.com"
-                      className={`w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border ${
-                        errors.email ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-200'
-                      } rounded-xl text-sm focus:outline-none focus:ring-4 focus:bg-white transition-all`}
                       disabled={isLoading}
+                      autoComplete="email"
+                      className={`w-full h-14 pl-12 pr-4 bg-white dark:bg-slate-900 border ${
+                        errors.email ? 'border-error focus:ring-error' : 'border-outline-variant dark:border-slate-700 focus:ring-primary focus:border-primary'
+                      } rounded-lg focus:ring-2 transition-all placeholder:text-outline/60 text-on-background dark:text-white`}
+                      placeholder="example@gmail.com"
                     />
                   </div>
-                  {errors.email && <p className="text-xs text-rose-500 mt-1 pl-1">{errors.email}</p>}
+                  {errors.email && <p className="text-xs text-error mt-1.5 pl-1">{errors.email}</p>}
                 </div>
 
-                <div className="form-group">
-                  <label htmlFor="phone" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                    Số điện thoại <span className="text-rose-500">*</span>
+                {/* Số điện thoại */}
+                <div className="group">
+                  <label className="block text-sm font-bold text-on-surface dark:text-slate-300 uppercase tracking-wider mb-2">
+                    Số điện thoại *
                   </label>
-                  <div className="input-wrapper relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">phone</span>
+                  <div className="relative">
+                    <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200 ${errors.phone ? 'text-error' : 'text-outline'}`}>
+                      call
+                    </span>
                     <input
                       type="tel"
                       id="phone"
                       name="phone"
                       value={formData.phone}
                       onChange={handleChange}
-                      placeholder="09XXXXXXXX"
-                      className={`w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border ${
-                        errors.phone ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-200'
-                      } rounded-xl text-sm focus:outline-none focus:ring-4 focus:bg-white transition-all`}
                       disabled={isLoading}
+                      autoComplete="tel"
+                      className={`w-full h-14 pl-12 pr-4 bg-white dark:bg-slate-900 border ${
+                        errors.phone ? 'border-error focus:ring-error' : 'border-outline-variant dark:border-slate-700 focus:ring-primary focus:border-primary'
+                      } rounded-lg focus:ring-2 transition-all placeholder:text-outline/60 text-on-background dark:text-white`}
+                      placeholder="09XXXXXXXX"
                     />
                   </div>
-                  {errors.phone && <p className="text-xs text-rose-500 mt-1 pl-1">{errors.phone}</p>}
+                  {errors.phone && <p className="text-xs text-error mt-1.5 pl-1">{errors.phone}</p>}
                 </div>
               </div>
 
               {/* Password & Confirm Password */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="form-group">
-                  <label htmlFor="password" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                    Mật khẩu <span className="text-rose-500">*</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Mật khẩu */}
+                <div className="group">
+                  <label className="block text-sm font-bold text-on-surface dark:text-slate-300 uppercase tracking-wider mb-2">
+                    Mật khẩu *
                   </label>
-                  <div className="input-wrapper relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">lock</span>
+                  <div className="relative">
+                    <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200 ${errors.password ? 'text-error' : 'text-outline'}`}>
+                      lock
+                    </span>
                     <input
                       type={showPassword ? 'text' : 'password'}
                       id="password"
                       name="password"
                       value={formData.password}
                       onChange={handleChange}
-                      placeholder="Tối thiểu 6 ký tự"
-                      className={`w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-slate-900 border ${
-                        errors.password ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-200'
-                      } rounded-xl text-sm focus:outline-none focus:ring-4 focus:bg-white transition-all`}
                       disabled={isLoading}
+                      autoComplete="new-password"
+                      className={`w-full h-14 pl-12 pr-12 bg-white dark:bg-slate-900 border ${
+                        errors.password ? 'border-error focus:ring-error' : 'border-outline-variant dark:border-slate-700 focus:ring-primary focus:border-primary'
+                      } rounded-lg focus:ring-2 transition-all placeholder:text-outline/60 text-on-background dark:text-white`}
+                      placeholder="Tối thiểu 6 ký tự"
                     />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none" disabled={isLoading}>
-                      <span className="material-symbols-outlined text-lg block">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                    <button
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-primary dark:hover:text-primary-fixed focus:outline-none"
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      disabled={isLoading}
+                    >
+                      <span className="material-symbols-outlined">{showPassword ? 'visibility_off' : 'visibility'}</span>
                     </button>
                   </div>
-                  {errors.password && <p className="text-xs text-rose-500 mt-1 pl-1">{errors.password}</p>}
+                  {errors.password && <p className="text-xs text-error mt-1.5 pl-1">{errors.password}</p>}
                 </div>
 
-                <div className="form-group">
-                  <label htmlFor="confirmPassword" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                    Nhập lại mật khẩu <span className="text-rose-500">*</span>
+                {/* Nhập lại mật khẩu */}
+                <div className="group">
+                  <label className="block text-sm font-bold text-on-surface dark:text-slate-300 uppercase tracking-wider mb-2">
+                    Nhập lại mật khẩu *
                   </label>
-                  <div className="input-wrapper relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">lock_reset</span>
+                  <div className="relative">
+                    <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200 ${errors.confirmPassword ? 'text-error' : 'text-outline'}`}>
+                      lock_reset
+                    </span>
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
                       id="confirmPassword"
                       name="confirmPassword"
                       value={formData.confirmPassword}
                       onChange={handleChange}
-                      placeholder="Nhập lại mật khẩu"
-                      className={`w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-slate-900 border ${
-                        errors.confirmPassword ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-200'
-                      } rounded-xl text-sm focus:outline-none focus:ring-4 focus:bg-white transition-all`}
                       disabled={isLoading}
+                      autoComplete="new-password"
+                      className={`w-full h-14 pl-12 pr-12 bg-white dark:bg-slate-900 border ${
+                        errors.confirmPassword ? 'border-error focus:ring-error' : 'border-outline-variant dark:border-slate-700 focus:ring-primary focus:border-primary'
+                      } rounded-lg focus:ring-2 transition-all placeholder:text-outline/60 text-on-background dark:text-white`}
+                      placeholder="Nhập lại mật khẩu"
                     />
-                    <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none" disabled={isLoading}>
-                      <span className="material-symbols-outlined text-lg block">{showConfirmPassword ? 'visibility_off' : 'visibility'}</span>
+                    <button
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-primary dark:hover:text-primary-fixed focus:outline-none"
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      disabled={isLoading}
+                    >
+                      <span className="material-symbols-outlined">{showConfirmPassword ? 'visibility_off' : 'visibility'}</span>
                     </button>
                   </div>
-                  {errors.confirmPassword && <p className="text-xs text-rose-500 mt-1 pl-1">{errors.confirmPassword}</p>}
+                  {errors.confirmPassword && <p className="text-xs text-error mt-1.5 pl-1">{errors.confirmPassword}</p>}
                 </div>
               </div>
 
-              {/* Địa chỉ */}
-              <div className="form-group">
-                <label htmlFor="address" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  Địa chỉ nhà <span className="text-rose-500">*</span>
-                  <span className="ml-2 text-emerald-600 dark:text-emerald-400 normal-case font-normal">(Quận Sơn Trà, Đà Nẵng)</span>
+              {/* Địa chỉ nhà */}
+              <div className="group">
+                <label className="block text-sm font-bold text-on-surface dark:text-slate-300 uppercase tracking-wider mb-2">
+                  Địa chỉ nhà * <span className="normal-case font-medium text-primary dark:text-primary-fixed ml-2">(Quận Sơn Trà, Đà Nẵng)</span>
                 </label>
-                <div className="input-wrapper relative">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">home</span>
+                <div className="relative">
+                  <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200 ${errors.address ? 'text-error' : 'text-outline'}`}>
+                    home
+                  </span>
                   <input
                     type="text"
                     id="address"
                     name="address"
                     value={formData.address}
                     onChange={handleChange}
-                    placeholder="VD: 123 Nguyễn Thị Định, Phường Mân Thái"
-                    className={`w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border ${
-                      errors.address ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-200'
-                    } rounded-xl text-sm focus:outline-none focus:ring-4 focus:bg-white transition-all`}
                     disabled={isLoading}
+                    autoComplete="street-address"
+                    className={`w-full h-14 pl-12 pr-4 bg-white dark:bg-slate-900 border ${
+                      errors.address ? 'border-error focus:ring-error' : 'border-outline-variant dark:border-slate-700 focus:ring-primary focus:border-primary'
+                    } rounded-lg focus:ring-2 transition-all placeholder:text-outline/60 text-on-background dark:text-white`}
+                    placeholder="VD: 123 Nguyễn Thị Định, Phường Mân Thái"
                   />
                 </div>
-                {errors.address && <p className="text-xs text-rose-500 mt-1 pl-1">{errors.address}</p>}
+                {errors.address && <p className="text-xs text-error mt-1.5 pl-1">{errors.address}</p>}
               </div>
 
-              {/* Agree Terms */}
-              <div className="form-group pt-1">
-                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              {/* Đồng ý điều khoản */}
+              <div className="flex flex-col gap-1 py-2">
+                <div className="flex items-start gap-3">
                   <input
                     type="checkbox"
+                    id="terms"
                     name="agreeTerms"
                     checked={formData.agreeTerms}
                     onChange={handleChange}
-                    className="mt-1 w-4.5 h-4.5 text-emerald-600 bg-slate-50 border-slate-300 rounded focus:ring-emerald-500 focus:ring-2 cursor-pointer"
                     disabled={isLoading}
+                    className={`w-5 h-5 rounded text-primary border-outline focus:ring-primary transition-all cursor-pointer ${
+                      errors.agreeTerms ? 'border-error ring-error' : ''
+                    }`}
                   />
-                  <span className="text-xs text-slate-600 dark:text-slate-300 leading-normal">
-                    Tôi đồng ý với{' '}
-                    <a href="#" className="text-emerald-600 dark:text-emerald-400 hover:underline font-semibold">Điều khoản sử dụng</a>{' '}
-                    và{' '}
-                    <a href="#" className="text-emerald-600 dark:text-emerald-400 hover:underline font-semibold">Chính sách bảo mật</a>{' '}
-                    của EcoSchedule Đà Nẵng. <span className="text-rose-500">*</span>
-                  </span>
-                </label>
-                {errors.agreeTerms && <p className="text-xs text-rose-500 mt-1 pl-1">{errors.agreeTerms}</p>}
+                  <label className="text-sm text-on-surface-variant dark:text-slate-300 leading-tight cursor-pointer select-none" htmlFor="terms">
+                    Tôi đồng ý với <a className="text-primary dark:text-emerald-400 font-bold hover:underline" href="#">Điều khoản sử dụng</a> và <a className="text-primary dark:text-emerald-400 font-bold hover:underline" href="#">Chính sách bảo mật</a> của EcoSchedule Đà Nẵng. *
+                  </label>
+                </div>
+                {errors.agreeTerms && <p className="text-xs text-error mt-1 pl-8">{errors.agreeTerms}</p>}
               </div>
 
-              {/* Submit */}
+              {/* Submit button */}
               <button
-                type="submit"
-                className={`w-full py-3 px-4 mt-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all focus:outline-none focus:ring-4 focus:ring-emerald-100 flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-[0.98] ${
+                className={`w-full h-16 bg-primary hover:bg-on-primary-fixed-variant text-white font-bold rounded-lg shadow-lg shadow-primary/20 flex items-center justify-center gap-3 transition-all active:scale-[0.98] ${
                   isLoading ? 'opacity-80 cursor-not-allowed active:scale-100' : ''
                 }`}
+                type="submit"
                 disabled={isLoading}
               >
                 {isLoading ? (
                   <>
-                    <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Đang xử lý đăng ký...</span>
+                    <span className="material-symbols-outlined animate-spin">refresh</span>
+                    <span>Đang xử lý...</span>
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-lg">app_registration</span>
+                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      how_to_reg
+                    </span>
                     <span>Đăng ký tài khoản</span>
                   </>
                 )}
               </button>
 
-              <div className="text-center mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Đã có tài khoản EcoSchedule?{' '}
-                  <Link to="/login" className="text-emerald-600 dark:text-emerald-400 hover:underline font-bold transition-colors">
+              <div className="pt-6 text-center border-t border-outline-variant/30">
+                <p className="text-on-surface-variant dark:text-slate-400">
+                  Đã có tài khoản EcoSchedule?
+                  <Link className="text-primary dark:text-emerald-400 font-bold hover:underline ml-1" to="/login">
                     Đăng nhập ngay
                   </Link>
                 </p>
               </div>
-
             </form>
           )}
-
-          {/* Khi đăng ký thành công - hiển thị nút quay về đăng nhập */}
-          {successMessage && (
-            <div className="mt-6 text-center">
-              <Link
-                to="/login"
-                className="inline-flex items-center gap-2 py-3 px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg"
-              >
-                <span className="material-symbols-outlined text-lg">login</span>
-                Đi đến trang Đăng nhập
-              </Link>
-            </div>
-          )}
-
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
