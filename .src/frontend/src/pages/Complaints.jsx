@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import authService from '../services/authService';
 import complaintService from '../services/complaintService';
 import { ROLES, normalizeRole } from '../constants/roles';
@@ -213,7 +213,7 @@ export default function Complaints() {
         </div>
 
         {/* Kiểm tra đăng nhập */}
-        {!authService.isAuthenticated() ? (
+        {!user ? (
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-12 text-center max-w-xl mx-auto space-y-6 shadow-sm">
             <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 mx-auto">
               <span className="material-symbols-outlined text-3xl">lock</span>
@@ -222,12 +222,12 @@ export default function Complaints() {
             <p className="text-slate-500 dark:text-slate-400 text-sm">
               Bạn cần đăng nhập bằng tài khoản Cư dân để thực hiện tính năng gửi phản ánh và xem lịch sử phản hồi.
             </p>
-            <a 
-              href="/login" 
+            <Link 
+              to="/login" 
               className="inline-flex items-center justify-center px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all focus:outline-none focus:ring-4 focus:ring-emerald-100 shadow-md shadow-emerald-600/10 cursor-pointer"
             >
               Đăng nhập ngay
-            </a>
+            </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
