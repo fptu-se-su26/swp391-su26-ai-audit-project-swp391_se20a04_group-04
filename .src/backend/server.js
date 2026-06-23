@@ -1001,13 +1001,123 @@ app.delete('/api/manager/schedules/:scheduleId', verifyToken, ensureManager, asy
 
 app.get('/api/manager/complaints', verifyToken, ensureManager, async (req, res) => {
   try {
-    const snapshot = await db.collection('complaints').orderBy('created_at', 'desc').limit(20).get();
-    const complaints = [];
-    snapshot.forEach((doc) => complaints.push({ id: doc.id, ...doc.data() }));
+    const complaints = await complaintService.getAllComplaints();
     return res.status(200).json(complaints);
   } catch (error) {
     console.error('[API] Lỗi lấy phản ánh:', error.message);
     return res.status(500).json({ error: 'Không thể tải danh sách phản ánh.' });
+  }
+});
+
+/**
+ * PATCH /api/manager/complaints/:complaintId/status
+ * Manager cập nhật trạng thái phản ánh (in_resolve, resolved, rejected).
+ */
+app.patch('/api/manager/complaints/:complaintId/status', verifyToken, ensureManager, async (req, res) => {
+  const { complaintId } = req.params;
+  const { status, comment } = req.body;
+
+  try {
+    const result = await complaintService.updateComplaintStatus(
+      complaintId,
+      req.uid,
+      req.userProfile?.fullName || 'Manager',
+      { status, comment }
+    );
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error('[API] Lỗi cập nhật trạng thái phản ánh:', error.message);
+    const httpStatus = error.message.includes('không hợp lệ') || error.message.includes('Vui lòng nhập') ? 400 : 500;
+    return res.status(httpStatus).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/resident/upcoming-schedules
+ * Lấy lịch thu gom sắp tới cho cư dân dựa trên khu vực đã đăng ký.
+ * Chỉ trả về ngày và giờ thu gom.
+ */
+app.get('/api/resident/upcoming-schedules', verifyToken, async (req, res) => {
+  try {
+    // Lấy thông tin user để lấy khu vực đã đăng ký
+    const userDoc = await db.collection(USERS_COLLECTION).doc(req.uid).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'Không tìm thấy thông tin người dùng.' });
+    }
+
+    const userData = normalizeUser(userDoc.data(), req.uid);
+    const userArea = userData.area || '';
+
+    if (!userArea) {
+      return res.status(200).json([]);
+    }
+
+    // Lấy tất cả lịch thu gom
+    const snapshot = await db.collection('collection_schedules').get();
+    if (snapshot.empty) {
+      return res.status(200).json([]);
+    }
+
+    const now = new Date();
+    let schedules = [];
+    snapshot.forEach(doc => {
+      schedules.push({ id: doc.id, ...doc.data() });
+    });
+
+    // Lọc lịch theo khu vực user (fuzzy match với city hoặc ward)
+    // Khu vực user thường là "Quận Sơn Trà, Đà Nẵng" — ta cần kiểm tra xem schedule.city hoặc schedule.ward có nằm trong area không
+    const normalizeStr = (str) => {
+      if (!str) return '';
+      return str
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const normalizedArea = normalizeStr(userArea);
+
+    schedules = schedules.filter(s => {
+      const normalizedCity = normalizeStr(s.city);
+      const normalizedWard = normalizeStr(s.ward);
+      // Khớp nếu city hoặc ward nằm trong area hoặc ngược lại
+      return normalizedArea.includes(normalizedCity) || normalizedCity.includes(normalizedArea) ||
+             normalizedArea.includes(normalizedWard) || normalizedWard.includes(normalizedArea);
+    });
+
+    // Chỉ lấy lịch sắp tới (ngày >= hôm nay)
+    const todayStr = now.toISOString().slice(0, 10);
+    schedules = schedules.filter(s => {
+      if (!s.schedule_date) return false;
+      const schedDate = new Date(s.schedule_date).toISOString().slice(0, 10);
+      return schedDate >= todayStr;
+    });
+
+    // Sắp xếp theo ngày tăng dần
+    schedules.sort((a, b) => {
+      const dateA = new Date(a.schedule_date);
+      const dateB = new Date(b.schedule_date);
+      return dateA - dateB;
+    });
+
+    // Chỉ trả về thông tin cần thiết: ngày, giờ, loại rác
+    const result = schedules.map(s => ({
+      id: s.id,
+      schedule_date: s.schedule_date,
+      service_type: s.service_type || '',
+      route_name: s.route_name || '',
+      city: s.city || '',
+      ward: s.ward || '',
+      neighborhood: s.neighborhood || '',
+    }));
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[API] Lỗi lấy lịch thu gom cho cư dân:', error.message);
+    return res.status(500).json({ error: 'Không thể tải lịch thu gom khu vực của bạn.' });
   }
 });
 

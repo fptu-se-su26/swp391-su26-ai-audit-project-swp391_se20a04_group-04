@@ -155,7 +155,7 @@ export default function Complaints() {
         </span>
       );
     }
-    if (s === 'in progress' || s === 'in_progress') {
+    if (s === 'in progress' || s === 'in_progress' || s === 'in_resolve') {
       return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/50 dark:border-amber-900/30">
           <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
@@ -168,6 +168,14 @@ export default function Complaints() {
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-900/30">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
           Đã giải quyết
+        </span>
+      );
+    }
+    if (s === 'rejected') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/50 dark:border-rose-900/30">
+          <span className="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+          Từ chối
         </span>
       );
     }
@@ -467,17 +475,31 @@ export default function Complaints() {
 
                               {/* Phản hồi của ban quản lý (nếu có) */}
                               {complaint.reply ? (
-                                <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-xl space-y-2 mt-4">
-                                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-350 uppercase">
-                                    <span className="material-symbols-outlined text-base">forum</span>
-                                    <span>Phản hồi từ Ban quản lý</span>
+                                <div className={`p-4 border rounded-xl space-y-2 mt-4 ${
+                                  (complaint.status || '').toLowerCase() === 'rejected'
+                                    ? 'bg-rose-50/60 dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/40'
+                                    : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40'
+                                }`}>
+                                  <div className={`flex items-center gap-2 text-xs font-bold uppercase ${
+                                    (complaint.status || '').toLowerCase() === 'rejected'
+                                      ? 'text-rose-800 dark:text-rose-350'
+                                      : 'text-emerald-800 dark:text-emerald-350'
+                                  }`}>
+                                    <span className="material-symbols-outlined text-base">
+                                      {(complaint.status || '').toLowerCase() === 'rejected' ? 'cancel' : 'forum'}
+                                    </span>
+                                    <span>
+                                      {(complaint.status || '').toLowerCase() === 'rejected'
+                                        ? 'Lý do từ chối'
+                                        : 'Phản hồi từ Ban quản lý'}
+                                    </span>
                                   </div>
                                   <p className="text-sm text-slate-700 dark:text-slate-350 leading-relaxed whitespace-pre-wrap pl-1">
                                     {complaint.reply}
                                   </p>
                                   {complaint.replied_at && (
                                     <div className="text-[10px] text-slate-400 text-right">
-                                      Thời gian phản hồi: {formatDate(complaint.replied_at)}
+                                      {complaint.replied_by ? `${complaint.replied_by} · ` : ''}Thời gian phản hồi: {formatDate(complaint.replied_at)}
                                     </div>
                                   )}
                                 </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
 import managerReportService from '../../services/managerReportService';
+import complaintService from '../../services/complaintService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
 
@@ -56,6 +57,12 @@ export default function Dashboard() {
   const [report, setReport] = useState(null);
   const [viewingIncident, setViewingIncident] = useState(null);
 
+  // Complaint management state
+  const [viewingComplaint, setViewingComplaint] = useState(null);
+  const [complaintFilter, setComplaintFilter] = useState('all');
+  const [complaintComment, setComplaintComment] = useState('');
+  const [complaintActionLoading, setComplaintActionLoading] = useState(false);
+
   const [newSchedule, setNewSchedule] = useState({
     routeName: 'North Route A',
     serviceType: 'Recycling',
@@ -84,6 +91,14 @@ export default function Dashboard() {
     [16.0818, 108.2322],
   ]);
 
+  // Address selection state
+  const [provinces, setProvinces] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [selectedProvince, setSelectedProvince] = useState('');
+  const [selectedWard, setSelectedWard] = useState('');
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [loadingWards, setLoadingWards] = useState(false);
+
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
     if (!currentUser) {
@@ -101,6 +116,57 @@ export default function Dashboard() {
       window.removeEventListener('authChange', handleAuthChange);
     };
   }, [navigate]);
+
+  // Fetch address data
+  useEffect(() => {
+    const fetchProvinces = async () => {
+      setLoadingProvinces(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/address/provinces`);
+        if (res.ok) {
+          const data = await res.json();
+          setProvinces(data);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải tỉnh thành:', err);
+      } finally {
+        setLoadingProvinces(false);
+      }
+    };
+    fetchProvinces();
+  }, []);
+
+  const handleProvinceChange = async (e) => {
+    const newProvinceCode = e.target.value;
+    setSelectedProvince(newProvinceCode);
+    setSelectedWard('');
+    setWards([]);
+
+    const provinceObj = provinces.find(p => p.code.toString() === newProvinceCode.toString());
+    setNewSchedule(prev => ({ ...prev, city: provinceObj ? provinceObj.name : '' }));
+
+    if (!newProvinceCode) return;
+
+    setLoadingWards(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/address/wards?provinceCode=${newProvinceCode}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWards(data);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải phường xã:', err);
+    } finally {
+      setLoadingWards(false);
+    }
+  };
+
+  const handleWardChange = (e) => {
+    const newWardCode = e.target.value;
+    setSelectedWard(newWardCode);
+    const wardObj = wards.find(w => w.code.toString() === newWardCode.toString());
+    setNewSchedule(prev => ({ ...prev, ward: wardObj ? wardObj.name : '' }));
+  };
 
   const getAuthHeaders = async () => ({
     'Content-Type': 'application/json',
@@ -133,13 +199,31 @@ export default function Dashboard() {
   };
 
   const fetchComplaints = async () => {
-    const response = await fetch(`${API_BASE}/api/manager/complaints`, {
-      headers: await getAuthHeaders(),
-    });
-    const data = await safeJson(response);
-    if (!response.ok) throw new Error(data.error || 'Không thể tải phản ánh.');
+    const data = await complaintService.getManagerComplaints();
     setComplaints(data);
     return data;
+  };
+
+  const handleComplaintAction = async (complaintId, status) => {
+    if (status === 'rejected' && !complaintComment.trim()) {
+      setManagerError('Vui lòng nhập lý do từ chối phản ánh.');
+      return;
+    }
+    setComplaintActionLoading(true);
+    setApiMessage('');
+    setManagerError('');
+    try {
+      await complaintService.updateComplaintStatus(complaintId, status, complaintComment);
+      const statusLabels = { in_resolve: 'Đang xử lý', resolved: 'Đã giải quyết', rejected: 'Đã từ chối' };
+      setApiMessage(`Đã cập nhật phản ánh: ${statusLabels[status] || status}`);
+      setViewingComplaint(null);
+      setComplaintComment('');
+      await fetchComplaints();
+    } catch (error) {
+      setManagerError(error.message || 'Không thể cập nhật phản ánh.');
+    } finally {
+      setComplaintActionLoading(false);
+    }
   };
 
   const fetchFeedbackReports = async () => {
@@ -609,27 +693,53 @@ export default function Dashboard() {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Khu vực</span>
-                    <input
-                      name="city"
-                      value={newSchedule.city}
-                      onChange={handleChangeNewSchedule}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      placeholder="Đà Nẵng"
-                    />
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Khu vực <span className="text-rose-500">*</span></span>
+                    <div className="relative mt-2">
+                      <select
+                        value={selectedProvince}
+                        onChange={handleProvinceChange}
+                        disabled={loadingProvinces}
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none appearance-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white disabled:opacity-60"
+                      >
+                        <option value="">-- Chọn Tỉnh/Thành phố --</option>
+                        {provinces.map(p => (
+                          <option key={p.code} value={p.code}>{p.name}</option>
+                        ))}
+                      </select>
+                      {loadingProvinces ? (
+                        <span className="absolute right-4 top-3.5 h-4 w-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                      ) : (
+                        <span className="material-symbols-outlined absolute right-3 top-3 pointer-events-none text-slate-400">expand_more</span>
+                      )}
+                    </div>
                   </label>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Phường</span>
-                    <input
-                      name="ward"
-                      value={newSchedule.ward}
-                      onChange={handleChangeNewSchedule}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      placeholder="Phường An Hải Tây"
-                    />
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Phường <span className="text-rose-500">*</span></span>
+                    <div className="relative mt-2">
+                      <select
+                        value={selectedWard}
+                        onChange={handleWardChange}
+                        disabled={loadingWards || !selectedProvince}
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none appearance-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white disabled:opacity-60"
+                      >
+                        <option value="">
+                          {!selectedProvince ? 'Chọn Tỉnh/Thành trước' : '-- Chọn Phường/Xã --'}
+                        </option>
+                        {wards.map(w => (
+                          <option key={w.code} value={w.code}>
+                            {w.name}
+                          </option>
+                        ))}
+                      </select>
+                      {loadingWards ? (
+                        <span className="absolute right-4 top-3.5 h-4 w-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                      ) : (
+                        <span className="material-symbols-outlined absolute right-3 top-3 pointer-events-none text-slate-400">expand_more</span>
+                      )}
+                    </div>
                   </label>
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Tổ</span>
@@ -892,25 +1002,89 @@ export default function Dashboard() {
             <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Yêu cầu</p>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">View Complaints</h2>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Quản lý phản ánh</p>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Phản ánh cư dân</h2>
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">{complaints.length} phản ánh</span>
               </div>
-              <div className="space-y-4">
-                {complaints.length === 0 ? (
-                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-950/50 p-4 text-sm text-slate-500 dark:text-slate-400">Chưa có phản ánh mới.</div>
-                ) : (
-                  complaints.slice(0, 4).map((item) => (
-                    <div key={item.id} className="rounded-2xl border border-slate-100 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-950/50">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-semibold text-slate-900 dark:text-white">{item.title || 'Phản ánh mới'}</p>
-                        <span className="text-[11px] uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{item.status || 'Open'}</span>
+
+              {/* Status filter tabs */}
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {[
+                  { key: 'all', label: 'Tất cả' },
+                  { key: 'Open', label: 'Mới' },
+                  { key: 'in_resolve', label: 'Đang xử lý' },
+                  { key: 'resolved', label: 'Đã giải quyết' },
+                  { key: 'rejected', label: 'Từ chối' },
+                ].map((tab) => {
+                  const count = tab.key === 'all'
+                    ? complaints.length
+                    : complaints.filter((c) => (c.status || 'Open').toLowerCase() === tab.key.toLowerCase()).length;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setComplaintFilter(tab.key)}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors ${
+                        complaintFilter === tab.key
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                      }`}
+                    >
+                      {tab.label} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                {(() => {
+                  const filtered = complaintFilter === 'all'
+                    ? complaints
+                    : complaints.filter((c) => (c.status || 'Open').toLowerCase() === complaintFilter.toLowerCase());
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="rounded-2xl bg-slate-50 dark:bg-slate-950/50 p-4 text-sm text-slate-500 dark:text-slate-400 text-center">
+                        Không có phản ánh nào.
                       </div>
-                      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{item.description || item.message || 'Không có nội dung chi tiết.'}</p>
-                    </div>
-                  ))
-                )}
+                    );
+                  }
+                  return filtered.map((item) => {
+                    const s = (item.status || 'Open').toLowerCase();
+                    let statusColor = 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300';
+                    let statusLabel = 'Chờ xử lý';
+                    if (s === 'in_resolve') { statusColor = 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'; statusLabel = 'Đang xử lý'; }
+                    else if (s === 'resolved' || s === 'completed') { statusColor = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'; statusLabel = 'Đã giải quyết'; }
+                    else if (s === 'rejected') { statusColor = 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'; statusLabel = 'Từ chối'; }
+
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => { setViewingComplaint(item); setComplaintComment(item.reply || ''); }}
+                        className="w-full text-left rounded-2xl border border-slate-100 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-950/50 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 dark:text-white text-sm truncate">{item.title || 'Phản ánh mới'}</p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                              {item.userName || 'Cư dân'} · {item.created_at ? new Date(item.created_at).toLocaleDateString('vi-VN') : ''}
+                            </p>
+                          </div>
+                          <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{item.description || 'Không có nội dung chi tiết.'}</p>
+                        {item.type && (
+                          <span className="inline-block mt-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
+                            {item.type}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  });
+                })()}
               </div>
             </div>
           </aside>
@@ -1113,6 +1287,175 @@ export default function Dashboard() {
                   className="rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
                 >
                   Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======= COMPLAINT DETAIL MODAL ======= */}
+        {viewingComplaint && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={() => { setViewingComplaint(null); setComplaintComment(''); }}>
+            <div
+              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-3xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="border-b border-slate-100 dark:border-slate-700 p-6 flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
+                      <span className="material-symbols-outlined text-lg">rate_review</span>
+                    </span>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Chi tiết phản ánh</h3>
+                  </div>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Gửi bởi: {viewingComplaint.userName || 'Cư dân'} · {viewingComplaint.created_at ? new Date(viewingComplaint.created_at).toLocaleString('vi-VN') : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setViewingComplaint(null); setComplaintComment(''); }}
+                  className="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-5">
+                {/* Info Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 p-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Loại phản ánh</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">{viewingComplaint.type || 'Không xác định'}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 p-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Trạng thái</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                      {{
+                        'open': 'Chờ xử lý',
+                        'in_resolve': 'Đang xử lý',
+                        'resolved': 'Đã giải quyết',
+                        'rejected': 'Đã từ chối',
+                      }[(viewingComplaint.status || 'Open').toLowerCase()] || viewingComplaint.status}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 p-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Khu vực</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                      {viewingComplaint.neighborhood ? `${viewingComplaint.neighborhood}, ` : ''}{viewingComplaint.ward}{viewingComplaint.city ? `, ${viewingComplaint.city}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Tiêu đề</p>
+                  <p className="text-base font-bold text-slate-900 dark:text-white">{viewingComplaint.title}</p>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Nội dung chi tiết</p>
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 p-4 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
+                    {viewingComplaint.description || 'Không có mô tả.'}
+                  </div>
+                </div>
+
+                {/* Images (placeholder for future) */}
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Hình ảnh đính kèm</p>
+                  {viewingComplaint.imageUrls && viewingComplaint.imageUrls.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {viewingComplaint.imageUrls.map((url, idx) => (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group relative block overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 aspect-square bg-slate-100 dark:bg-slate-900"
+                        >
+                          <img
+                            src={url}
+                            alt={`Ảnh phản ánh ${idx + 1}`}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                          />
+                          <div className="hidden items-center justify-center w-full h-full text-slate-400">
+                            <span className="material-symbols-outlined text-3xl">broken_image</span>
+                          </div>
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                            <span className="material-symbols-outlined text-white opacity-0 group-hover:opacity-100 transition-opacity text-2xl drop-shadow-lg">zoom_in</span>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 p-4 text-sm text-slate-500 dark:text-slate-400 text-center">
+                      <span className="material-symbols-outlined text-2xl opacity-30 block mb-1">image_not_supported</span>
+                      Chưa có hình ảnh đính kèm. Chức năng tải ảnh sẽ được cập nhật trong tương lai.
+                    </div>
+                  )}
+                </div>
+
+                {/* Previous reply (if any) */}
+                {viewingComplaint.replied_by && viewingComplaint.reply && (viewingComplaint.status || '').toLowerCase() !== 'open' && (
+                  <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-xl space-y-1">
+                    <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase">Phản hồi trước đó</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{viewingComplaint.reply}</p>
+                    <p className="text-[10px] text-slate-400">Bởi {viewingComplaint.replied_by} · {viewingComplaint.replied_at ? new Date(viewingComplaint.replied_at).toLocaleString('vi-VN') : ''}</p>
+                  </div>
+                )}
+
+                {/* Manager Comment Input */}
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Nhận xét của quản lý</p>
+                  <textarea
+                    value={complaintComment}
+                    onChange={(e) => setComplaintComment(e.target.value)}
+                    rows={3}
+                    placeholder="Nhập nhận xét, lý do từ chối, hoặc phản hồi cho cư dân..."
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer — Action Buttons */}
+              <div className="border-t border-slate-100 dark:border-slate-700 p-4 flex flex-wrap gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setViewingComplaint(null); setComplaintComment(''); }}
+                  className="rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  disabled={complaintActionLoading}
+                  onClick={() => handleComplaintAction(viewingComplaint.id, 'in_resolve')}
+                  className="rounded-xl bg-amber-500 hover:bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-base">pending</span>
+                  Đang xử lý
+                </button>
+                <button
+                  type="button"
+                  disabled={complaintActionLoading}
+                  onClick={() => handleComplaintAction(viewingComplaint.id, 'resolved')}
+                  className="rounded-xl bg-emerald-600 hover:bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-base">check_circle</span>
+                  Đã giải quyết
+                </button>
+                <button
+                  type="button"
+                  disabled={complaintActionLoading}
+                  onClick={() => handleComplaintAction(viewingComplaint.id, 'rejected')}
+                  className="rounded-xl bg-rose-600 hover:bg-rose-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-base">cancel</span>
+                  Từ chối
                 </button>
               </div>
             </div>
