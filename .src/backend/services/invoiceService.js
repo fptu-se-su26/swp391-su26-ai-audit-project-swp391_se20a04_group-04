@@ -77,6 +77,10 @@ async function createOrUpdateInvoice(invoiceData) {
 }
 
 async function updateInvoice(invoiceId, updates) {
+  if (!updates || Object.keys(updates).length === 0) {
+    throw new Error('No invoice fields provided to update');
+  }
+
   const formattedUpdates = {
     ...updates,
     amount: updates.amount !== undefined ? Number(updates.amount) : undefined,
@@ -84,7 +88,9 @@ async function updateInvoice(invoiceId, updates) {
     billingYear: updates.billingYear !== undefined ? Number(updates.billingYear) : undefined,
     createdAt: updates.createdAt ? new Date(updates.createdAt) : undefined,
     dueDate: updates.dueDate ? new Date(updates.dueDate) : undefined,
-    paidAt: updates.paidAt ? new Date(updates.paidAt) : null,
+    paidAt: Object.prototype.hasOwnProperty.call(updates, 'paidAt')
+      ? (updates.paidAt ? new Date(updates.paidAt) : null)
+      : undefined,
     updatedAt: updates.updatedAt ? new Date(updates.updatedAt) : new Date(),
   };
 

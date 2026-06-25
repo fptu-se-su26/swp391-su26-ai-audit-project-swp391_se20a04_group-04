@@ -226,7 +226,7 @@ describe('Invoice Service Tests', () => {
       })
     });
 
-    await invoiceService.updateInvoice('inv1', { status: 'unpaid' });
+    await invoiceService.updateInvoice('inv1', { status: 'unpaid', paidAt: null });
     const calledArg = mockUpdate.mock.calls[0][0];
     expect(calledArg.paidAt).toBeNull();
   });
