@@ -22,6 +22,10 @@ export default function ResidentSchedules() {
   const [schedules, setSchedules] = useState([]);
   const [searched, setSearched] = useState(false);
 
+  // Auto-schedule state for logged-in residents
+  const [upcomingSchedules, setUpcomingSchedules] = useState([]);
+  const [loadingUpcoming, setLoadingUpcoming] = useState(false);
+
   // User Profile: khởi tạo trực tiếp thay vì dùng useEffect để tránh setState-in-effect
   const currentUser = authService.getCurrentUser();
 
@@ -48,7 +52,37 @@ export default function ResidentSchedules() {
     fetchProvinces();
   }, []);
 
-  // 2. Handler đổi Tỉnh/Thành phố: reset phường xã và tải mới
+  // 2. Auto-fetch upcoming schedules for logged-in residents
+  useEffect(() => {
+    const fetchUpcomingSchedules = async () => {
+      if (!authService.isAuthenticated()) return;
+      
+      setLoadingUpcoming(true);
+      try {
+        const token = await authService.getFreshToken();
+        const res = await fetch(`${API_BASE}/resident/upcoming-schedules`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok) {
+          console.warn('Không thể tải lịch thu gom khu vực.');
+          return;
+        }
+        const data = await res.json();
+        setUpcomingSchedules(data);
+      } catch (err) {
+        console.error('Lỗi khi tải lịch thu gom tự động:', err);
+      } finally {
+        setLoadingUpcoming(false);
+      }
+    };
+
+    fetchUpcomingSchedules();
+  }, []);
+
+  // 3. Handler đổi Tỉnh/Thành phố: reset phường xã và tải mới
   // (đưa logic vào event handler thay vì useEffect để tránh setState-in-effect)
   const handleProvinceChange = async (e) => {
     const newProvince = e.target.value;
@@ -75,7 +109,7 @@ export default function ResidentSchedules() {
     }
   };
 
-  // 3. Xử lý tra cứu lịch thu gom
+  // 4. Xử lý tra cứu lịch thu gom
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
 
@@ -174,6 +208,101 @@ export default function ResidentSchedules() {
             Nhập địa chỉ của bạn để biết chính xác thời gian xe thu gom rác hoạt động tại khu vực của mình.
           </p>
         </div>
+
+        {/* ======= AUTO UPCOMING SCHEDULES SECTION (for logged-in residents) ======= */}
+        {authService.isAuthenticated() && (
+          <div className="mb-8">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 p-6 transition-all duration-300 hover:shadow-md">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <span className="material-symbols-outlined text-emerald-600">event_available</span>
+                  Lịch thu gom khu vực của bạn
+                </h2>
+                {upcomingSchedules.length > 0 && (
+                  <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-3 py-1 rounded-full text-xs font-bold">
+                    {upcomingSchedules.length} lịch sắp tới
+                  </span>
+                )}
+              </div>
+
+              {loadingUpcoming ? (
+                <div className="flex items-center justify-center py-8 gap-3">
+                  <span className="h-6 w-6 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Đang tải lịch thu gom khu vực...</p>
+                </div>
+              ) : upcomingSchedules.length === 0 ? (
+                <div className="text-center py-6 space-y-2">
+                  <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-400 mx-auto">
+                    <span className="material-symbols-outlined text-2xl">calendar_today</span>
+                  </div>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Chưa có lịch thu gom sắp tới cho khu vực của bạn.
+                  </p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    Bạn có thể tra cứu thủ công bằng biểu mẫu bên dưới.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {upcomingSchedules.map((schedule) => {
+                    const schedDate = new Date(schedule.schedule_date);
+                    const dayStr = schedDate.toLocaleDateString('vi-VN', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    });
+                    const timeStr = schedDate.toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+
+                    const serviceTypeLabel = {
+                      'Recycling': 'Rác tái chế',
+                      'Organic': 'Rác hữu cơ',
+                      'General': 'Rác sinh hoạt',
+                    }[schedule.service_type] || schedule.service_type || 'Thu gom rác';
+
+                    return (
+                      <div
+                        key={schedule.id}
+                        className="bg-gradient-to-br from-emerald-50 to-slate-50 dark:from-emerald-950/20 dark:to-slate-900/50 rounded-xl border border-emerald-100 dark:border-emerald-900/30 p-5 hover:shadow-md transition-all duration-300 group"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded uppercase tracking-wider">
+                            <span className="material-symbols-outlined text-xs">delete</span>
+                            {serviceTypeLabel}
+                          </span>
+                        </div>
+
+                        {/* Day */}
+                        <div className="mb-3">
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold mb-1">Ngày thu gom</p>
+                          <p className="text-base font-bold text-slate-800 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors capitalize">
+                            {dayStr}
+                          </p>
+                        </div>
+
+                        {/* Time */}
+                        <div className="pt-3 border-t border-emerald-100/80 dark:border-emerald-900/20 flex items-center gap-2 text-sm">
+                          <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-lg">schedule</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-200">{timeStr}</span>
+                        </div>
+
+                        {schedule.neighborhood && (
+                          <div className="mt-2 flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+                            <span className="material-symbols-outlined text-xs">location_on</span>
+                            {schedule.neighborhood}, {schedule.ward}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
