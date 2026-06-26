@@ -1492,7 +1492,7 @@ async function verifyPayOSPayment(invoice) {
     return data.data && (data.data.status === 'PAID' || data.data.status === 'COMPLETED');
   }
 
-  return true;
+  throw new Error('PayOS is not configured. Cannot verify payment status.');
 }
 
 app.post('/api/invoices/:invoiceId/payment-request', verifyToken, ensureResident, async (req, res) => {

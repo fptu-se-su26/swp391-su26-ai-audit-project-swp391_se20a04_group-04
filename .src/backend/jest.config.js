@@ -1,6 +1,6 @@
 module.exports = {
   testEnvironment: 'node',
-  coverageDirectory: 'coverage',
+  coverageDirectory: 'tests/coverage',
   coverageReporters: ['html', ['text', { maxCols: 1000 }], 'text-summary', 'clover'],
   collectCoverageFrom: [
     'services/**/*.js',
