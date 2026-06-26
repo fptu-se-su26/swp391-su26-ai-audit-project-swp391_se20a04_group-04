@@ -25,10 +25,24 @@ const PAYOS_API_BASE_URL = (process.env.PAYOS_API_BASE_URL && !process.env.PAYOS
   : 'https://api-merchant.payos.vn';
 
 // CORS configuration - Allow frontend server
+const allowedOrigins = [
+  'https://swp391-database.web.app',
+  'https://swp391-database.firebaseapp.com',
+  process.env.FRONTEND_URL,          // tuỳ chỉnh qua biến môi trường
+  'http://localhost:5173',            // Vite dev server
+  'http://localhost:5001',            // local backend (same-origin)
+].filter(Boolean);
+
 app.use(cors({
-  origin: '*', // Hỗ trợ tất cả nguồn hoặc tùy chỉnh thành frontend URL (e.g., http://localhost:5173)
+  origin(origin, callback) {
+    // Cho phép request không có origin (curl, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS policy: origin ${origin} not allowed`));
+  },
   credentials: true,
 }));
+
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
