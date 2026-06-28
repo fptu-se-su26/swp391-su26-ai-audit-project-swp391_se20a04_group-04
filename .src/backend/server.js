@@ -16,6 +16,7 @@ const reportService = require('./services/reportService');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const HOST = process.env.HOST || '0.0.0.0';
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
 const PAYOS_CLIENT_ID = process.env.PAYOS_CLIENT_ID || '';
 const PAYOS_API_KEY = process.env.PAYOS_API_KEY || '';
@@ -1819,10 +1820,10 @@ app.delete('/api/notifications/admin/:id', verifyToken, ensureAdmin, async (req,
 
 // Khởi chạy Server Express
 if (require.main === module) {
-  app.listen(PORT, () => {
+  app.listen(PORT, HOST, () => {
     console.log(`==================================================`);
-    console.log(`  EcoSchedule Secure Backend is running on port ${PORT}`);
-    console.log(`  API Base URL: http://localhost:${PORT}`);
+    console.log(`  EcoSchedule Secure Backend is running on ${HOST}:${PORT}`);
+    console.log(`  API Base URL: http://${HOST}:${PORT}`);
     console.log(`==================================================`);
   });
 }

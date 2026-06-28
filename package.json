@@ -3,6 +3,8 @@
   "private": true,
   "description": "EcoSchedule - root scripts (backend & frontend live in .src/)",
   "scripts": {
+    "postinstall": "npm install --prefix .src/backend",
+    "start": "npm start --prefix .src/backend",
     "install:backend": "npm install --prefix .src/backend",
     "install:frontend": "npm install --prefix .src/frontend",
     "install:all": "npm run install:backend && npm run install:frontend",
