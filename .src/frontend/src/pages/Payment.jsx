@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import authService from '../services/authService';
 import { ROLES, normalizeRole } from '../constants/roles';
@@ -6,6 +6,7 @@ import {
   createInvoice,
   createPaymentRequest,
   fetchCurrentInvoice,
+  fetchInvoiceHistory,
   verifyPaymentStatus,
 } from '../services/paymentService';
 
@@ -55,6 +56,8 @@ export default function Payment() {
   const [loading, setLoading] = useState(!!currentUser);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [history, setHistory] = useState([]);
+  const historyRef = useRef(null);
 
   // Khai báo trước useEffect để tránh Temporal Dead Zone
   const createDefaultInvoice = async () => {
@@ -92,11 +95,19 @@ export default function Payment() {
         const existingInvoice = await fetchCurrentInvoice();
         setInvoice(existingInvoice);
         setPaymentStatus(existingInvoice.status || 'unpaid');
-        if (existingInvoice?.paymentUrl) {
+        // Chỉ restore paymentRequest nếu hóa đơn chưa thanh toán
+        if (existingInvoice?.paymentUrl && existingInvoice.status !== 'paid') {
           setPaymentRequest({
             paymentUrl: existingInvoice.paymentUrl,
             qrCode: existingInvoice.qrCode || null,
           });
+        }
+        // Tải lịch sử giao dịch
+        try {
+          const hist = await fetchInvoiceHistory();
+          setHistory(hist);
+        } catch {
+          // lịch sử không tải được không chặn trang chính
         }
       } catch (err) {
         const message = buildErrorMessage(err);
@@ -148,6 +159,16 @@ export default function Payment() {
       if (result.paid) {
         setPaymentRequest(null);
         setSuccess('Thanh toán đã hoàn tất. Hóa đơn đã được cập nhật.');
+        // Cập nhật lịch sử và scroll xuống
+        try {
+          const hist = await fetchInvoiceHistory();
+          setHistory(hist);
+        } catch {
+          // ignore
+        }
+        setTimeout(() => {
+          historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 300);
       } else {
         setError('Thanh toán chưa hoàn tất. Vui lòng quét QR và thử lại sau.');
       }
@@ -360,7 +381,7 @@ export default function Payment() {
             </button>
           </div>
 
-          {paymentRequest?.paymentUrl && (
+          {paymentRequest?.paymentUrl && invoice?.status !== 'paid' && (
             <div className="bg-surface-container-lowest rounded-xl p-8 card-shadow border border-surface-container">
               <h3 className="font-headline-md text-headline-md mb-6 text-on-surface">Quét mã QR để thanh toán</h3>
               <div className="flex flex-col items-center gap-6">
@@ -437,56 +458,35 @@ export default function Payment() {
           )}
         </div>
 
-        <div className="col-span-12 lg:col-span-4">
+        <div className="col-span-12 lg:col-span-4" ref={historyRef}>
           <div className="bg-surface-container-lowest rounded-xl p-8 card-shadow border border-surface-container sticky top-24">
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-headline-md text-headline-md text-on-surface">Lịch sử giao dịch</h3>
               <span className="material-symbols-outlined text-primary">history</span>
             </div>
-            <div className="space-y-6">
-              <div className="flex items-center justify-between group">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary">
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 700" }}>check</span>
+            {history.length === 0 ? (
+              <p className="text-on-surface-variant text-sm text-center py-4">Chưa có giao dịch nào.</p>
+            ) : (
+              <div className="space-y-6">
+                {history.map((inv) => (
+                  <div key={inv.invoiceId || inv.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary flex-shrink-0">
+                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 700" }}>check</span>
+                      </div>
+                      <div>
+                        <p className="font-label-md text-label-md text-on-surface">Tháng {inv.billingMonth}/{inv.billingYear}</p>
+                        <p className="text-label-sm text-on-surface-variant">{inv.amount?.toLocaleString('vi-VN')} {inv.currency}</p>
+                        {inv.paidAt && (
+                          <p className="text-label-sm text-on-surface-variant">{formatDate(inv.paidAt)}</p>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-primary font-label-sm font-semibold flex-shrink-0">Thành công</span>
                   </div>
-                  <div>
-                    <p className="font-label-md text-label-md text-on-surface">Tháng 9/2024</p>
-                    <p className="text-label-sm text-on-surface-variant">30.000 VNĐ</p>
-                  </div>
-                </div>
-                <span className="text-primary font-label-sm font-semibold">Thành công</span>
+                ))}
               </div>
-              <div className="flex items-center justify-between group">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary">
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 700" }}>check</span>
-                  </div>
-                  <div>
-                    <p className="font-label-md text-label-md text-on-surface">Tháng 8/2024</p>
-                    <p className="text-label-sm text-on-surface-variant">30.000 VNĐ</p>
-                  </div>
-                </div>
-                <span className="text-primary font-label-sm font-semibold">Thành công</span>
-              </div>
-              <div className="flex items-center justify-between group">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary">
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 700" }}>check</span>
-                  </div>
-                  <div>
-                    <p className="font-label-md text-label-md text-on-surface">Tháng 7/2024</p>
-                    <p className="text-label-sm text-on-surface-variant">30.000 VNĐ</p>
-                  </div>
-                </div>
-                <span className="text-primary font-label-sm font-semibold">Thành công</span>
-              </div>
-            </div>
-            <a
-              className="mt-8 block text-center py-3 rounded-lg border-2 border-primary text-primary font-label-md text-label-md hover:bg-primary hover:text-on-primary transition-all"
-              href="#"
-            >
-              Xem tất cả lịch sử
-            </a>
+            )}
           </div>
         </div>
       </div>
