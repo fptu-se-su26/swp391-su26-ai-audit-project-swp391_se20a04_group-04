@@ -106,9 +106,25 @@ async function updateInvoice(invoiceId, updates) {
   return getInvoiceById(invoiceId);
 }
 
+async function getPaidInvoicesForUser(userId) {
+  const snapshot = await db.collection('invoices')
+    .where('userId', '==', userId)
+    .where('status', '==', 'paid')
+    .get();
+
+  if (snapshot.empty) {
+    return [];
+  }
+
+  const invoices = snapshot.docs.map((doc) => serializeInvoice({ id: doc.id, ...doc.data() }));
+  invoices.sort((a, b) => getTimestampMillis(b.paidAt) - getTimestampMillis(a.paidAt));
+  return invoices;
+}
+
 module.exports = {
   getLatestInvoiceForUser,
   getInvoiceById,
   createOrUpdateInvoice,
   updateInvoice,
+  getPaidInvoicesForUser,
 };

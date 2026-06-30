@@ -1284,6 +1284,16 @@ app.get('/api/invoices/current', verifyToken, ensureResident, async (req, res) =
   }
 });
 
+app.get('/api/invoices/history', verifyToken, ensureResident, async (req, res) => {
+  try {
+    const invoices = await invoiceService.getPaidInvoicesForUser(req.uid);
+    return res.status(200).json(invoices);
+  } catch (error) {
+    console.error('[API] Lỗi lấy lịch sử giao dịch:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/invoices/:invoiceId', verifyToken, ensureResident, async (req, res) => {
   try {
     const invoice = await invoiceService.getInvoiceById(req.params.invoiceId);
