@@ -29,6 +29,8 @@ const PAYOS_API_BASE_URL = (process.env.PAYOS_API_BASE_URL && !process.env.PAYOS
 const allowedOrigins = [
   'https://swp391-database.web.app',
   'https://swp391-database.firebaseapp.com',
+  'https://ecoschedule.online',       // custom domain
+  'https://www.ecoschedule.online',   // custom domain (www)
   process.env.FRONTEND_URL,          // tuỳ chỉnh qua biến môi trường
   'http://localhost:5173',            // Vite dev server
   'http://localhost:5001',            // local backend (same-origin)
