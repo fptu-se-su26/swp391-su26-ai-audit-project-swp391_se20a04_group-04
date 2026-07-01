@@ -388,6 +388,7 @@ export default function CollectorDashboard() {
                   collectorName={user.fullName}
                   routePoints={selectedItem.routePoints?.length ? selectedItem.routePoints : undefined}
                   readOnly
+                  ward={selectedItem.ward || ''}
                 />
                 )}
               </>

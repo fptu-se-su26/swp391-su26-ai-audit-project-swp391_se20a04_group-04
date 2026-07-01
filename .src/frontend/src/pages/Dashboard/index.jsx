@@ -923,6 +923,8 @@ export default function Dashboard() {
                 routePoints={routePoints}
                 setRoutePoints={setRoutePoints}
                 readOnly={isAssignmentLocked}
+                ward={selectedSchedule?.ward || newSchedule.ward || ''}
+                city={selectedSchedule?.city || newSchedule.city || ''}
               />
             </section>
           </div>

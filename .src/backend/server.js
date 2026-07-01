@@ -1830,6 +1830,137 @@ app.delete('/api/notifications/admin/:id', verifyToken, ensureAdmin, async (req,
   }
 });
 
+// ============================================================
+// GOOGLE MAPS API PROXY ENDPOINTS
+// ============================================================
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
+
+/**
+ * GET /api/maps/key
+ * Trả về Google Maps API key cho người dùng đã đăng nhập.
+ */
+app.get('/api/maps/key', verifyToken, (req, res) => {
+  if (!GOOGLE_MAPS_API_KEY) {
+    return res.status(500).json({ error: 'Google Maps API key chưa được cấu hình trên server.' });
+  }
+  return res.status(200).json({ apiKey: GOOGLE_MAPS_API_KEY });
+});
+
+/**
+ * GET /api/maps/directions
+ * Proxy cho Google Directions API.
+ * Query params: origin, destination, waypoints (optional, pipe-separated)
+ */
+app.get('/api/maps/directions', verifyToken, async (req, res) => {
+  const { origin, destination, waypoints } = req.query;
+  if (!origin || !destination) {
+    return res.status(400).json({ error: 'Thiếu origin hoặc destination.' });
+  }
+
+  try {
+    const params = new URLSearchParams({
+      origin,
+      destination,
+      key: GOOGLE_MAPS_API_KEY,
+      mode: 'driving',
+      language: 'vi',
+    });
+    if (waypoints) params.set('waypoints', waypoints);
+
+    const response = await fetch(`https://maps.googleapis.com/maps/api/directions/json?${params}`);
+    const data = await response.json();
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error('[Maps] Lỗi Directions API:', error.message);
+    return res.status(500).json({ error: 'Không thể lấy chỉ đường từ Google Maps.' });
+  }
+});
+
+/**
+ * GET /api/maps/geocode
+ * Proxy cho Google Geocoding API.
+ * Query params: address OR latlng
+ */
+app.get('/api/maps/geocode', verifyToken, async (req, res) => {
+  const { address, latlng } = req.query;
+  if (!address && !latlng) {
+    return res.status(400).json({ error: 'Thiếu address hoặc latlng.' });
+  }
+
+  try {
+    const params = new URLSearchParams({
+      key: GOOGLE_MAPS_API_KEY,
+      language: 'vi',
+    });
+    if (address) params.set('address', address);
+    if (latlng) params.set('latlng', latlng);
+
+    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+    const data = await response.json();
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error('[Maps] Lỗi Geocoding API:', error.message);
+    return res.status(500).json({ error: 'Không thể geocode địa chỉ.' });
+  }
+});
+
+/**
+ * GET /api/maps/places
+ * Proxy cho Google Places API (Text Search).
+ * Query params: query, location (optional), radius (optional)
+ */
+app.get('/api/maps/places', verifyToken, async (req, res) => {
+  const { query, location, radius } = req.query;
+  if (!query) {
+    return res.status(400).json({ error: 'Thiếu query tìm kiếm.' });
+  }
+
+  try {
+    const params = new URLSearchParams({
+      query,
+      key: GOOGLE_MAPS_API_KEY,
+      language: 'vi',
+    });
+    if (location) params.set('location', location);
+    if (radius) params.set('radius', radius);
+
+    const response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
+    const data = await response.json();
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error('[Maps] Lỗi Places API:', error.message);
+    return res.status(500).json({ error: 'Không thể tìm kiếm địa điểm.' });
+  }
+});
+
+/**
+ * GET /api/maps/distance-matrix
+ * Proxy cho Google Distance Matrix API.
+ * Query params: origins (pipe-separated), destinations (pipe-separated)
+ */
+app.get('/api/maps/distance-matrix', verifyToken, async (req, res) => {
+  const { origins, destinations } = req.query;
+  if (!origins || !destinations) {
+    return res.status(400).json({ error: 'Thiếu origins hoặc destinations.' });
+  }
+
+  try {
+    const params = new URLSearchParams({
+      origins,
+      destinations,
+      key: GOOGLE_MAPS_API_KEY,
+      mode: 'driving',
+      language: 'vi',
+    });
+
+    const response = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?${params}`);
+    const data = await response.json();
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error('[Maps] Lỗi Distance Matrix API:', error.message);
+    return res.status(500).json({ error: 'Không thể tính khoảng cách.' });
+  }
+});
 // Khởi chạy Server Express
 if (require.main === module) {
   app.listen(PORT, HOST, () => {
