@@ -784,7 +784,7 @@ export default function Dashboard() {
                     >
                       <option value="">-- Chưa gán --</option>
                       {collectors.map((c) => (
-                        <option key={c.uid} value={c.fullName}>
+                        <option key={c.uid} value={c.uid}>
                           {c.fullName}{c.area ? ` — ${c.area}` : ''}
                         </option>
                       ))}
@@ -875,7 +875,7 @@ export default function Dashboard() {
                     >
                       <option value="">-- Chưa gán --</option>
                       {collectors.map((c) => (
-                        <option key={c.uid} value={c.fullName}>
+                        <option key={c.uid} value={c.uid}>
                           {c.fullName}{c.area ? ` — ${c.area}` : ''}
                         </option>
                       ))}
@@ -919,7 +919,7 @@ export default function Dashboard() {
             <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-0 shadow-sm">
               <CollectionRouteMap
                 title={assignment.scheduleId ? 'Route Planner' : 'Route Map'}
-                collectorName={assignment.assignedCollector || 'Chưa gán'}
+                collectorName={collectors.find((c) => c.uid === assignment.assignedCollector)?.fullName || assignment.assignedCollector || 'Chưa gán'}
                 routePoints={routePoints}
                 setRoutePoints={setRoutePoints}
                 readOnly={isAssignmentLocked}
