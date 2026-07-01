@@ -634,9 +634,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+        <div className={`grid grid-cols-1 ${normalizeRole(user.role) !== ROLES.ADMIN ? 'lg:grid-cols-3' : ''} gap-6`}>
+          {normalizeRole(user.role) !== ROLES.ADMIN && (
+            <div className="lg:col-span-2 space-y-6">
+              <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Tạo lịch thu gom</p>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import notificationService from '../../services/notificationService';
 import { ROLES } from '../../constants/roles';
 import { RefreshCw, Search, ListFilter, Filter, Eye, Pencil, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function AdminNotifications() {
   const [notifications, setNotifications] = useState([]);
@@ -115,8 +116,9 @@ export default function AdminNotifications() {
 
       setIsModalOpen(false);
       fetchNotifications();
+      toast.success('Lưu thông báo thành công.');
     } catch (err) {
-      alert(err.message || 'Có lỗi xảy ra khi lưu thông báo.');
+      toast.error(err.message || 'Có lỗi xảy ra khi lưu thông báo.');
     } finally {
       setSaving(false);
     }
@@ -130,8 +132,9 @@ export default function AdminNotifications() {
       setIsDeleteOpen(false);
       setSelectedItem(null);
       fetchNotifications();
+      toast.success('Đã xóa thông báo.');
     } catch (err) {
-      alert(err.message || 'Có lỗi xảy ra khi xóa thông báo.');
+      toast.error(err.message || 'Có lỗi xảy ra khi xóa thông báo.');
     } finally {
       setSaving(false);
     }
@@ -210,11 +213,11 @@ export default function AdminNotifications() {
   };
 
   return (
-    <div className="min-h-screen bg-white py-10 px-4 md:px-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-10 px-4 md:px-8">
       <div className="max-w-7xl mx-auto">
         
         {/* Main Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-emerald-100 p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-emerald-100 dark:border-slate-800 p-6">
           
           {/* Top Controls */}
           <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
@@ -229,7 +232,7 @@ export default function AdminNotifications() {
               {/* Refresh Button */}
               <button 
                 onClick={fetchNotifications}
-                className="p-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 transition-colors"
+                className="p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
                 title="Tải lại"
               >
                 <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
@@ -237,7 +240,7 @@ export default function AdminNotifications() {
 
               {/* Search */}
               <div className="relative flex-1 md:flex-none">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input 
                   type="text" 
                   placeholder="Tiêu đề" 
@@ -246,12 +249,12 @@ export default function AdminNotifications() {
                     setSearchKeyword(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="w-full md:w-64 pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm transition-all"
+                  className="w-full md:w-64 pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-800 dark:text-white transition-all rounded-xl text-sm"
                 />
               </div>
 
               {/* Filter Icons (Visual representation) */}
-              <button className="hidden sm:flex p-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 transition-colors">
+              <button className="hidden sm:flex p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors">
                 <ListFilter size={18} />
               </button>
               
@@ -263,46 +266,46 @@ export default function AdminNotifications() {
                     setRoleFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="appearance-none pl-4 pr-10 py-2.5 border border-gray-200 rounded-lg outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm text-gray-600 bg-white cursor-pointer"
+                  className="appearance-none pl-4 pr-10 py-2.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-800 dark:text-white rounded-xl text-sm cursor-pointer"
                 >
                   <option value="all">Tất cả đối tượng</option>
                   <option value={ROLES.RESIDENT}>Cư dân</option>
                   <option value={ROLES.MANAGER}>Quản lý</option>
                   <option value={ROLES.COLLECTOR}>Nhân viên</option>
                 </select>
-                <Filter size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <Filter size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               </div>
             </div>
           </div>
 
-          {error && <div className="mb-4 text-rose-600 bg-rose-50 p-4 rounded-xl text-sm">{error}</div>}
+          {error && <div className="mb-4 text-rose-600 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 p-4 rounded-xl text-sm">{error}</div>}
 
           {/* Table */}
-          <div className="overflow-x-auto rounded-xl border border-emerald-100">
+          <div className="overflow-x-auto rounded-xl border border-emerald-100 dark:border-slate-700">
             <table className="w-full text-left border-collapse min-w-[800px]">
-              <thead className="bg-[#f0fdf4] border-b border-emerald-100">
+              <thead className="bg-[#f0fdf4] dark:bg-slate-800 border-b border-emerald-100 dark:border-slate-700">
                 <tr>
-                  <th className="py-4 px-5 text-xs font-bold text-emerald-600 uppercase tracking-wider">Tiêu đề</th>
-                  <th className="py-4 px-5 text-xs font-bold text-emerald-600 uppercase tracking-wider">Loại</th>
-                  <th className="py-4 px-5 text-xs font-bold text-emerald-600 uppercase tracking-wider">Đối tượng</th>
-                  <th className="py-4 px-5 text-xs font-bold text-emerald-600 uppercase tracking-wider">Thời gian tạo</th>
-                  <th className="py-4 px-5 text-xs font-bold text-emerald-600 uppercase tracking-wider text-right">Thao tác</th>
+                  <th className="py-4 px-5 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Tiêu đề</th>
+                  <th className="py-4 px-5 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Loại</th>
+                  <th className="py-4 px-5 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Đối tượng</th>
+                  <th className="py-4 px-5 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Thời gian tạo</th>
+                  <th className="py-4 px-5 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="5" className="py-12 text-center text-gray-400 text-sm">Đang tải dữ liệu...</td>
+                    <td colSpan="5" className="py-12 text-center text-slate-400 text-sm">Đang tải dữ liệu...</td>
                   </tr>
                 ) : currentData.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="py-12 text-center text-gray-400 text-sm">Không tìm thấy thông báo nào phù hợp.</td>
+                    <td colSpan="5" className="py-12 text-center text-slate-400 text-sm">Không tìm thấy thông báo nào phù hợp.</td>
                   </tr>
                 ) : (
                   currentData.map((n, idx) => {
                     return (
-                      <tr key={n.id || idx} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                        <td className="py-4 px-5 text-sm text-gray-800 font-medium max-w-xs truncate">
+                      <tr key={n.id || idx} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="py-4 px-5 text-sm text-slate-800 dark:text-white font-medium max-w-xs truncate">
                           {n.title || 'Không có tiêu đề'}
                         </td>
                         <td className="py-4 px-5">
@@ -312,10 +315,10 @@ export default function AdminNotifications() {
                           {getTargetBadge(n.targetRole)}
                         </td>
                         <td className="py-4 px-5 text-sm">
-                          <div className="text-gray-800">
+                          <div className="text-slate-800 dark:text-white">
                             {formatDateTime(n.created_at || n.sent_at)}
                           </div>
-                          <div className="text-xs text-gray-500 mt-0.5">
+                          <div className="text-xs text-slate-500 mt-0.5">
                             {timeAgo(n.created_at || n.sent_at)}
                           </div>
                         </td>
@@ -323,21 +326,21 @@ export default function AdminNotifications() {
                           <div className="flex items-center justify-end gap-2">
                             <button 
                               onClick={() => handleOpenDetail(n)} 
-                              className="p-1.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors" 
+                              className="p-1.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-800 rounded-md transition-colors" 
                               title="Xem chi tiết"
                             >
                               <Eye size={16} />
                             </button>
                             <button 
                               onClick={() => handleOpenEdit(n)} 
-                              className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors" 
+                              className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-800 rounded-md transition-colors" 
                               title="Sửa"
                             >
                               <Pencil size={16} />
                             </button>
                             <button 
                               onClick={() => handleOpenDelete(n)} 
-                              className="p-1.5 text-rose-500 bg-rose-50 hover:bg-rose-100 rounded-md transition-colors" 
+                              className="p-1.5 text-rose-500 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-800 rounded-md transition-colors" 
                               title="Xóa"
                             >
                               <Trash2 size={16} />
@@ -354,7 +357,7 @@ export default function AdminNotifications() {
 
           {/* Phân trang */}
           {totalPages > 1 && (
-            <div className="flex justify-between items-center mt-6 text-sm text-gray-500">
+            <div className="flex justify-between items-center mt-6 text-sm text-slate-500 dark:text-slate-400">
               <div>
                 Đang hiển thị {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredData.length)} trên tổng số {filteredData.length} thông báo.
               </div>
@@ -362,14 +365,14 @@ export default function AdminNotifications() {
                 <button
                   onClick={handlePrevPage}
                   disabled={currentPage === 1}
-                  className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                  className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                 >
                   Trang trước
                 </button>
                 <button
                   onClick={handleNextPage}
                   disabled={currentPage === totalPages}
-                  className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                  className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                 >
                   Trang sau
                 </button>
@@ -382,32 +385,32 @@ export default function AdminNotifications() {
 
       {/* Modal Xem Chi Tiết */}
       {isDetailOpen && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white">
                 Chi tiết Thông báo
               </h2>
-              <button onClick={() => setIsDetailOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <button onClick={() => setIsDetailOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                 ✕
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">{selectedItem.title}</h3>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">{selectedItem.title}</h3>
                 <div className="flex flex-wrap gap-2 text-xs mb-4">
                   {getTypeBadge(selectedItem.type)}
                   {getTargetBadge(selectedItem.targetRole)}
-                  <span className="px-2 py-1 rounded bg-gray-100 text-gray-600 font-medium">
+                  <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">
                     {formatDateTime(selectedItem.created_at || selectedItem.sent_at)}
                   </span>
                 </div>
               </div>
-              <div className="p-4 bg-gray-50 rounded-xl text-gray-700 whitespace-pre-wrap text-sm leading-relaxed border border-gray-100">
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl text-slate-700 dark:text-slate-300 whitespace-pre-wrap text-sm leading-relaxed border border-slate-100 dark:border-slate-700">
                 {selectedItem.content || selectedItem.message}
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end bg-gray-50/50">
+            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-end bg-slate-50/50 dark:bg-slate-800/50">
               <button
                 onClick={() => setIsDetailOpen(false)}
                 className="px-6 py-2 bg-emerald-500 text-white text-sm font-semibold rounded-lg hover:bg-emerald-600 transition-colors"
@@ -421,13 +424,13 @@ export default function AdminNotifications() {
 
       {/* Modal Tạo / Sửa Thông Báo */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white">
                 {selectedItem ? 'Sửa Thông báo' : 'Tạo Thông báo mới'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                 ✕
               </button>
             </div>
@@ -435,7 +438,7 @@ export default function AdminNotifications() {
             <div className="p-6 overflow-y-auto">
               <form id="create-notification-form" onSubmit={handleSubmit} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tiêu đề *</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Tiêu đề *</label>
                   <input
                     required
                     type="text"
@@ -443,12 +446,12 @@ export default function AdminNotifications() {
                     value={formData.title}
                     onChange={handleInputChange}
                     placeholder="Nhập tiêu đề..."
-                    className="w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-gray-800 text-sm"
+                    className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-white text-sm"
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nội dung *</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Nội dung *</label>
                   <textarea
                     required
                     name="message"
@@ -456,18 +459,18 @@ export default function AdminNotifications() {
                     onChange={handleInputChange}
                     rows="5"
                     placeholder="Nhập nội dung chi tiết..."
-                    className="w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-gray-800 text-sm resize-none"
+                    className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-white text-sm resize-none"
                   ></textarea>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Loại thông báo</label>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Loại thông báo</label>
                     <select
                       name="type"
                       value={formData.type}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-gray-800 text-sm"
+                      className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-white text-sm"
                     >
                       <option value="system">Hệ thống</option>
                       <option value="schedule">Lịch trình</option>
@@ -476,12 +479,12 @@ export default function AdminNotifications() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Đối tượng</label>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Đối tượng</label>
                     <select
                       name="targetRole"
                       value={formData.targetRole}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-200 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-gray-800 text-sm"
+                      className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-white text-sm"
                     >
                       <option value="all">Tất cả user</option>
                       <option value={ROLES.RESIDENT}>Chỉ Cư dân</option>
@@ -493,11 +496,11 @@ export default function AdminNotifications() {
               </form>
             </div>
             
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
+            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3 bg-slate-50/50 dark:bg-slate-800/50">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="px-5 py-2 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors"
+                className="px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
                 Hủy
               </button>
@@ -516,19 +519,19 @@ export default function AdminNotifications() {
 
       {/* Modal Xóa Thông báo */}
       {isDeleteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6 text-center border border-gray-100">
-            <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-sm shadow-xl p-6 text-center border border-slate-100 dark:border-slate-700">
+            <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/30 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <Trash2 size={24} />
             </div>
-            <h3 className="text-lg font-bold text-gray-800 mb-2">Xóa thông báo?</h3>
-            <p className="text-gray-500 text-sm mb-6">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Xóa thông báo?</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">
               Bạn có chắc chắn muốn xóa thông báo này? Hành động này không thể hoàn tác.
             </p>
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => setIsDeleteOpen(false)}
-                className="flex-1 py-2 rounded-lg font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors text-sm"
+                className="flex-1 py-2 rounded-lg font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm"
                 disabled={saving}
               >
                 Hủy
