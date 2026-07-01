@@ -7,8 +7,12 @@
     "start": "npm start --prefix .src/backend",
     "install:backend": "npm install --prefix .src/backend",
     "install:frontend": "npm install --prefix .src/frontend",
-    "install:all": "npm run install:backend && npm run install:frontend",
+    "install:admin-backend": "npm install --prefix .src/admin-backend",
+    "install:admin-frontend": "npm install --prefix .src/admin-frontend",
+    "install:all": "npm run install:backend && npm run install:frontend && npm run install:admin-backend && npm run install:admin-frontend",
     "backend": "npm run dev --prefix .src/backend",
-    "frontend": "npm run dev --prefix .src/frontend"
+    "frontend": "npm run dev --prefix .src/frontend",
+    "admin-backend": "npm run dev --prefix .src/admin-backend",
+    "admin-frontend": "npm run dev --prefix .src/admin-frontend"
   }
 }

@@ -10,8 +10,7 @@ import {
   verifyPaymentStatus,
 } from '../services/paymentService';
 
-import AdminPaymentHistory from './Admin/AdminPaymentHistory';
-
+// Removed AdminPaymentHistory for frontend
 const SAMPLE_INVOICE_TEMPLATE = (userId) => ({
   invoiceId: `invoice_${userId}_2026_6`,
   amount: 50000,
@@ -178,10 +177,7 @@ export default function Payment() {
     }
   };
 
-  // Kiểm tra quyền admin PHẢI đặt SAU tất cả các Hook
-  if (currentUser && normalizeRole(currentUser.role) === ROLES.ADMIN) {
-    return <AdminPaymentHistory />;
-  }
+  // Removed Admin check for regular frontend
 
   // Kiểm tra quyền non-resident trong render, không dùng useState trong useEffect
   if (currentUser && normalizeRole(currentUser.role) !== ROLES.RESIDENT) {
