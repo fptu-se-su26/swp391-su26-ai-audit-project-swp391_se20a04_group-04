@@ -8,6 +8,8 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   sendPasswordResetEmail,
+  verifyPasswordResetCode,
+  confirmPasswordReset
 } from 'firebase/auth';
 import { auth } from './firebase';
 
@@ -118,7 +120,12 @@ const authService = {
    */
   async resetPassword(email) {
     try {
-      await sendPasswordResetEmail(auth, email);
+      const actionCodeSettings = {
+        // Đường dẫn sẽ được mở khi người dùng click vào link trong email
+        url: window.location.origin + '/reset-password', 
+        handleCodeInApp: false,
+      };
+      await sendPasswordResetEmail(auth, email, actionCodeSettings);
       return { success: true };
     } catch (error) {
       let message = 'Gửi yêu cầu thất bại. Vui lòng thử lại sau.';
@@ -130,6 +137,30 @@ const authService = {
         message = 'Quá nhiều yêu cầu. Vui lòng thử lại sau.';
       }
       throw new Error(message, { cause: error });
+    }
+  },
+
+  /**
+   * Xác minh mã khôi phục mật khẩu (oobCode)
+   */
+  async verifyResetCode(code) {
+    try {
+      const email = await verifyPasswordResetCode(auth, code);
+      return email;
+    } catch (error) {
+      throw new Error('Mã khôi phục không hợp lệ hoặc đã hết hạn.', { cause: error });
+    }
+  },
+
+  /**
+   * Đặt lại mật khẩu mới
+   */
+  async confirmReset(code, newPassword) {
+    try {
+      await confirmPasswordReset(auth, code, newPassword);
+      return { success: true };
+    } catch (error) {
+      throw new Error('Không thể đặt lại mật khẩu. Vui lòng thử lại.', { cause: error });
     }
   },
 

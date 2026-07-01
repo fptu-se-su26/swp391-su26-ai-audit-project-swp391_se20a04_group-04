@@ -175,16 +175,28 @@ async function updateNotificationSettings(userId, settings) {
 /**
  * [ADMIN] Lấy toàn bộ thông báo từ hệ thống.
  */
-async function getAdminNotifications(roleFilter) {
+async function getAdminNotifications(roleFilter, page = 1, limit = 10) {
   let query = db.collection(NOTIFICATIONS_COLLECTION);
   if (roleFilter && roleFilter !== 'all') {
     query = query.where('targetRole', '==', roleFilter);
   }
+  
+  // Count total notifications
+  const totalSnapshot = await query.count().get();
+  const total = totalSnapshot.data().count;
+
+  // Since we use offset and limit, we sort by sent_at if possible.
+  // Note: if targetRole filter is used, sorting by sent_at requires a composite index.
+  // To avoid composite index, if roleFilter is present, we will skip sorting at DB level
+  // Wait, without sorting, offset might be non-deterministic if not ordered by anything.
+  // By default, offset applies to document ID. Let's just fetch all and paginate in memory if role is specified.
+  // Actually, notifications are generally not too many. Let's try pure DB approach if no roleFilter, else fallback.
+  // No, let's keep it simple: fetch all matching, sort, then slice. Same as transactions!
+  
   const snapshot = await query.get();
+  if (snapshot.empty) return { data: [], total: 0, page, totalPages: 0 };
   
-  if (snapshot.empty) return [];
-  
-  const results = snapshot.docs.map(doc => {
+  let results = snapshot.docs.map(doc => {
     const data = doc.data();
     // Chuyển đổi an toàn kiểu dữ liệu thời gian về ISO String
     let sentAtISO = data.sent_at;
@@ -196,7 +208,7 @@ async function getAdminNotifications(roleFilter) {
 
     let createdAtISO = data.created_at || sentAtISO;
     if (data.created_at?.toDate) {
-      createdAtISO = data.created_at.toDate().toISOString();
+      createdAtISO = data.created_at.toISOString();
     } else if (data.created_at instanceof Date) {
       createdAtISO = data.created_at.toISOString();
     }
@@ -209,8 +221,18 @@ async function getAdminNotifications(roleFilter) {
     };
   });
 
-  // Sắp xếp theo thời gian gửi giảm dần (mới nhất lên đầu) bằng JS để tránh composite index
-  return results.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+  // Sắp xếp theo thời gian gửi giảm dần
+  results.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+
+  // Phân trang
+  const paginatedData = results.slice((page - 1) * limit, page * limit);
+
+  return {
+    data: paginatedData,
+    total: results.length,
+    page,
+    totalPages: Math.ceil(results.length / limit)
+  };
 }
 
 /**

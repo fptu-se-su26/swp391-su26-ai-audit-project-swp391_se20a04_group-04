@@ -98,9 +98,12 @@ const notificationService = {
    * [ADMIN] Lấy toàn bộ danh sách thông báo.
    * @param {string} roleFilter - Lọc theo role (tùy chọn)
    */
-  async getAdminNotifications(roleFilter = '') {
-    let url = `${BASE_URL}/admin`;
-    if (roleFilter) url += `?role=${roleFilter}`;
+  async getAdminNotifications(page = 1, limit = 10, roleFilter = '') {
+    const queryParams = new URLSearchParams({ page, limit });
+    if (roleFilter && roleFilter !== 'all') {
+      queryParams.append('role', roleFilter);
+    }
+    const url = `${BASE_URL}/admin?${queryParams.toString()}`;
     
     const response = await fetch(url, {
       method: 'GET',

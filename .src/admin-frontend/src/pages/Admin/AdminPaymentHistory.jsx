@@ -13,6 +13,8 @@ export default function AdminPaymentHistory() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
 
   // Modals state
@@ -23,8 +25,10 @@ export default function AdminPaymentHistory() {
     setLoading(true);
     setError('');
     try {
-      const res = await getAdminTransactions('');
+      const res = await getAdminTransactions(currentPage, itemsPerPage, roleFilter);
       setTransactions(res.data || res || []);
+      setTotal(res.total || 0);
+      setTotalPages(res.totalPages || 1);
     } catch (err) {
       setError(err.message || 'Lỗi khi tải lịch sử giao dịch.');
     } finally {
@@ -33,9 +37,8 @@ export default function AdminPaymentHistory() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
-  }, []);
+  }, [currentPage, roleFilter]);
 
   const handleOpenDetail = (tx) => {
     setSelectedItem(tx);
@@ -68,20 +71,15 @@ export default function AdminPaymentHistory() {
 
 
 
-  // Filter Data
+  // Filter Data (Client side for search only, since API doesn't support complex search yet)
   const filteredData = transactions.filter(tx => {
+    if (!searchKeyword) return true;
     const searchString = `${tx.transactionId} ${tx.invoiceId} ${tx.userName} ${tx.userEmail}`.toLowerCase();
-    const matchSearch = searchString.includes(searchKeyword.toLowerCase());
-    const matchRole = roleFilter === '' || normalizeRole(tx.userRole) === roleFilter;
-    return matchSearch && matchRole;
+    return searchString.includes(searchKeyword.toLowerCase());
   });
 
-  // Phân trang
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const currentData = filteredData.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Data to display
+  const currentData = filteredData;
 
   const handleNextPage = () => {
     if (currentPage < totalPages) setCurrentPage(currentPage + 1);
@@ -230,7 +228,7 @@ export default function AdminPaymentHistory() {
           {totalPages > 1 && (
             <div className="flex justify-between items-center mt-6 text-sm text-slate-500 dark:text-slate-400">
               <div>
-                Đang hiển thị {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredData.length)} trên tổng số {filteredData.length} giao dịch.
+                Đang hiển thị {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, total)} trên tổng số {total} giao dịch.
               </div>
               <div className="flex gap-2">
                 <button

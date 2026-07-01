@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import Login from './pages/Login/Login';
 import ForgotPassword from './pages/Login/ForgotPassword';
+import ResetPassword from './pages/Login/ResetPassword';
 import AdminManagement from './pages/Admin/AdminManagement';
 
 import Home from './pages/Home';
@@ -26,6 +27,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/quan-ly" element={<AdminManagement />} />
             <Route path="/tra-cuu" element={<Home />} />
             <Route path="/thong-bao" element={<Notifications />} />
