@@ -1,0 +1,20 @@
+.footer {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.footer__link {
+  transition: color 0.2s ease;
+}
+
+.footer__link:hover {
+  color: #006d37;
+}
+
+.footer__social-button {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.footer__social-button:hover {
+  background-color: #006d37;
+  color: #ffffff;
+}

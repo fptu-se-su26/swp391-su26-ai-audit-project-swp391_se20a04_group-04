@@ -13,7 +13,6 @@ import authService from '../../services/authService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import NotificationCard from './NotificationCard';
 import NotificationSettings from './NotificationSettings';
-import AdminNotifications from '../Admin/AdminNotifications';
 import { TABS } from './notificationUtils';
 
 export default function Notifications() {
@@ -65,10 +64,7 @@ export default function Notifications() {
     return () => window.removeEventListener('notificationsUpdated', loadData);
   }, []);
 
-  // ─── Kiểm tra quyền ADMIN sau khi tất cả Hooks đã được gọi ───────────────
-  if (currentUser && normalizeRole(currentUser.role) === ROLES.ADMIN) {
-    return <AdminNotifications />;
-  }
+  // Removed Admin check for regular frontend
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
