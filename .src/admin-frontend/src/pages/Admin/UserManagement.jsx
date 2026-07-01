@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getUsers, createUser, updateUser, deleteUser } from '../../services/userService';
 import { ROLES, normalizeRole, REGISTER_ROLES } from '../../constants/roles';
+import toast from 'react-hot-toast';
 
 export default function UserManagement({ hideHeader = false }) {
   const [allUsers, setAllUsers] = useState([]);
@@ -104,8 +105,9 @@ export default function UserManagement({ hideHeader = false }) {
     try {
       await deleteUser(uid);
       fetchData();
+      toast.success('Đã xóa người dùng.');
     } catch (err) {
-      alert(err.message || 'Lỗi khi xóa.');
+      toast.error(err.message || 'Lỗi khi xóa.');
     }
   };
 
@@ -125,8 +127,9 @@ export default function UserManagement({ hideHeader = false }) {
       }
       setShowModal(false);
       fetchData();
+      toast.success('Lưu người dùng thành công.');
     } catch (err) {
-      alert(err.message || 'Lỗi khi lưu.');
+      toast.error(err.message || 'Lỗi khi lưu.');
     } finally {
       setSaving(false);
     }
