@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import authService from '../services/authService';
 
 const API_BASE = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace('/api/auth', '')
@@ -9,7 +10,7 @@ let cachedApiKey = null;
 let googleMapsLoadPromise = null;
 
 async function getAuthHeaders() {
-  const token = localStorage.getItem('token');
+  const token = await authService.getFreshToken();
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
@@ -36,7 +37,7 @@ function loadGoogleMaps(apiKey) {
 
   googleMapsLoadPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&language=vi`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,marker&language=vi`;
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
@@ -564,16 +565,18 @@ export default function CollectionRouteMap({
         </div>
       )}
 
-      {/* Google Map container */}
-      <div className="h-96" ref={mapContainerRef}>
+      {/* Google Map container — keep spinner OUTSIDE mapContainerRef so React never
+           tries to removeChild a node that Google Maps has already restructured */}
+      <div className="relative h-96">
         {!mapReady && (
-          <div className="flex items-center justify-center h-full bg-slate-50 dark:bg-slate-900">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-50 dark:bg-slate-900">
             <div className="text-center">
               <span className="inline-block h-8 w-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin" />
               <p className="mt-3 text-sm text-slate-500">Đang tải Google Maps...</p>
             </div>
           </div>
         )}
+        <div className="h-full" ref={mapContainerRef} />
       </div>
 
       <div className="p-5 border-t border-slate-100 dark:border-slate-700">

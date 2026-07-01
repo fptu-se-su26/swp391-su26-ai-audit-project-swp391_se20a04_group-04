@@ -1834,6 +1834,7 @@ app.delete('/api/notifications/admin/:id', verifyToken, ensureAdmin, async (req,
 // GOOGLE MAPS API PROXY ENDPOINTS
 // ============================================================
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
+const GOOGLE_MAPS_SERVER_KEY = process.env.GOOGLE_MAPS_SERVER_KEY || GOOGLE_MAPS_API_KEY;
 
 /**
  * GET /api/maps/key
@@ -1861,7 +1862,7 @@ app.get('/api/maps/directions', verifyToken, async (req, res) => {
     const params = new URLSearchParams({
       origin,
       destination,
-      key: GOOGLE_MAPS_API_KEY,
+      key: GOOGLE_MAPS_SERVER_KEY,
       mode: 'driving',
       language: 'vi',
     });
@@ -1889,7 +1890,7 @@ app.get('/api/maps/geocode', verifyToken, async (req, res) => {
 
   try {
     const params = new URLSearchParams({
-      key: GOOGLE_MAPS_API_KEY,
+      key: GOOGLE_MAPS_SERVER_KEY,
       language: 'vi',
     });
     if (address) params.set('address', address);
@@ -1918,7 +1919,7 @@ app.get('/api/maps/places', verifyToken, async (req, res) => {
   try {
     const params = new URLSearchParams({
       query,
-      key: GOOGLE_MAPS_API_KEY,
+      key: GOOGLE_MAPS_SERVER_KEY,
       language: 'vi',
     });
     if (location) params.set('location', location);
@@ -1948,7 +1949,7 @@ app.get('/api/maps/distance-matrix', verifyToken, async (req, res) => {
     const params = new URLSearchParams({
       origins,
       destinations,
-      key: GOOGLE_MAPS_API_KEY,
+      key: GOOGLE_MAPS_SERVER_KEY,
       mode: 'driving',
       language: 'vi',
     });
