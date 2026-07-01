@@ -896,7 +896,7 @@ export default function Dashboard() {
                     type="button"
                     onClick={handleSaveRoute}
                     disabled={managerLoading || !assignment.scheduleId || isAssignmentLocked}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100"
+                    className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-5 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:border-slate-200 dark:disabled:border-slate-700 disabled:bg-slate-100 dark:disabled:bg-slate-900"
                   >
                     {managerLoading ? 'Đang lưu tuyến...' : 'Lưu route đã chỉnh sửa'}
                   </button>

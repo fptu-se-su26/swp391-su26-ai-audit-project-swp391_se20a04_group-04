@@ -118,7 +118,7 @@ export default function AdminPaymentHistory() {
               {/* Refresh Button */}
               <button 
                 onClick={fetchData}
-                className="p-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 transition-colors"
+                className="p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
                 title="Tải lại"
               >
                 <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
