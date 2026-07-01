@@ -453,8 +453,35 @@ async function ensureAdmin(req, res, next) {
 
 app.get('/api/admin/users', verifyToken, ensureAdmin, async (req, res) => {
   try {
-    // Tải toàn bộ user (giới hạn 1000 để an toàn RAM) cho frontend tự lọc và phân trang
-    const snapshot = await db.collection(USERS_COLLECTION).orderBy('createdAt', 'desc').limit(1000).get();
+    const page = parseInt(req.query.page) || 1;
+    const limitNum = parseInt(req.query.limit) || 10;
+    const { role = '', search = '' } = req.query;
+
+    let query = db.collection(USERS_COLLECTION);
+    
+    // Áp dụng bộ lọc (Không dùng orderBy chung với where để tránh lỗi Composite Index)
+    let hasFilter = false;
+    
+    if (search) {
+      query = query.where('email', '>=', search).where('email', '<=', search + '\uf8ff');
+      hasFilter = true;
+    } else if (role && role !== 'all') {
+      // Role lưu trong DB có thể là chuỗi viết hoa hoặc viết thường, cần normalize
+      // Tuy nhiên query Firestore phân biệt hoa thường, tạm coi data chuẩn
+      query = query.where('role', '==', role);
+      hasFilter = true;
+    }
+    
+    // Nếu không có filter thì mới sắp xếp theo createdAt
+    if (!hasFilter) {
+      query = query.orderBy('createdAt', 'desc');
+    }
+
+    const totalSnapshot = await query.count().get();
+    const total = totalSnapshot.data().count;
+
+    const snapshot = await query.offset((page - 1) * limitNum).limit(limitNum).get();
+    
     let users = snapshot.docs.map(doc => {
       const u = normalizeUser(doc.data(), doc.id);
       u.createdAt = doc.data().createdAt || '';
@@ -463,7 +490,9 @@ app.get('/api/admin/users', verifyToken, ensureAdmin, async (req, res) => {
 
     return res.json({
       data: users,
-      total: users.length
+      total,
+      page,
+      totalPages: Math.ceil(total / limitNum)
     });
   } catch (error) {
     console.error('[Admin] Lỗi lấy danh sách user:', error);
@@ -547,18 +576,64 @@ app.delete('/api/admin/users/:uid', verifyToken, ensureAdmin, async (req, res) =
 
 app.get('/api/admin/transactions', verifyToken, ensureAdmin, async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limitNum = parseInt(req.query.limit) || 10;
     const { role = '' } = req.query;
 
-    const paymentsSnapshot = await db.collection('payments').get();
-    const payments = [];
+    // 1. Fetch payments (limit to a reasonable max like 2000 to prevent OOM)
+    const paymentsSnapshot = await db.collection('payments').limit(2000).get();
+    let payments = [];
     paymentsSnapshot.forEach(doc => {
       payments.push({ id: doc.id, ...doc.data() });
     });
 
-    const userIds = [...new Set(payments.map(pm => pm.userId).filter(Boolean))];
-    const usersMap = {};
-    if (userIds.length > 0) {
-      const refs = userIds.map(id => db.collection(USERS_COLLECTION).doc(id));
+    const getTime = (dateVal) => {
+      if (!dateVal) return 0;
+      if (typeof dateVal === 'string') return new Date(dateVal).getTime();
+      if (dateVal.toDate) return dateVal.toDate().getTime(); // Firestore Timestamp
+      if (dateVal._seconds) return dateVal._seconds * 1000;
+      if (dateVal.seconds) return dateVal.seconds * 1000;
+      return new Date(dateVal).getTime();
+    };
+
+    // 2. Sort payments by time descending
+    payments.sort((a, b) => {
+      const timeA = getTime(a.createdAt || a.paidAt);
+      const timeB = getTime(b.createdAt || b.paidAt);
+      return timeB - timeA;
+    });
+
+    let usersMap = {};
+    let filteredPayments = [];
+
+    // 3. Filter by role if provided
+    if (role && role !== 'all') {
+      // Optimization: Fetch only users with this role to filter payments
+      const roleUsersSnapshot = await db.collection(USERS_COLLECTION).where('role', '==', role).get();
+      roleUsersSnapshot.forEach(doc => {
+        const u = normalizeUser(doc.data(), doc.id);
+        usersMap[doc.id] = {
+          fullName: u.fullName,
+          email: u.email,
+          role: normalizeRole(u.role),
+        };
+      });
+      const targetUserIds = new Set(Object.keys(usersMap));
+      filteredPayments = payments.filter(pm => targetUserIds.has(pm.userId));
+    } else {
+      filteredPayments = payments;
+    }
+
+    const total = filteredPayments.length;
+    
+    // 4. Paginate
+    const paginatedPayments = filteredPayments.slice((page - 1) * limitNum, page * limitNum);
+
+    // 5. Fetch user info only for the paginated payments (if not already fetched)
+    const userIdsToFetch = [...new Set(paginatedPayments.map(pm => pm.userId).filter(id => id && !usersMap[id]))];
+    
+    if (userIdsToFetch.length > 0) {
+      const refs = userIdsToFetch.map(id => db.collection(USERS_COLLECTION).doc(id));
       for (let i = 0; i < refs.length; i += 100) {
         const chunkRefs = refs.slice(i, i + 100);
         const userDocs = await db.getAll(...chunkRefs);
@@ -575,7 +650,8 @@ app.get('/api/admin/transactions', verifyToken, ensureAdmin, async (req, res) =>
       }
     }
 
-    let transactions = payments.map(pm => {
+    // 6. Map to final output
+    const transactions = paginatedPayments.map(pm => {
       const user = usersMap[pm.userId] || {};
       return {
         ...pm,
@@ -586,25 +662,12 @@ app.get('/api/admin/transactions', verifyToken, ensureAdmin, async (req, res) =>
       };
     });
 
-    if (role) {
-      transactions = transactions.filter(t => t.userRole === role);
-    }
-    const getTime = (dateVal) => {
-      if (!dateVal) return 0;
-      if (typeof dateVal === 'string') return new Date(dateVal).getTime();
-      if (dateVal.toDate) return dateVal.toDate().getTime(); // Firestore Timestamp
-      if (dateVal._seconds) return dateVal._seconds * 1000;
-      if (dateVal.seconds) return dateVal.seconds * 1000;
-      return new Date(dateVal).getTime();
-    };
-
-    transactions.sort((a, b) => {
-      const timeA = getTime(a.createdAt || a.paidAt);
-      const timeB = getTime(b.createdAt || b.paidAt);
-      return timeB - timeA;
+    return res.status(200).json({ 
+      data: transactions,
+      total,
+      page,
+      totalPages: Math.ceil(total / limitNum)
     });
-
-    return res.status(200).json({ data: transactions });
   } catch (error) {
     console.error('[Admin] Lỗi lấy danh sách giao dịch:', error);
     return res.status(500).json({ error: 'Lỗi khi tải lịch sử giao dịch.' });
@@ -1787,8 +1850,10 @@ app.post('/api/notifications/settings', verifyToken, async (req, res) => {
  */
 app.get('/api/notifications/admin', verifyToken, ensureAdmin, async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limitNum = parseInt(req.query.limit) || 10;
     const { role } = req.query;
-    const notifications = await notificationService.getAdminNotifications(role);
+    const notifications = await notificationService.getAdminNotifications(role, page, limitNum);
     return res.status(200).json(notifications);
   } catch (error) {
     console.error('[API] Lỗi lấy danh sách thông báo admin:', error.message);

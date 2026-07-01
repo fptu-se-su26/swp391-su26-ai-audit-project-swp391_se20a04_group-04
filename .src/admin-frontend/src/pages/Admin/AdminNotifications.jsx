@@ -13,6 +13,8 @@ export default function AdminNotifications() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
 
   // Modals state
@@ -36,9 +38,10 @@ export default function AdminNotifications() {
     setLoading(true);
     setError('');
     try {
-      // Tải tất cả thông báo để hỗ trợ tìm kiếm toàn cục theo Keyword
-      const res = await notificationService.getAdminNotifications('');
+      const res = await notificationService.getAdminNotifications(currentPage, itemsPerPage, roleFilter);
       setNotifications(res.data || res || []);
+      setTotal(res.total || 0);
+      setTotalPages(res.totalPages || 1);
     } catch (err) {
       setError(err.message || 'Lỗi khi tải danh sách thông báo.');
     } finally {
@@ -47,9 +50,8 @@ export default function AdminNotifications() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNotifications();
-  }, []);
+  }, [currentPage, roleFilter]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -172,19 +174,14 @@ export default function AdminNotifications() {
     return "Vừa xong";
   };
 
-  // Filter Data
+  // Filter Data (Client side for search only)
   const filteredData = notifications.filter(n => {
-    const matchRole = roleFilter === 'all' || n.targetRole === roleFilter;
     const matchSearch = (n.title || '').toLowerCase().includes(searchKeyword.toLowerCase());
-    return matchRole && matchSearch;
+    return matchSearch;
   });
 
   // --- Phân trang ---
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const currentData = filteredData.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const currentData = filteredData;
 
   const handleNextPage = () => {
     if (currentPage < totalPages) setCurrentPage(currentPage + 1);
@@ -359,7 +356,7 @@ export default function AdminNotifications() {
           {totalPages > 1 && (
             <div className="flex justify-between items-center mt-6 text-sm text-slate-500 dark:text-slate-400">
               <div>
-                Đang hiển thị {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredData.length)} trên tổng số {filteredData.length} thông báo.
+                Đang hiển thị {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, total)} trên tổng số {total} thông báo.
               </div>
               <div className="flex gap-2">
                 <button

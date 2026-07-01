@@ -8,6 +8,7 @@ import Guide from './pages/Guide';
 import Notifications from './pages/Notifications';
 import Login from './pages/Login/Login';
 import ForgotPassword from './pages/Login/ForgotPassword';
+import ResetPassword from './pages/Login/ResetPassword';
 import Register from './pages/Register/Register';
 import Dashboard from './pages/Dashboard';
 import CollectorDashboard from './pages/Collector';
@@ -30,6 +31,7 @@ function App() {
             <Route path="/thong-bao" element={<Notifications />} />
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/collector" element={<CollectorDashboard />} />

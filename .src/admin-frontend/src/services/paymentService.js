@@ -76,12 +76,9 @@ export async function fetchInvoiceHistory() {
   return parseJsonResponse(response);
 }
 
-export async function getAdminTransactions(roleFilter = '') {
-  let url = `${API_BASE}/api/admin/transactions`;
-  if (roleFilter) {
-    url += `?role=${roleFilter}`;
-  }
-  const response = await fetch(url, {
+export async function getAdminTransactions(page = 1, limit = 10, roleFilter = '') {
+  const query = new URLSearchParams({ page, limit, role: roleFilter }).toString();
+  const response = await fetch(`${API_BASE}/api/admin/transactions?${query}`, {
     headers: getAuthHeaders(),
   });
   return parseJsonResponse(response);

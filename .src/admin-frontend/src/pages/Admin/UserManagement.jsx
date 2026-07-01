@@ -5,8 +5,10 @@ import { ROLES, normalizeRole, REGISTER_ROLES } from '../../constants/roles';
 import toast from 'react-hot-toast';
 
 export default function UserManagement({ hideHeader = false }) {
-  const [allUsers, setAllUsers] = useState([]);
+  const [users, setUsers] = useState([]);
   const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const limit = 10;
   
   const [search, setSearch] = useState('');
@@ -34,8 +36,10 @@ export default function UserManagement({ hideHeader = false }) {
     setLoading(true);
     setError('');
     try {
-      const res = await getUsers('', '', '', ''); // Call API without limit to get all
-      setAllUsers(res.data || []);
+      const res = await getUsers(page, limit, debouncedSearch, roleFilter);
+      setUsers(res.data || []);
+      setTotal(res.total || 0);
+      setTotalPages(res.totalPages || 1);
     } catch (err) {
       setError(err.message || 'Lỗi khi tải danh sách người dùng.');
     } finally {
@@ -51,25 +55,8 @@ export default function UserManagement({ hideHeader = false }) {
   }, [search]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
-  }, []);
-
-  const filteredUsers = allUsers.filter(u => {
-    if (roleFilter && u.role !== roleFilter) return false;
-    if (debouncedSearch) {
-      const lowerSearch = debouncedSearch.toLowerCase();
-      return (u.fullName && u.fullName.toLowerCase().includes(lowerSearch)) || 
-             (u.email && u.email.toLowerCase().includes(lowerSearch)) ||
-             (u.uid && u.uid.toLowerCase().includes(lowerSearch));
-    }
-    return true;
-  });
-
-  const total = filteredUsers.length;
-  const totalPages = Math.ceil(total / limit) || 1;
-  const start = (page - 1) * limit;
-  const users = filteredUsers.slice(start, start + limit);
+  }, [page, debouncedSearch, roleFilter]);
 
   const handleSearchChange = (e) => {
     setSearch(e.target.value);
