@@ -927,6 +927,7 @@ export default function Dashboard() {
               />
             </section>
           </div>
+          )}
 
           <aside className="space-y-6">
             <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
