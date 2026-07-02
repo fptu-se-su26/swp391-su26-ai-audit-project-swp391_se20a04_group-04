@@ -2,7 +2,7 @@
  * Service quản lý lịch thu gom rác từ Firestore Database
  * Sử dụng Firebase Admin SDK
  */
-const { db } = require('../firebaseAdmin');
+const { db } = require('../config/firebase');
 
 /**
  * Chuẩn hóa chuỗi để so sánh fuzzy (bỏ dấu, viết thường, bỏ ký tự đặc biệt)

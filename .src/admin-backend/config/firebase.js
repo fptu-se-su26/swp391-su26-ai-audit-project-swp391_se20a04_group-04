@@ -2,7 +2,7 @@ const admin = require('firebase-admin');
 const fs = require('fs');
 const path = require('path');
 
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 let isInitialized = false;
 
@@ -24,7 +24,7 @@ if (process.env.SERVICE_ACCOUNT_JSON) {
 if (!isInitialized && process.env.SERVICE_ACCOUNT_PATH) {
   const candidatePath = path.isAbsolute(process.env.SERVICE_ACCOUNT_PATH)
     ? process.env.SERVICE_ACCOUNT_PATH
-    : path.join(__dirname, process.env.SERVICE_ACCOUNT_PATH);
+    : path.join(__dirname, '..', process.env.SERVICE_ACCOUNT_PATH);
 
   if (fs.existsSync(candidatePath)) {
     try {
@@ -42,8 +42,8 @@ if (!isInitialized && process.env.SERVICE_ACCOUNT_PATH) {
   }
 }
 
-// 3) Truyền thống: tìm file .src/backend/serviceAccountKey.json (bị .gitignore)
-const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
+// 3) Truyền thống: tìm file serviceAccountKey.json (bị .gitignore)
+const serviceAccountPath = path.join(__dirname, '..', 'serviceAccountKey.json');
 if (!isInitialized && fs.existsSync(serviceAccountPath)) {
   try {
     const serviceAccount = require(serviceAccountPath);

@@ -1,4 +1,4 @@
-const { db } = require('../firebaseAdmin');
+const { db } = require('../config/firebase');
 
 /**
  * Tạo phản ánh mới của cư dân.

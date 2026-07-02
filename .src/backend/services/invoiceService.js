@@ -1,4 +1,4 @@
-const { db } = require('../firebaseAdmin');
+const { db } = require('../config/firebase');
 
 function getTimestampMillis(value) {
   if (!value) return 0;
