@@ -255,6 +255,21 @@ export default function AdminComplaints({ hideHeader = false }) {
                           </p>
                         </div>
 
+                        {/* Hình ảnh minh chứng (nếu có) */}
+                        {complaint.imageUrl && (
+                          <div className="space-y-1.5">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hình ảnh minh chứng:</h4>
+                            <div className="max-w-md overflow-hidden rounded-xl border border-slate-200/60 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-800/30">
+                              <img 
+                                src={complaint.imageUrl} 
+                                alt="Hình ảnh minh chứng thực tế" 
+                                className="w-full h-auto max-h-64 object-cover cursor-zoom-in hover:opacity-95 transition-opacity"
+                                onClick={() => window.open(complaint.imageUrl, '_blank')}
+                              />
+                            </div>
+                          </div>
+                        )}
+
                         {complaint.reply && (
                           <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-xl space-y-2 mt-4">
                             <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-350 uppercase">
