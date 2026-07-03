@@ -1,4 +1,4 @@
-const { db } = require('../firebaseAdmin');
+const { db } = require('../config/firebase');
 const { ROLES } = require('../constants/roles');
 
 const REPORTS_COLLECTION = 'reports';

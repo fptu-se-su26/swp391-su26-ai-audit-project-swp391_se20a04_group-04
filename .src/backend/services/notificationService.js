@@ -1,4 +1,4 @@
-const { admin, db } = require('../firebaseAdmin');
+const { admin, db } = require('../config/firebase');
 const { normalizeRole } = require('../constants/roles');
 
 const NOTIFICATIONS_COLLECTION = 'notifications';
