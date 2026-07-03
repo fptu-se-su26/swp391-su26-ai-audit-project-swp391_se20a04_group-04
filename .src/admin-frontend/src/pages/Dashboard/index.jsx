@@ -900,14 +900,7 @@ export default function Dashboard() {
                   >
                     {managerLoading ? 'Đang lưu tuyến...' : 'Lưu route đã chỉnh sửa'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleConfirmRoute}
-                    disabled={managerLoading || !assignment.scheduleId || !selectedSchedule?.assigned_truck || !selectedSchedule?.assigned_driver || isAssignmentLocked}
-                    className="w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    {managerLoading ? 'Đang xác nhận...' : 'Placeholder: Xác nhận tuyến'}
-                  </button>
+
                 </div>
               </form>
               {isAssignmentLocked && (
