@@ -9,6 +9,7 @@ const complaintRoutes = require('./complaintRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const healthRoutes = require('./healthRoutes');
 const mapsRoutes = require('./mapsRoutes');
+const aiRoutes = require('./aiRoutes');
 
 /**
  * Mount tất cả route modules lên Express app.
@@ -35,6 +36,9 @@ function mountRoutes(app) {
 
   // Maps key — authenticated clients only
   app.use('/api/maps', mapsRoutes);
+
+  // AI features — chat (resident) & complaint analysis (manager)
+  app.use('/api/ai', aiRoutes);
 
   // Health check
   app.use('/health', healthRoutes);

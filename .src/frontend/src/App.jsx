@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import AIChatBox from './components/AIChatBox';
 import Home from './pages/Home';
 import Payment from './pages/Payment';
 import Guide from './pages/Guide';
@@ -41,6 +42,7 @@ function App() {
           </Routes>
         </div>
         <Footer />
+        <AIChatBox />
       </div>
     </Router>
   );

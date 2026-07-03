@@ -5,6 +5,7 @@ import managerReportService from '../../services/managerReportService';
 import complaintService from '../../services/complaintService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
+import AIComplaintSummary from '../../components/AIComplaintSummary';
 
 const API_BASE = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace('/api/auth', '')
@@ -992,6 +993,8 @@ export default function Dashboard() {
               </div>
             </div>
 
+            <AIComplaintSummary />
+
             <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -1000,8 +1003,6 @@ export default function Dashboard() {
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">{complaints.length} phản ánh</span>
               </div>
-
-              {/* Status filter tabs */}
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {[
                   { key: 'all', label: 'Tất cả' },
