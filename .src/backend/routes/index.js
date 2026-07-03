@@ -8,6 +8,7 @@ const invoiceRoutes = require('./invoiceRoutes');
 const complaintRoutes = require('./complaintRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const healthRoutes = require('./healthRoutes');
+const mapsRoutes = require('./mapsRoutes');
 
 /**
  * Mount tất cả route modules lên Express app.
@@ -31,6 +32,9 @@ function mountRoutes(app) {
 
   // Protected routes — Notifications (any authenticated user)
   app.use('/api/notifications', notificationRoutes);
+
+  // Maps key — authenticated clients only
+  app.use('/api/maps', mapsRoutes);
 
   // Health check
   app.use('/health', healthRoutes);
