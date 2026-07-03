@@ -32,7 +32,7 @@ export default function Login() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
-    
+
     // Clear errors when typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
@@ -144,7 +144,7 @@ export default function Login() {
   return (
     <div className="login-container py-16 px-4 flex items-center justify-center min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900">
       <div className="login-card w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-        
+
         {/* Top Accent Bar */}
         <div className="h-2 bg-emerald-600 w-full"></div>
 
@@ -174,11 +174,10 @@ export default function Login() {
 
           {/* Error Banner */}
           {apiError && (
-            <div className={`rounded-lg p-3 mb-5 flex items-start gap-2.5 text-xs animate-fade-in border ${
-              isEmailUnverified
-                ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900'
-                : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900'
-            }`}>
+            <div className={`rounded-lg p-3 mb-5 flex items-start gap-2.5 text-xs animate-fade-in border ${isEmailUnverified
+              ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900'
+              : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900'
+              }`}>
               <span className="material-symbols-outlined text-base mt-0.5 flex-shrink-0">
                 {isEmailUnverified ? 'mark_email_unread' : 'error'}
               </span>
@@ -186,8 +185,7 @@ export default function Login() {
                 <p>{apiError}</p>
                 {isEmailUnverified && (
                   <p className="mt-1.5 font-semibold">
-                    Chưa nhận được email?{' '}
-                    <Link to="/register" className="underline hover:no-underline">Đăng ký lại</Link>{' '}để gửi lại email xác nhận.
+                    Tài khoản của bạn chưa được xác nhận email. Vui lòng kiểm tra hộp thư của bạn.
                   </p>
                 )}
               </div>
@@ -195,7 +193,7 @@ export default function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            
+
             {/* Email Address */}
             <div className="form-group">
               <label htmlFor="email" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
@@ -212,9 +210,8 @@ export default function Login() {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="example@gmail.com"
-                  className={`w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border ${
-                    errors.email ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-200'
-                  } rounded-xl text-sm focus:outline-none focus:ring-4 focus:bg-white transition-all`}
+                  className={`w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border ${errors.email ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-200'
+                    } rounded-xl text-sm focus:outline-none focus:ring-4 focus:bg-white transition-all`}
                   disabled={isLoading}
                 />
               </div>
@@ -227,9 +224,6 @@ export default function Login() {
                 <label htmlFor="password" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   Mật khẩu
                 </label>
-                <Link to="/forgot-password" className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-semibold">
-                  Quên mật khẩu?
-                </Link>
               </div>
               <div className="input-wrapper relative">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
@@ -242,9 +236,8 @@ export default function Login() {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="Nhập mật khẩu của bạn"
-                  className={`w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-slate-900 border ${
-                    errors.password ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-200'
-                  } rounded-xl text-sm focus:outline-none focus:ring-4 focus:bg-white transition-all`}
+                  className={`w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-slate-900 border ${errors.password ? 'border-rose-500 focus:ring-rose-200' : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-200'
+                    } rounded-xl text-sm focus:outline-none focus:ring-4 focus:bg-white transition-all`}
                   disabled={isLoading}
                 />
                 <button
@@ -279,9 +272,8 @@ export default function Login() {
             {/* Submit Button */}
             <button
               type="submit"
-              className={`w-full py-3 px-4 mt-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all focus:outline-none focus:ring-4 focus:ring-emerald-100 flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-[0.98] ${
-                isLoading ? 'opacity-85 cursor-not-allowed active:scale-100' : ''
-              }`}
+              className={`w-full py-3 px-4 mt-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all focus:outline-none focus:ring-4 focus:ring-emerald-100 flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-[0.98] ${isLoading ? 'opacity-85 cursor-not-allowed active:scale-100' : ''
+                }`}
               disabled={isLoading || isGoogleLoading}
             >
               {isLoading ? (
@@ -309,9 +301,8 @@ export default function Login() {
             <button
               type="button"
               onClick={handleGoogleLogin}
-              className={`w-full py-3 px-4 mt-4 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-100 font-semibold rounded-xl text-sm transition-all focus:outline-none focus:ring-4 focus:ring-emerald-100 flex items-center justify-center gap-2 shadow-sm ${
-                isGoogleLoading ? 'opacity-85 cursor-not-allowed' : ''
-              }`}
+              className={`w-full py-3 px-4 mt-4 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-100 font-semibold rounded-xl text-sm transition-all focus:outline-none focus:ring-4 focus:ring-emerald-100 flex items-center justify-center gap-2 shadow-sm ${isGoogleLoading ? 'opacity-85 cursor-not-allowed' : ''
+                }`}
               disabled={isLoading || isGoogleLoading}
             >
               {isGoogleLoading ? (
@@ -330,15 +321,7 @@ export default function Login() {
               )}
             </button>
 
-            {/* Register redirection link */}
-            <div className="text-center mt-6 pt-2 border-t border-slate-100 dark:border-slate-700">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Chưa có tài khoản EcoSchedule?{' '}
-                <Link to="/register" className="text-emerald-600 dark:text-emerald-400 hover:underline font-bold transition-colors">
-                  Đăng ký tài khoản
-                </Link>
-              </p>
-            </div>
+
 
           </form>
         </div>
