@@ -20,6 +20,9 @@ export default function Complaints() {
   const [selectedWard, setSelectedWard] = useState('');
   // Khởi tạo trực tiếp từ user để tránh setState trong useEffect
   const [neighborhood, setNeighborhood] = useState(user?.neighborhood || '');
+  const [image, setImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isCompressing, setIsCompressing] = useState(false);
 
   // Dropdown options
   const [provinces, setProvinces] = useState([]);
@@ -95,6 +98,68 @@ export default function Complaints() {
     }
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Vui lòng chỉ chọn tệp hình ảnh.');
+      return;
+    }
+
+    setIsCompressing(true);
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const MAX_WIDTH = 1280;
+        const MAX_HEIGHT = 1280;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        setImagePreview(compressedBase64);
+        setImage(compressedBase64);
+        setIsCompressing(false);
+      };
+      img.onerror = () => {
+        setError('Không thể đọc tệp hình ảnh này.');
+        setIsCompressing(false);
+      };
+      img.src = event.target.result;
+    };
+    reader.onerror = () => {
+      setError('Có lỗi xảy ra khi đọc tệp.');
+      setIsCompressing(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeSelectedImage = () => {
+    setImage(null);
+    setImagePreview(null);
+  };
+
   // Gửi biểu mẫu phản ánh
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -123,7 +188,8 @@ export default function Complaints() {
         description: description.trim(),
         city: provinceObj ? provinceObj.name : '',
         ward: wardObj ? wardObj.name : '',
-        neighborhood: neighborhood.trim()
+        neighborhood: neighborhood.trim(),
+        imageUrl: image || ''
       };
 
       await complaintService.createComplaint(payload);
@@ -133,6 +199,8 @@ export default function Complaints() {
       // Reset form
       setTitle('');
       setDescription('');
+      setImage(null);
+      setImagePreview(null);
       
       // Refresh history list
       fetchComplaintsHistory();
@@ -370,6 +438,51 @@ export default function Complaints() {
                     />
                   </div>
 
+                  {/* Tải ảnh minh chứng */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      Hình ảnh minh chứng (Tùy chọn)
+                    </label>
+                    
+                    {!imagePreview ? (
+                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all group">
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center px-4">
+                          <span className="material-symbols-outlined text-slate-400 group-hover:text-emerald-500 transition-colors text-2xl mb-1">
+                            {isCompressing ? 'sync' : 'add_a_photo'}
+                          </span>
+                          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            {isCompressing ? 'Đang xử lý ảnh...' : 'Nhấp để tải lên ảnh chụp sự cố'}
+                          </p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                            PNG, JPG (Tự động tối ưu dung lượng)
+                          </p>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          disabled={isCompressing}
+                          className="hidden"
+                        />
+                      </label>
+                    ) : (
+                      <div className="relative rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-800 max-h-48 flex justify-center items-center">
+                        <img 
+                          src={imagePreview} 
+                          alt="Xem trước minh chứng" 
+                          className="max-w-full max-h-48 object-contain"
+                        />
+                        <button
+                          type="button"
+                          onClick={removeSelectedImage}
+                          className="absolute top-2 right-2 p-1.5 bg-slate-900/60 hover:bg-rose-600 text-white rounded-full transition-all focus:outline-none cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-sm block">close</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   <button
                     type="submit"
                     disabled={submitting}
@@ -472,6 +585,21 @@ export default function Complaints() {
                                   {complaint.description}
                                 </p>
                               </div>
+
+                              {/* Hình ảnh minh chứng (nếu có) */}
+                              {complaint.imageUrl && (
+                                <div className="space-y-1.5">
+                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hình ảnh minh chứng:</h4>
+                                  <div className="max-w-md overflow-hidden rounded-xl border border-slate-200/60 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-800/30">
+                                    <img 
+                                      src={complaint.imageUrl} 
+                                      alt="Hình ảnh minh chứng thực tế" 
+                                      className="w-full h-auto max-h-64 object-cover cursor-zoom-in hover:opacity-95 transition-opacity"
+                                      onClick={() => window.open(complaint.imageUrl, '_blank')}
+                                    />
+                                  </div>
+                                </div>
+                              )}
 
                               {/* Phản hồi của ban quản lý (nếu có) */}
                               {complaint.reply ? (

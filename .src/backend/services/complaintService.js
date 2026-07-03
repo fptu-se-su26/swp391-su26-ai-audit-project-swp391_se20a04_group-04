@@ -29,6 +29,7 @@ async function createComplaint(userId, userName, complaintData) {
     city: city || '',
     ward: ward || '',
     neighborhood: neighborhood || '',
+    imageUrl: complaintData.imageUrl || '',
     status: 'Open', // Trạng thái ban đầu: Open
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

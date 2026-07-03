@@ -1,0 +1,22 @@
+[
+  {
+    "role": "resident",
+    "loginEmail": "resident@example.com",
+    "loginPassword": "123456"
+  },
+  {
+    "role": "collector",
+    "loginEmail": "collector@example.com",
+    "loginPassword": "123456"
+  },
+  {
+    "role": "manager",
+    "loginEmail": "manager@example.com",
+    "loginPassword": "123456"
+  },
+  {
+    "role": "admin",
+    "loginEmail": "admin@example.com",
+    "loginPassword": "123456"
+  }
+]
