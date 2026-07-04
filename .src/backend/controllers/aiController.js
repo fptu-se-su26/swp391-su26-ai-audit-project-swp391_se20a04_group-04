@@ -1,8 +1,16 @@
 const { db } = require('../config/firebase');
 const https = require('https');
 
-const GEMINI_HOST = 'generativelanguage.googleapis.com';
-const GEMINI_MODEL = 'gemini-2.0-flash';
+// ─── OpenRouter Configuration ─────────────────────────────────────────────────
+const OPENROUTER_HOST = 'openrouter.ai';
+const OPENROUTER_PATH = '/api/v1/chat/completions';
+
+// Models — you can change these to any model on OpenRouter (400+ available)
+// Browse models at: https://openrouter.ai/models
+const RESIDENT_MODEL = 'google/gemini-2.5-flash'; // Standard, extremely fast, cheap, and reliable
+const MANAGER_MODEL = 'anthropic/claude-sonnet-5';  // The absolute best for reasoning and perfect JSON output
+
+// ─── HTTP Helper ──────────────────────────────────────────────────────────────
 
 function httpsPost(host, path, headers, body) {
   return new Promise((resolve, reject) => {
@@ -21,34 +29,58 @@ function httpsPost(host, path, headers, body) {
   });
 }
 
-async function callGemini(prompt) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY chưa được cấu hình.');
+// ─── OpenRouter API Call ──────────────────────────────────────────────────────
 
-  // AQ. = new Google AI Studio key format → x-goog-api-key header
-  // AIzaSy = legacy format → ?key= query param
-  const isNewFormat = apiKey.startsWith('AQ.');
-  const path = `/v1beta/models/${GEMINI_MODEL}:generateContent${isNewFormat ? '' : `?key=${apiKey}`}`;
+/**
+ * Call OpenRouter API with specified API key and model.
+ * Uses the OpenAI-compatible chat completions format.
+ * @param {string} prompt - The user prompt text
+ * @param {'resident'|'manager'} type - Which API key and model to use
+ * @returns {string} The AI response text
+ */
+async function callOpenRouter(prompt, type = 'resident') {
+  // Select the correct API key and model based on the type
+  const apiKey = type === 'manager'
+    ? process.env.OPENROUTER_MANAGER_API_KEY
+    : process.env.OPENROUTER_RESIDENT_API_KEY;
+
+  const model = type === 'manager' ? MANAGER_MODEL : RESIDENT_MODEL;
+
+  if (!apiKey) {
+    throw new Error(`OPENROUTER_${type.toUpperCase()}_API_KEY chưa được cấu hình trong .env`);
+  }
+
   const headers = {
     'Content-Type': 'application/json',
-    ...(isNewFormat ? { 'x-goog-api-key': apiKey } : {}),
+    'Authorization': `Bearer ${apiKey}`,
+    'HTTP-Referer': 'http://localhost:5001',
+    'X-Title': 'EcoSchedule',
   };
 
-  const { status, body } = await httpsPost(GEMINI_HOST, path, headers, {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
-  });
+  const requestBody = {
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: type === 'manager' ? 0.3 : 0.4, // Lower temp for manager JSON output
+    max_tokens: 1024,
+  };
+
+  console.log(`[OpenRouter] Calling model: ${model} (type: ${type})`);
+
+  const { status, body } = await httpsPost(OPENROUTER_HOST, OPENROUTER_PATH, headers, requestBody);
 
   let parsed;
   try { parsed = JSON.parse(body); } catch { parsed = {}; }
 
   if (status !== 200) {
-    const msg = parsed?.error?.message || `Gemini API lỗi ${status}`;
-    console.error('[Gemini] Error:', status, msg);
+    const msg = parsed?.error?.message || `OpenRouter API lỗi ${status}`;
+    console.error('[OpenRouter] Error:', status, msg);
     throw new Error(msg);
   }
 
-  return parsed?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  // OpenRouter returns data in the standard OpenAI format
+  const reply = parsed?.choices?.[0]?.message?.content || '';
+  console.log(`[OpenRouter] Response received (${reply.length} chars)`);
+  return reply;
 }
 
 // ─── Resident Chat ────────────────────────────────────────────────────────────
@@ -95,7 +127,7 @@ Câu hỏi của cư dân: ${message.trim()}
 
 Hãy trả lời:`;
 
-    const reply = await callGemini(prompt);
+    const reply = await callOpenRouter(prompt, 'resident');
     return res.json({ reply });
   } catch (error) {
     console.error('[AI Chat] Lỗi:', error.message);
@@ -117,7 +149,7 @@ async function complaintSummary(req, res) {
 
     const complaints = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    // Build a compact text list for Gemini
+    // Build a compact text list for the AI
     const complaintList = complaints
       .map(
         (c, i) =>
@@ -144,7 +176,7 @@ Hãy phân tích và trả về kết quả dưới dạng JSON hợp lệ (khô
 ]
 Sắp xếp theo priority từ cao (1) đến thấp. Chỉ trả về JSON, không có văn bản nào khác.`;
 
-    const raw = await callGemini(prompt);
+    const raw = await callOpenRouter(prompt, 'manager');
 
     // Parse JSON safely
     let groups = [];
