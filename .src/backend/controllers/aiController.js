@@ -194,7 +194,7 @@ BẮT BUỘC trả về định dạng JSON (không có markdown):
         const userComplaints = await complaintService.getUserComplaints(req.uid);
         if (userComplaints && userComplaints.length > 0) {
           const recent = userComplaints.slice(0, 3);
-          complaintContext = recent.map(c => `- Tiêu đề: "${c.title}" | Trạng thái: ${c.status === 'Open' ? 'Đang chờ xử lý' : c.status === 'in_resolve' ? 'Đang giải quyết' : c.status === 'resolved' ? 'Đã giải quyết' : 'Đã đóng'}`).join('\n');
+          complaintContext = recent.map(c => `- Tiêu đề: "${c.title}" | Tình trạng thực tế bạn đã báo: "${c.description || ''}" | Trạng thái hệ thống: ${c.status === 'Open' ? 'Đang chờ xử lý' : c.status === 'in_resolve' ? 'Đang giải quyết' : c.status === 'resolved' ? 'Đã giải quyết' : 'Đã đóng'} | Phản hồi từ Ban Quản Lý: "${c.reply || 'Chưa có phản hồi'}"`).join('\n');
         }
       } catch (err) {
         console.error('[AI Chat] Lỗi fetch dynamic context:', err.message);
@@ -215,6 +215,8 @@ Hệ thống có các tính năng sau, hãy hướng dẫn cư dân bấm vào c
 5. Thông báo: Xem các thông báo từ ban quản lý (đổi giờ do mưa bão, lễ tết). -> Hướng dẫn người dùng bấm vào mục "Thông báo".
 
 [QUY TẮC PHẢN HỒI (RẤT QUAN TRỌNG)]
+- NGẮN GỌN VÀ ĐÚNG TRỌNG TÂM: Chỉ trả lời trực tiếp vào vấn đề người dùng đang hỏi. TUYỆT ĐỐI KHÔNG liệt kê rườm rà tất cả các phản ánh hay hóa đơn khác nếu người dùng không yêu cầu. Không lặp lại câu hỏi hay kể lể dài dòng.
+- KHI XỬ LÝ PHẢN ÁNH: Nếu người dùng đang phàn nàn về một tình trạng cụ thể (ví dụ: rác tồn đọng), hãy dùng suy luận để chọn ĐÚNG 1 phản ánh khớp nhất trong danh sách để trả lời. TUYỆT ĐỐI KHÔNG nhắc đến bất kỳ phản ánh nào khác để tránh làm loãng thông tin.
 - SO SÁNH NGÀY THÁNG: Luôn để ý ngày hôm nay là ${currentDate}. NẾU DỮ LIỆU ĐỊA PHƯƠNG chỉ có lịch của ngày trong QUÁ KHỨ, hãy báo cho người dùng biết rằng: "Lịch thu gom gần nhất là vào ngày [X] và hiện tại ban quản lý chưa cập nhật lịch mới cho các ngày tiếp theo".
 - NẾU DỮ LIỆU ĐỊA PHƯƠNG có chứa lịch trình ở hiện tại/tương lai: Hãy ưu tiên đọc và thông báo trực tiếp lịch trình đó cho người dùng. SAU ĐÓ mới gợi ý thêm: "Để xem chi tiết hơn, bạn vui lòng bấm vào mục 'Tra cứu lịch'".
 - NẾU KHÔNG CÓ DỮ LIỆU (hoặc người dùng hỏi chung chung về lịch): Hãy lịch sự hỏi họ đang ở Tỉnh/Thành, Phường/Xã nào để bạn tra cứu giúp, HOẶC khuyên họ tự bấm vào nút "Tra cứu lịch".
