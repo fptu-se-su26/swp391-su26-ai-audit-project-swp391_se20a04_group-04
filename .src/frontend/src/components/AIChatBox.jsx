@@ -27,6 +27,27 @@ export default function AIChatBox({ city, ward, neighborhood }) {
     setLoading(true);
 
     try {
+      const user = authService.getCurrentUser();
+      let reqCity = city;
+      let reqWard = ward;
+
+      // Tự động lấy Phường từ địa chỉ của người dùng đang đăng nhập nếu chưa có
+      if (!reqCity && !reqWard && user && user.address) {
+        reqCity = 'Đà Nẵng'; // Mặc định hệ thống dùng Đà Nẵng
+        const wardMatch = user.address.match(/Phường\s+([^,]+)/i);
+        if (wardMatch) reqWard = `Phường ${wardMatch[1].trim()}`;
+      }
+
+      // Format history cho AI
+      const currentHistory = [...messages, { role: 'user', text }];
+      const formattedHistory = currentHistory
+        // Bỏ qua tin nhắn chào mừng mặc định nếu muốn, hoặc cứ gửi
+        .filter(m => m.text)
+        .map(m => ({
+          role: m.role === 'ai' ? 'assistant' : 'user',
+          content: m.text
+        }));
+
       const token = await authService.getFreshToken();
       const res = await fetch(`${API_BASE}/api/ai/chat`, {
         method: 'POST',
@@ -34,7 +55,7 @@ export default function AIChatBox({ city, ward, neighborhood }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: text, city, ward, neighborhood }),
+        body: JSON.stringify({ messages: formattedHistory, message: text, city: reqCity, ward: reqWard, neighborhood }),
       });
       const data = await res.json();
       setMessages((prev) => [
@@ -91,11 +112,10 @@ export default function AIChatBox({ city, ward, neighborhood }) {
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${
-                    m.role === 'user'
+                  className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === 'user'
                       ? 'bg-emerald-600 text-white rounded-br-sm'
                       : 'bg-slate-100 text-slate-800 rounded-bl-sm'
-                  }`}
+                    }`}
                 >
                   {m.text}
                 </div>
