@@ -6,13 +6,9 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 let isInitialized = false;
 
-// 1) Nếu developer cung cấp trực tiếp JSON của service account qua biến môi trường
 if (process.env.SERVICE_ACCOUNT_JSON) {
   try {
     const serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT_JSON);
-    if (serviceAccount.private_key) {
-      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
-    }
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
