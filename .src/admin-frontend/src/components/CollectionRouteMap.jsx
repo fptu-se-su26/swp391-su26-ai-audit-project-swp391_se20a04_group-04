@@ -1,10 +1,7 @@
-<<<<<<< Updated upstream
-import { useEffect } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-=======
-import { useEffect, useRef, useState, useCallback } from 'react';
 import authService from '../services/authService';
 
 const API_BASE = import.meta.env.VITE_API_URL
@@ -120,7 +117,6 @@ async function fetchPlaces(query, location) {
     return null;
   }
 }
->>>>>>> Stashed changes
 
 const defaultRoutePoints = [
   [16.0628, 108.2232],
