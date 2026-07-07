@@ -68,42 +68,11 @@ async function getWardsByProvince(provinceCode) {
 
   try {
     let wards = [];
+    const openApiCode = parseInt(formattedCode, 10);
 
-    // 1. Thử lấy từ API tùy chỉnh của huynhminhvangit trước
-    const apiUrl = `https://huynhminhvangit.github.io/vn-region-api/api/wards.html?province_code=${formattedCode}`;
-    const response = await fetch(apiUrl);
-    
-    if (response.ok) {
-      const htmlContent = await response.text();
-      const match = htmlContent.match(/<pre>(.*?)<\/pre>/s);
-      if (match) {
-        try {
-          wards = JSON.parse(match[1]);
-        } catch (e) {
-          console.warn('[addressService] Phân tích regex thất bại, chuyển hướng xử lý...');
-        }
-      }
-
-      // Nếu regex rỗng, thử lấy từ file JSON của huynhminhvangit
-      if (wards.length === 0) {
-        const fallbackRes = await fetch('https://huynhminhvangit.github.io/vn-region-api/data/wards.json');
-        if (fallbackRes.ok) {
-          const allWards = await fallbackRes.json();
-          wards = allWards.filter(w => w.province_code === formattedCode);
-        }
-      }
-    }
-
-    // 2. PHƯƠNG ÁN DỰ PHÒNG HOÀN HẢO (FALLBACK):
-    // Vì API tùy chỉnh chỉ chứa dữ liệu mẫu (ví dụ: chỉ có Phường Phúc Xá ở Hà Nội),
-    // nên nếu wards trả về rỗng (như Đà Nẵng code 48, HCM code 79, v.v.),
-    // ta tự động chuyển sang tải đầy đủ Phường/Xã từ provinces.open-api.vn!
-    if (wards.length === 0) {
-      console.log(`[addressService] Cảnh báo: API tùy chỉnh không có dữ liệu cho Tỉnh code ${formattedCode}. Đang tự động kích hoạt Fallback sang open-api.vn...`);
-      
-      const openApiCode = parseInt(formattedCode, 10);
+    // 1. Lấy dữ liệu CHÍNH từ provinces.open-api.vn (Vì đây là API thật có đầy đủ 63 tỉnh thành)
+    try {
       const openApiRes = await fetch(`https://provinces.open-api.vn/api/p/${openApiCode}?depth=3`);
-      
       if (openApiRes.ok) {
         const data = await openApiRes.json();
         if (data.districts && Array.isArray(data.districts)) {
@@ -120,6 +89,19 @@ async function getWardsByProvince(provinceCode) {
           }
         }
       }
+    } catch (openApiErr) {
+      console.warn(`[addressService] open-api.vn lỗi: ${openApiErr.message}. Chuyển sang dự phòng...`);
+    }
+
+    // 2. PHƯƠNG ÁN DỰ PHÒNG (FALLBACK): Nếu API chính sập, gọi API tĩnh
+    if (wards.length === 0) {
+      console.log(`[addressService] Kích hoạt Fallback sang huynhminhvangit...`);
+      const fallbackRes = await fetch('https://huynhminhvangit.github.io/vn-region-api/data/wards.json');
+      if (fallbackRes.ok) {
+        const allWards = await fallbackRes.json();
+        const filtered = allWards.filter(w => w.province_code === formattedCode);
+        filtered.forEach(w => wards.push({ code: w.code, name: w.name, district_name: 'Quận/Huyện' }));
+      }
     }
 
     // Ánh xạ dữ liệu trả về cho frontend
@@ -132,38 +114,6 @@ async function getWardsByProvince(provinceCode) {
 
   } catch (error) {
     console.error(`[addressService] Lỗi tổng thể khi lấy danh sách phường xã cho tỉnh ${formattedCode}:`, error);
-    
-    // Nếu có lỗi hệ thống, kích hoạt ngay fallback trực tiếp để tránh gián đoạn trải nghiệm
-    try {
-      const openApiCode = parseInt(formattedCode, 10);
-      const openApiRes = await fetch(`https://provinces.open-api.vn/api/p/${openApiCode}?depth=3`);
-      if (openApiRes.ok) {
-        const data = await openApiRes.json();
-        const fallbackWards = [];
-        if (data.districts && Array.isArray(data.districts)) {
-          for (const district of data.districts) {
-            if (district.wards && Array.isArray(district.wards)) {
-              for (const ward of district.wards) {
-                fallbackWards.push({
-                  code: ward.code.toString(),
-                  name: ward.name,
-                  districtName: district.name
-                });
-              }
-            }
-          }
-        }
-        return fallbackWards.map(w => ({
-          code: w.code,
-          name: w.name,
-          codename: w.name.toLowerCase().replace(/ /g, '_'),
-          districtName: w.districtName
-        })).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
-      }
-    } catch (fallbackErr) {
-      console.error('[addressService] Nghiêm trọng: Cả API chính và dự phòng đều thất bại:', fallbackErr);
-    }
-    
     throw new Error('Không thể tải danh sách Phường/Xã cho khu vực này.');
   }
 }
