@@ -2,6 +2,7 @@ const { db } = require('../config/firebase');
 const https = require('https');
 const invoiceService = require('../services/invoiceService');
 const complaintService = require('../services/complaintService');
+const notificationService = require('../services/notificationService');
 
 // ─── OpenRouter Configuration ─────────────────────────────────────────────────
 const OPENROUTER_HOST = 'openrouter.ai';
@@ -178,9 +179,10 @@ BẮT BUỘC trả về định dạng JSON (không có markdown):
       }
     }
 
-    // 2. Fetch User Dynamic Context (Invoices & Complaints)
+    // 2. Fetch User Dynamic Context (Invoices & Complaints & Notifications)
     let invoiceContext = 'Khách vãng lai hoặc chưa có dữ liệu hóa đơn.';
     let complaintContext = 'Chưa có phản ánh nào.';
+    let unreadNotificationCount = 0;
 
     if (req.uid) {
       try {
@@ -196,6 +198,9 @@ BẮT BUỘC trả về định dạng JSON (không có markdown):
           const recent = userComplaints.slice(0, 3);
           complaintContext = recent.map(c => `- Tiêu đề: "${c.title}" | Tình trạng thực tế bạn đã báo: "${c.description || ''}" | Trạng thái hệ thống: ${c.status === 'Open' ? 'Đang chờ xử lý' : c.status === 'in_resolve' ? 'Đang giải quyết' : c.status === 'resolved' ? 'Đã giải quyết' : 'Đã đóng'} | Phản hồi từ Ban Quản Lý: "${c.reply || 'Chưa có phản hồi'}"`).join('\n');
         }
+
+        const userNotifs = await notificationService.getNotifications(req.uid);
+        unreadNotificationCount = userNotifs.filter(n => !n.is_read).length;
       } catch (err) {
         console.error('[AI Chat] Lỗi fetch dynamic context:', err.message);
       }
@@ -211,8 +216,12 @@ Hệ thống có các tính năng sau, hãy hướng dẫn cư dân bấm vào c
 1. Tra cứu lịch thu gom rác: Xem ngày, giờ, tuyến đường xe rác chạy. -> Hướng dẫn người dùng bấm vào mục "Tra cứu lịch".
 2. Gửi phản ánh (Khiếu nại): Báo cáo rác chưa gom, gom sót, sai giờ, thái độ nhân viên. -> Hướng dẫn người dùng bấm vào mục "Gửi phản ánh".
 3. Thanh toán: Xem hóa đơn và đóng tiền rác trực tuyến. -> Hướng dẫn người dùng bấm vào mục "Thanh toán".
-4. Hướng dẫn: Xem hướng dẫn phân loại rác, cách sử dụng dịch vụ. -> Hướng dẫn người dùng bấm vào mục "Hướng dẫn phân loại".
-5. Thông báo: Xem các thông báo từ ban quản lý (đổi giờ do mưa bão, lễ tết). -> Hướng dẫn người dùng bấm vào mục "Thông báo".
+4. Hướng dẫn phân loại rác:
+   - Rác hữu cơ: Thức ăn thừa, lá cây, rau củ quả. Dùng làm phân bón.
+   - Rác vô cơ/Tái chế: Chai lọ nhựa, giấy báo, lon kim loại. Cần phân loại để tái chế.
+   - Rác nguy hại: Pin, bóng đèn, đồ điện tử, hóa chất. CẦN GOM RIÊNG và bỏ đúng nơi quy định, không vứt chung với rác sinh hoạt.
+   - Rác cồng kềnh: Tủ, giường, bàn ghế cũ. Cần liên hệ đặt lịch thu gom riêng.
+5. Thông báo: Xem các thông báo từ ban quản lý. Hiện tại người dùng đang có ${unreadNotificationCount} thông báo mới chưa đọc. -> Nếu người dùng hỏi về thông báo, chỉ cần nói số lượng thông báo mới này và khuyên họ bấm vào mục "Thông báo" trên chuông để xem chi tiết.
 
 [QUY TẮC PHẢN HỒI (RẤT QUAN TRỌNG)]
 - NGẮN GỌN VÀ ĐÚNG TRỌNG TÂM: Chỉ trả lời trực tiếp vào vấn đề người dùng đang hỏi. TUYỆT ĐỐI KHÔNG liệt kê rườm rà tất cả các phản ánh hay hóa đơn khác nếu người dùng không yêu cầu. Không lặp lại câu hỏi hay kể lể dài dòng.
