@@ -88,11 +88,17 @@ function matchesCollector(data, collectorId, collectorName) {
     data.assigned_driver, // managers sometimes put the collector name in driver field
   ].filter(Boolean);
 
-  if (candidates.length === 0) return false;
-
-  return candidates.some(
+  let isMatch = candidates.some(
     (v) => v === collectorId || (collectorName && v === collectorName),
   );
+
+  if (isMatch) return true;
+
+  if (data.assigned_collectors && Array.isArray(data.assigned_collectors)) {
+    isMatch = data.assigned_collectors.some(c => c.id === collectorId || c.name === collectorName);
+  }
+
+  return isMatch;
 }
 
 function mapAssignment(doc, routes, targetDate) {
@@ -155,6 +161,8 @@ function mapSchedule(doc, routes, targetDate, collectorId, collectorName) {
     notes: data.notes || data.note || '',
     startedAt: data.started_at || null,
     completedAt: data.completed_at || null,
+    teamId: data.team_id || null,
+    assignedCollectors: data.assigned_collectors || [],
   };
 }
 

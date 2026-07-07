@@ -304,7 +304,7 @@ export default function CollectorDashboard() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                     <div>
                       <p className="text-slate-500 text-xs">Giờ dự kiến</p>
                       <p className="font-semibold text-slate-800 dark:text-white">
@@ -316,6 +316,14 @@ export default function CollectorDashboard() {
                     <div>
                       <p className="text-slate-500 text-xs">Loại rác</p>
                       <p className="font-semibold text-slate-800 dark:text-white">{selectedItem.wasteType || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500 text-xs">Phân công</p>
+                      <p className="font-semibold text-sky-600 dark:text-sky-400">
+                        {selectedItem.teamId 
+                          ? 'Đi theo Đội' 
+                          : 'Đi 1 mình'}
+                      </p>
                     </div>
                     <div>
                       <p className="text-slate-500 text-xs">Xe / phương tiện</p>

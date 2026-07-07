@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import authService from '../services/authService';
 
-const API_BASE = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace('/api/auth', '')
-  : 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const PRIORITY_COLORS = ['bg-rose-100 text-rose-700', 'bg-amber-100 text-amber-700', 'bg-sky-100 text-sky-700', 'bg-slate-100 text-slate-600'];
 

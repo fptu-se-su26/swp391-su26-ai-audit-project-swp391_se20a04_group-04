@@ -11,8 +11,19 @@ router.get('/schedules', managerController.getSchedules);
 router.post('/schedules', managerController.createSchedule);
 router.put('/schedules/:scheduleId', managerController.updateSchedule);
 router.delete('/schedules/:scheduleId', managerController.deleteSchedule);
-router.post('/assign-route', managerController.assignRoute);
+router.post('/assign-route', managerController.assignRoute); // Might be deprecated later
 router.post('/confirm-route', managerController.confirmRoute);
+
+router.get('/routes', managerController.getRoutes);
+router.post('/routes', managerController.createRoute);
+router.put('/routes/:routeId', managerController.updateRoute);
+router.delete('/routes/:routeId', managerController.deleteRoute);
+
+router.get('/teams', managerController.getTeams);
+router.post('/teams', managerController.createTeam);
+router.put('/teams/:teamId', managerController.updateTeam);
+router.delete('/teams/:teamId', managerController.deleteTeam);
+
 router.get('/complaints', managerController.getComplaints);
 router.patch('/complaints/:complaintId/status', managerController.updateComplaintStatus);
 router.get('/feedback-reports', managerController.getFeedbackReports);

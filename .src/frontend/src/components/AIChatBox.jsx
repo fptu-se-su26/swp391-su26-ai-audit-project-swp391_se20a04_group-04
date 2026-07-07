@@ -1,9 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import authService from '../services/authService';
 
-const API_BASE = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace('/api/auth', '')
-  : 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 export default function AIChatBox({ city, ward, neighborhood }) {
   const [open, setOpen] = useState(false);

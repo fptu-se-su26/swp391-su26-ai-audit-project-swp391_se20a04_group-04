@@ -3,13 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
 import managerReportService from '../../services/managerReportService';
 import complaintService from '../../services/complaintService';
+import routeService from '../../services/routeService';
+import teamService from '../../services/teamService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
 import AIComplaintSummary from '../../components/AIComplaintSummary';
+import RouteManager from '../../components/RouteManager';
+import TeamManager from '../../components/TeamManager';
 
-const API_BASE = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace('/api/auth', '')
-  : 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const safeJson = async (response) => {
   try {
@@ -55,6 +57,8 @@ export default function Dashboard() {
   const [complaints, setComplaints] = useState([]);
   const [feedbackReports, setFeedbackReports] = useState([]);
   const [collectors, setCollectors] = useState([]);
+  const [routes, setRoutes] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [report, setReport] = useState(null);
   const [viewingIncident, setViewingIncident] = useState(null);
 
@@ -65,16 +69,15 @@ export default function Dashboard() {
   const [complaintActionLoading, setComplaintActionLoading] = useState(false);
 
   const [newSchedule, setNewSchedule] = useState({
-    routeName: 'North Route A',
+    routeId: '',
     serviceType: 'Recycling',
     date: new Date().toISOString().slice(0, 10),
     time: '08:00',
-    city: 'Đà Nẵng',
-    ward: 'Phường An Hải Tây',
-    neighborhood: 'Tổ 12',
     assignedTruck: 'TRUCK-402',
     assignedDriver: 'Nguyễn Văn A',
+    assignedType: 'solo', // 'solo' or 'team'
     assignedCollector: '',
+    teamId: '',
     notes: '',
   });
 
@@ -268,6 +271,16 @@ export default function Dashboard() {
     return data;
   };
 
+  const fetchRoutes = async () => {
+    const data = await routeService.getRoutes();
+    setRoutes(data);
+  };
+
+  const fetchTeams = async () => {
+    const data = await teamService.getTeams();
+    setTeams(data);
+  };
+
   const loadManagerData = async () => {
     setManagerLoading(true);
     setManagerError('');
@@ -278,6 +291,8 @@ export default function Dashboard() {
         fetchReport(),
         fetchCollectors(),
         fetchFeedbackReports(),
+        fetchRoutes(),
+        fetchTeams(),
       ]);
     } catch (error) {
       setManagerError(error.message || 'Không thể tải dữ liệu quản lý.');
@@ -311,13 +326,54 @@ export default function Dashboard() {
     setManagerError('');
 
     try {
+      let routeName = '';
+      let city = '';
+      let ward = '';
+      let neighborhood = '';
+      let rtPoints = [];
+
+      if (newSchedule.routeId) {
+        const selectedRoute = routes.find(r => r.id === newSchedule.routeId);
+        if (selectedRoute) {
+          routeName = selectedRoute.route_name;
+          city = selectedRoute.city;
+          ward = selectedRoute.ward;
+          neighborhood = selectedRoute.neighborhood;
+          rtPoints = selectedRoute.route_points || [];
+        }
+      }
+
+      let assignedCollectors = [];
+      let teamId = null;
+
+      if (newSchedule.assignedType === 'solo') {
+        const collector = collectors.find(c => c.uid === newSchedule.assignedCollector);
+        if (collector) {
+          assignedCollectors = [{ id: collector.uid, name: collector.fullName }];
+        }
+      } else if (newSchedule.assignedType === 'team') {
+        teamId = newSchedule.teamId;
+        const selectedTeam = teams.find(t => t.id === newSchedule.teamId);
+        if (selectedTeam) {
+          assignedCollectors = selectedTeam.members || [];
+        }
+      }
+
+      const payload = {
+        ...newSchedule,
+        routeName,
+        city,
+        ward,
+        neighborhood,
+        assignedCollectors,
+        teamId,
+        routePoints: rtPoints,
+      };
+
       const response = await fetch(`${API_BASE}/api/manager/schedules`, {
         method: 'POST',
         headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          ...newSchedule,
-          routePoints,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await safeJson(response);
       if (!response.ok) throw new Error(data.error || 'Không thể tạo lịch thu gom mới.');
@@ -635,9 +691,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+        <div className={`grid grid-cols-1 ${normalizeRole(user.role) !== ROLES.ADMIN ? 'lg:grid-cols-3' : ''} gap-6`}>
+          {normalizeRole(user.role) !== ROLES.ADMIN && (
+            <div className="lg:col-span-2 space-y-6">
+              <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Tạo lịch thu gom</p>
@@ -648,21 +705,32 @@ export default function Dashboard() {
               <form className="space-y-4" onSubmit={handleCreateSchedule}>
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Tên tuyến</span>
-                    <input
-                      name="routeName"
-                      value={newSchedule.routeName}
-                      onChange={handleChangeNewSchedule}
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Tuyến Mẫu <span className="text-rose-500">*</span></span>
+                    <select
+                      name="routeId"
+                      value={newSchedule.routeId}
+                      onChange={(e) => {
+                         const val = e.target.value;
+                         setNewSchedule(prev => ({ ...prev, routeId: val }));
+                         const routeObj = routes.find(r => r.id === val);
+                         if (routeObj && routeObj.route_points) {
+                           setRoutePoints(routeObj.route_points);
+                         }
+                      }}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      placeholder="North Route A"
-                    />
+                    >
+                      <option value="">-- Chọn Tuyến --</option>
+                      {routes.map(r => (
+                        <option key={r.id} value={r.id}>{r.route_name}</option>
+                      ))}
+                    </select>
                   </label>
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Loại dịch vụ</span>
                     <select
                       name="serviceType"
                       value={newSchedule.serviceType}
-                      onChange={handleChangeNewSchedule}
+                      onChange={(e) => setNewSchedule(prev => ({...prev, serviceType: e.target.value}))}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     >
                       <option value="Recycling">Recycling</option>
@@ -678,8 +746,9 @@ export default function Dashboard() {
                     <input
                       type="date"
                       name="date"
+                      min={new Date().toISOString().split('T')[0]}
                       value={newSchedule.date}
-                      onChange={handleChangeNewSchedule}
+                      onChange={(e) => setNewSchedule(prev => ({...prev, date: e.target.value}))}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
                   </label>
@@ -689,116 +758,87 @@ export default function Dashboard() {
                       type="time"
                       name="time"
                       value={newSchedule.time}
-                      onChange={handleChangeNewSchedule}
+                      onChange={(e) => setNewSchedule(prev => ({...prev, time: e.target.value}))}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
                   </label>
                   <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Khu vực <span className="text-rose-500">*</span></span>
-                    <div className="relative mt-2">
-                      <select
-                        value={selectedProvince}
-                        onChange={handleProvinceChange}
-                        disabled={loadingProvinces}
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none appearance-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white disabled:opacity-60"
-                      >
-                        <option value="">-- Chọn Tỉnh/Thành phố --</option>
-                        {provinces.map(p => (
-                          <option key={p.code} value={p.code}>{p.name}</option>
-                        ))}
-                      </select>
-                      {loadingProvinces ? (
-                        <span className="absolute right-4 top-3.5 h-4 w-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
-                      ) : (
-                        <span className="material-symbols-outlined absolute right-3 top-3 pointer-events-none text-slate-400">expand_more</span>
-                      )}
-                    </div>
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Phân công cho</span>
+                    <select
+                      name="assignedType"
+                      value={newSchedule.assignedType}
+                      onChange={(e) => setNewSchedule(prev => ({...prev, assignedType: e.target.value}))}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="solo">Cá nhân (Khu hẹp/nhỏ)</option>
+                      <option value="team">Đội nhóm (Đường lớn)</option>
+                    </select>
                   </label>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
-                  <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Phường <span className="text-rose-500">*</span></span>
-                    <div className="relative mt-2">
+                <div className="grid gap-4 md:grid-cols-2">
+                  {newSchedule.assignedType === 'solo' ? (
+                    <label className="block">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">Nhân viên thu gom</span>
                       <select
-                        value={selectedWard}
-                        onChange={handleWardChange}
-                        disabled={loadingWards || !selectedProvince}
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none appearance-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white disabled:opacity-60"
+                        name="assignedCollector"
+                        value={newSchedule.assignedCollector}
+                        onChange={(e) => setNewSchedule(prev => ({...prev, assignedCollector: e.target.value}))}
+                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       >
-                        <option value="">
-                          {!selectedProvince ? 'Chọn Tỉnh/Thành trước' : '-- Chọn Phường/Xã --'}
-                        </option>
-                        {wards.map(w => (
-                          <option key={w.code} value={w.code}>
-                            {w.name}
-                          </option>
+                        <option value="">-- Chọn cá nhân --</option>
+                        {collectors.map(c => (
+                          <option key={c.uid} value={c.uid}>{c.fullName}</option>
                         ))}
                       </select>
-                      {loadingWards ? (
-                        <span className="absolute right-4 top-3.5 h-4 w-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
-                      ) : (
-                        <span className="material-symbols-outlined absolute right-3 top-3 pointer-events-none text-slate-400">expand_more</span>
-                      )}
-                    </div>
-                  </label>
+                    </label>
+                  ) : (
+                    <label className="block">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">Đội nhóm</span>
+                      <select
+                        name="teamId"
+                        value={newSchedule.teamId}
+                        onChange={(e) => setNewSchedule(prev => ({...prev, teamId: e.target.value}))}
+                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      >
+                        <option value="">-- Chọn đội nhóm --</option>
+                        {teams.map(t => (
+                          <option key={t.id} value={t.id}>{t.team_name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Tổ</span>
-                    <input
-                      name="neighborhood"
-                      value={newSchedule.neighborhood}
-                      onChange={handleChangeNewSchedule}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      placeholder="Tổ 12"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Xe thu gom</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Xe thu gom (Tùy chọn)</span>
                     <input
                       name="assignedTruck"
                       value={newSchedule.assignedTruck}
-                      onChange={handleChangeNewSchedule}
+                      onChange={(e) => setNewSchedule(prev => ({...prev, assignedTruck: e.target.value}))}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       placeholder="TRUCK-402"
                     />
                   </label>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2">
                   <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Tài xế</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Tài xế (Tùy chọn)</span>
                     <input
                       name="assignedDriver"
                       value={newSchedule.assignedDriver}
-                      onChange={handleChangeNewSchedule}
+                      onChange={(e) => setNewSchedule(prev => ({...prev, assignedDriver: e.target.value}))}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       placeholder="Nguyễn Văn A"
                     />
-                  </label>
-                  <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Nhân viên thu gom</span>
-                    <select
-                      name="assignedCollector"
-                      value={newSchedule.assignedCollector}
-                      onChange={handleChangeNewSchedule}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    >
-                      <option value="">-- Chưa gán --</option>
-                      {collectors.map((c) => (
-                        <option key={c.uid} value={c.fullName}>
-                          {c.fullName}{c.area ? ` — ${c.area}` : ''}
-                        </option>
-                      ))}
-                    </select>
                   </label>
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Ghi chú</span>
                     <input
                       name="notes"
                       value={newSchedule.notes}
-                      onChange={handleChangeNewSchedule}
+                      onChange={(e) => setNewSchedule(prev => ({...prev, notes: e.target.value}))}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      placeholder="Thông tin thêm về tuyến"
+                      placeholder="Thông tin thêm..."
                     />
                   </label>
                 </div>
@@ -813,103 +853,6 @@ export default function Dashboard() {
               </form>
             </section>
 
-            <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Phân tuyến</p>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Assign Collection Route</h2>
-                </div>
-                <span className="text-xs text-slate-500 dark:text-slate-400">Gán xe & tài xế</span>
-              </div>
-              <form className="space-y-4" onSubmit={handleAssignRoute}>
-                <label className="block">
-                  <span className="text-sm text-slate-600 dark:text-slate-300">Chọn lịch</span>
-                  <select
-                    name="scheduleId"
-                    value={assignment.scheduleId}
-                    onChange={handleChangeAssignment}
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                  >
-                    {schedules.length === 0 ? (
-                      <option value="">Không có lịch</option>
-                    ) : (
-                      schedules.map((schedule) => (
-                        <option key={schedule.id} value={schedule.id}>
-                          {schedule.route_name} | {formatDate(schedule.schedule_date)}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </label>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Xe thu gom</span>
-                    <input
-                      name="assignedTruck"
-                      value={assignment.assignedTruck}
-                      onChange={handleChangeAssignment}
-                      disabled={managerLoading || isAssignmentLocked}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      placeholder="TRUCK-402"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Tài xế</span>
-                    <input
-                      name="assignedDriver"
-                      value={assignment.assignedDriver}
-                      onChange={handleChangeAssignment}
-                      disabled={managerLoading || isAssignmentLocked}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      placeholder="Nguyễn Văn A"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Nhân viên thu gom</span>
-                    <select
-                      name="assignedCollector"
-                      value={assignment.assignedCollector}
-                      onChange={handleChangeAssignment}
-                      disabled={managerLoading || isAssignmentLocked}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white disabled:opacity-60"
-                    >
-                      <option value="">-- Chưa gán --</option>
-                      {collectors.map((c) => (
-                        <option key={c.uid} value={c.fullName}>
-                          {c.fullName}{c.area ? ` — ${c.area}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <button
-                    type="submit"
-                    disabled={managerLoading || schedules.length === 0 || isAssignmentLocked}
-                    className="w-full rounded-2xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    {managerLoading ? 'Đang gán tuyến...' : 'Gán tuyến cho lịch'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveRoute}
-                    disabled={managerLoading || !assignment.scheduleId || isAssignmentLocked}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100"
-                  >
-                    {managerLoading ? 'Đang lưu tuyến...' : 'Lưu route đã chỉnh sửa'}
-                  </button>
-
-                </div>
-              </form>
-              {isAssignmentLocked && (
-                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-                  Tuyến này đã được nhân viên xác nhận, nên các chỉnh sửa tiếp theo bị khoá.
-                </div>
-              )}
-            </section>
-
             <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-0 shadow-sm">
               <CollectionRouteMap
                 title={assignment.scheduleId ? 'Route Planner' : 'Route Map'}
@@ -919,7 +862,25 @@ export default function Dashboard() {
                 readOnly={isAssignmentLocked}
               />
             </section>
+
+            <RouteManager
+              routes={routes}
+              refreshRoutes={fetchRoutes}
+              managerLoading={managerLoading}
+              setManagerLoading={setManagerLoading}
+              setManagerError={setManagerError}
+            />
+
+            <TeamManager
+              teams={teams}
+              collectors={collectors}
+              refreshTeams={fetchTeams}
+              managerLoading={managerLoading}
+              setManagerLoading={setManagerLoading}
+              setManagerError={setManagerError}
+            />
           </div>
+          )}
 
           <aside className="space-y-6">
             <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
@@ -1003,6 +964,8 @@ export default function Dashboard() {
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">{complaints.length} phản ánh</span>
               </div>
+
+              {/* Status filter tabs */}
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {[
                   { key: 'all', label: 'Tất cả' },
@@ -1105,7 +1068,7 @@ export default function Dashboard() {
                   <th className="px-4 py-3">Ngày giờ</th>
                   <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3">Xe</th>
-                  <th className="px-4 py-3">Tài xế</th>
+                  <th className="px-4 py-3">Phân công</th>
                   <th className="px-4 py-3 text-right">Thao tác</th>
                 </tr>
               </thead>
@@ -1135,7 +1098,19 @@ export default function Dashboard() {
                         </span>
                       </td>
                       <td className="px-4 py-4">{schedule.assigned_truck || 'Chưa gán'}</td>
-                      <td className="px-4 py-4">{schedule.assigned_driver || 'Chưa gán'}</td>
+                      <td className="px-4 py-4">
+                        {schedule.team_id ? (
+                          <span className="font-semibold text-sky-600 dark:text-sky-400">
+                            Đội: {teams.find(t => t.id === schedule.team_id)?.team_name || schedule.team_id}
+                          </span>
+                        ) : schedule.assigned_collectors && schedule.assigned_collectors.length > 0 ? (
+                          <span className="text-slate-700 dark:text-slate-300">
+                            Cá nhân: {schedule.assigned_collectors.map(c => c.name).join(', ')}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">Chưa gán</span>
+                        )}
+                      </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {schedule.incident && (
