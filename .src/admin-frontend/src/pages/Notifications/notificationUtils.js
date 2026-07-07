@@ -18,6 +18,12 @@ export const TYPE_CONFIG = {
     bgClass: 'bg-amber-500/10',
     label: 'Thanh toán',
   },
+  complaint: {
+    icon: 'report_problem',
+    colorClass: 'text-orange-600',
+    bgClass: 'bg-orange-500/10',
+    label: 'Phản ánh',
+  },
   system: {
     icon: 'notifications_active',
     colorClass: 'text-sky-600',
@@ -46,9 +52,9 @@ export const SENDER_CONFIG = {
 /** Danh sách tab bộ lọc trên trang thông báo */
 export const TABS = [
   { key: 'all',      label: 'Tất cả' },
-  { key: 'schedule', label: 'Lịch thu gom' },
+  { key: 'schedule', label: 'Lịch trình' },
   { key: 'payment',  label: 'Thanh toán' },
-  { key: 'system',   label: 'Hệ thống' },
+  { key: 'complaint',label: 'Phản ánh' },
 ];
 
 /**

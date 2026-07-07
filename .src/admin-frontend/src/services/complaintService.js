@@ -8,19 +8,19 @@ const BASE_URL = import.meta.env.VITE_API_URL
   ? (import.meta.env.VITE_API_URL.includes('/api/auth')
       ? import.meta.env.VITE_API_URL.replace('/api/auth', '/api/complaints')
       : `${import.meta.env.VITE_API_URL}/api/complaints`)
-  : 'http://localhost:5001/api/complaints';
+  : 'http://localhost:5002/api/complaints';
 
 const ADMIN_BASE_URL = import.meta.env.VITE_API_URL
   ? (import.meta.env.VITE_API_URL.includes('/api/auth')
       ? import.meta.env.VITE_API_URL.replace('/api/auth', '/api/admin/complaints')
       : `${import.meta.env.VITE_API_URL}/api/admin/complaints`)
-  : 'http://localhost:5001/api/admin/complaints';
+  : 'http://localhost:5002/api/admin/complaints';
 
 const MANAGER_BASE_URL = import.meta.env.VITE_API_URL
   ? (import.meta.env.VITE_API_URL.includes('/api/auth')
       ? import.meta.env.VITE_API_URL.replace('/api/auth', '/api/manager/complaints')
       : `${import.meta.env.VITE_API_URL}/api/manager/complaints`)
-  : 'http://localhost:5001/api/manager/complaints';
+  : 'http://localhost:5002/api/manager/complaints';
 
 
 /**

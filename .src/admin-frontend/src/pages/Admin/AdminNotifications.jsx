@@ -9,6 +9,7 @@ export default function AdminNotifications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [searchKeyword, setSearchKeyword] = useState('');
 
   // Pagination state
@@ -177,7 +178,13 @@ export default function AdminNotifications() {
   // Filter Data (Client side for search only)
   const filteredData = notifications.filter(n => {
     const matchSearch = (n.title || '').toLowerCase().includes(searchKeyword.toLowerCase());
-    return matchSearch;
+    const isPayment = n.type === 'payment' || n.type === 'billing';
+    const isComplaint = n.type === 'complaint';
+    const matchType = typeFilter === 'all' || 
+                      (typeFilter === 'system' && !isPayment && !isComplaint) || 
+                      (typeFilter === 'payment' && isPayment) ||
+                      (typeFilter === 'complaint' && isComplaint);
+    return matchSearch && matchType;
   });
 
   // --- Phân trang ---
@@ -201,7 +208,9 @@ export default function AdminNotifications() {
 
   const getTypeBadge = (type) => {
     switch (type) {
+      case 'payment':
       case 'billing': return <span className="px-3 py-1 rounded bg-emerald-50 text-emerald-600 text-xs font-semibold">Thanh toán</span>;
+      case 'complaint': return <span className="px-3 py-1 rounded bg-orange-50 text-orange-600 text-xs font-semibold">Phản ánh</span>;
       case 'schedule': return <span className="px-3 py-1 rounded bg-emerald-50 text-emerald-600 text-xs font-semibold">Lịch trình</span>;
       case 'update': return <span className="px-3 py-1 rounded bg-emerald-50 text-emerald-600 text-xs font-semibold">Cập nhật</span>;
       case 'system':
@@ -216,6 +225,34 @@ export default function AdminNotifications() {
         {/* Main Card */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-emerald-100 dark:border-slate-800 p-6">
           
+          {/* Tabs */}
+          <div className="flex border-b border-slate-200 dark:border-slate-700 mb-6 gap-6">
+            <button
+              onClick={() => { setTypeFilter('all'); setCurrentPage(1); }}
+              className={`pb-3 font-medium text-sm transition-colors border-b-2 ${typeFilter === 'all' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
+            >
+              Tất cả
+            </button>
+            <button
+              onClick={() => { setTypeFilter('system'); setCurrentPage(1); }}
+              className={`pb-3 font-medium text-sm transition-colors border-b-2 ${typeFilter === 'system' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
+            >
+              Thông báo chung
+            </button>
+            <button
+              onClick={() => { setTypeFilter('payment'); setCurrentPage(1); }}
+              className={`pb-3 font-medium text-sm transition-colors border-b-2 ${typeFilter === 'payment' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
+            >
+              Thanh toán
+            </button>
+            <button
+              onClick={() => { setTypeFilter('complaint'); setCurrentPage(1); }}
+              className={`pb-3 font-medium text-sm transition-colors border-b-2 ${typeFilter === 'complaint' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
+            >
+              Phản ánh
+            </button>
+          </div>
+
           {/* Top Controls */}
           <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <button
@@ -473,6 +510,7 @@ export default function AdminNotifications() {
                       <option value="schedule">Lịch trình</option>
                       <option value="billing">Thanh toán</option>
                       <option value="update">Cập nhật</option>
+                      <option value="complaint">Phản ánh</option>
                     </select>
                   </div>
                   <div>

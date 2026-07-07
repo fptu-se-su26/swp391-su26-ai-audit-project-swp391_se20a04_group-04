@@ -85,10 +85,16 @@ export default function Login() {
 
       setSuccessMessage('Đăng nhập thành công! Đang chuyển hướng...');
 
-      // Redirect dựa theo role
       const role = normalizeRole(user?.role);
+      
+      // Main Frontend không cho phép Admin đăng nhập
+      if (role === ROLES.ADMIN) {
+        await authService.logout();
+        throw new Error('Tài khoản Admin không được đăng nhập tại đây. Vui lòng truy cập trang quản trị.');
+      }
+
       let redirectPath = '/';
-      if (role === ROLES.MANAGER || role === ROLES.ADMIN) redirectPath = '/dashboard';
+      if (role === ROLES.MANAGER) redirectPath = '/dashboard';
       else if (role === ROLES.COLLECTOR) redirectPath = '/collector';
 
       setTimeout(() => {
@@ -120,10 +126,16 @@ export default function Login() {
       const { user } = await authService.loginWithGoogle(formData.rememberMe);
       setSuccessMessage('Đăng nhập bằng Google thành công! Đang chuyển hướng...');
 
-      // Redirect dựa theo role
       const role = normalizeRole(user?.role);
+      
+      // Main Frontend không cho phép Admin đăng nhập
+      if (role === ROLES.ADMIN) {
+        await authService.logout();
+        throw new Error('Tài khoản Admin không được đăng nhập tại đây. Vui lòng truy cập trang quản trị.');
+      }
+
       let redirectPath = '/';
-      if (role === ROLES.MANAGER || role === ROLES.ADMIN) redirectPath = '/dashboard';
+      if (role === ROLES.MANAGER) redirectPath = '/dashboard';
       else if (role === ROLES.COLLECTOR) redirectPath = '/collector';
 
       setTimeout(() => {

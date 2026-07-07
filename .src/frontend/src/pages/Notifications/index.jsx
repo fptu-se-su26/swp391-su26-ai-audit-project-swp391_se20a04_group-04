@@ -119,7 +119,15 @@ export default function Notifications() {
   // ─── Dữ liệu được tính toán ───────────────────────────────────────────────
   const filteredNotifications = activeTab === 'all'
     ? notifications
-    : notifications.filter((n) => n.type === activeTab);
+    : notifications.filter((n) => {
+        const isPayment = n.type === 'payment' || n.type === 'billing';
+        const isComplaint = n.type === 'complaint';
+        
+        if (activeTab === 'payment') return isPayment;
+        if (activeTab === 'complaint') return isComplaint;
+        if (activeTab === 'schedule') return !isPayment && !isComplaint;
+        return false;
+      });
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -177,7 +185,14 @@ export default function Notifications() {
               {tab.label}
               {tab.key !== 'all' && (
                 <span className="ml-1.5 text-xs opacity-60">
-                  ({notifications.filter((n) => n.type === tab.key).length})
+                  ({notifications.filter((n) => {
+                    const isPayment = n.type === 'payment' || n.type === 'billing';
+                    const isComplaint = n.type === 'complaint';
+                    if (tab.key === 'payment') return isPayment;
+                    if (tab.key === 'complaint') return isComplaint;
+                    if (tab.key === 'schedule') return !isPayment && !isComplaint;
+                    return false;
+                  }).length})
                 </span>
               )}
             </button>

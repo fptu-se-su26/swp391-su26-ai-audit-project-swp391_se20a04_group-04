@@ -52,6 +52,7 @@ app.use(cors({
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
+<<<<<<< Updated upstream
 // Tên collection chính trên Firestore
 const USERS_COLLECTION = 'users';
 
@@ -1902,6 +1903,15 @@ app.delete('/api/notifications/admin/:id', verifyToken, ensureAdmin, async (req,
     return res.status(500).json({ error: error.message });
   }
 });
+=======
+// Root route for browser testing
+app.get('/', (req, res) => {
+  res.send('<h1>EcoSchedule Admin Backend is running successfully!</h1><p>API endpoints are available at /api/*</p><p>Check <a href="/health">/health</a> for server status.</p>');
+});
+
+// Mount tất cả routes
+mountRoutes(app);
+>>>>>>> Stashed changes
 
 // Khởi chạy Server Express
 if (require.main === module) {

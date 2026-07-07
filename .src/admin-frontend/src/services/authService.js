@@ -13,7 +13,7 @@ import {
 } from 'firebase/auth';
 import { auth } from './firebase';
 
-const BACKEND_URL = import.meta.env.VITE_AUTH_URL || (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/auth` : 'http://localhost:5001/api/auth');
+const BACKEND_URL = import.meta.env.VITE_AUTH_URL || (import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/auth` : 'http://localhost:5002/api/auth');
 
 
 const authService = {

@@ -38,6 +38,35 @@ async function createComplaint(userId, userName, complaintData) {
   };
 
   const docRef = await db.collection('complaints').add(newComplaint);
+
+  // 1. Gửi thông báo cho Admin/Manager
+  await db.collection('notifications').add({
+    title: 'Phản ánh mới từ cư dân',
+    content: `Cư dân ${userName || 'ẩn danh'} vừa gửi một phản ánh mới: "${title.trim()}".`,
+    type: 'complaint',
+    targetRole: 'manager',
+    sent_at: new Date(),
+    created_at: new Date().toISOString(),
+    is_read: false,
+    sender_role: 'resident',
+    sender_name: userName || 'Cư dân',
+    link: '/admin/complaints'
+  });
+
+  // 2. Gửi thông báo xác nhận cho chính Cư dân
+  await db.collection('notifications').add({
+    title: 'Gửi phản ánh thành công',
+    content: `Phản ánh "${title.trim()}" của bạn đã được ghi nhận. Ban quản lý sẽ phản hồi trong thời gian sớm nhất.`,
+    type: 'complaint',
+    user_id: userId,
+    sent_at: new Date(),
+    created_at: new Date().toISOString(),
+    is_read: false,
+    sender_role: 'system',
+    sender_name: 'Hệ thống',
+    link: '/complaints'
+  });
+
   return { id: docRef.id, ...newComplaint };
 }
 
@@ -138,7 +167,24 @@ async function updateComplaintStatus(complaintId, managerId, managerName, update
 
   await docRef.update(updateFields);
 
-  return { id: complaintId, ...docSnap.data(), ...updateFields };
+  // Gửi thông báo cho cư dân về việc cập nhật trạng thái
+  const complaintData = docSnap.data();
+  const statusText = status === 'in_resolve' ? 'Đang xử lý' : status === 'resolved' ? 'Đã giải quyết' : 'Đã từ chối';
+  
+  await db.collection('notifications').add({
+    title: 'Cập nhật trạng thái phản ánh',
+    content: `Phản ánh "${complaintData.title}" của bạn đã được cập nhật thành: ${statusText}.`,
+    type: 'complaint',
+    user_id: complaintData.userId,
+    sent_at: new Date(),
+    created_at: new Date().toISOString(),
+    is_read: false,
+    sender_role: 'manager',
+    sender_name: managerName || 'Ban quản lý',
+    link: '/complaints'
+  });
+
+  return { id: complaintId, ...complaintData, ...updateFields };
 }
 
 module.exports = {

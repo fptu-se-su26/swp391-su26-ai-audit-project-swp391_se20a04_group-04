@@ -56,6 +56,7 @@ export default function Payment() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [history, setHistory] = useState([]);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const historyRef = useRef(null);
 
   // Khai báo trước useEffect để tránh Temporal Dead Zone
@@ -141,41 +142,43 @@ export default function Payment() {
     }
   };
 
-  const handleVerifyPayment = async () => {
-    if (!invoice) {
-      setError('Không có hóa đơn để kiểm tra.');
-      return;
-    }
-
-    setError('');
-    setSuccess('');
-    setPaymentStatus('checking');
-
-    try {
-      const result = await verifyPaymentStatus(invoice.invoiceId);
-      setInvoice(result.invoice);
-      setPaymentStatus(result.paid ? 'paid' : 'unpaid');
-      if (result.paid) {
-        setPaymentRequest(null);
-        setSuccess('Thanh toán đã hoàn tất. Hóa đơn đã được cập nhật.');
-        // Cập nhật lịch sử và scroll xuống
+  useEffect(() => {
+    let interval;
+    if (paymentRequest?.paymentUrl && invoice?.status !== 'paid') {
+      interval = setInterval(async () => {
         try {
-          const hist = await fetchInvoiceHistory();
-          setHistory(hist);
-        } catch {
-          // ignore
+          const result = await verifyPaymentStatus(invoice.invoiceId);
+          if (result.paid) {
+            setInvoice(result.invoice);
+            setPaymentStatus('paid');
+            setPaymentRequest(null);
+            setShowSuccessModal(true);
+            
+            // Kích hoạt cập nhật thông báo trên Header
+            window.dispatchEvent(new Event('notificationsUpdated'));
+            
+            // Cập nhật lịch sử và scroll xuống
+            try {
+              const hist = await fetchInvoiceHistory();
+              setHistory(hist);
+            } catch {
+              // ignore
+            }
+            setTimeout(() => {
+              historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
+            
+            clearInterval(interval);
+          }
+        } catch (err) {
+          // Bỏ qua lỗi trong quá trình tự động kiểm tra để không làm gián đoạn
         }
-        setTimeout(() => {
-          historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 300);
-      } else {
-        setError('Thanh toán chưa hoàn tất. Vui lòng quét QR và thử lại sau.');
-      }
-    } catch (err) {
-      setPaymentStatus('unpaid');
-      setError(buildErrorMessage(err));
+      }, 3000);
     }
-  };
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [paymentRequest, invoice?.status, invoice?.invoiceId]);
 
   // Removed Admin check for regular frontend
 
@@ -237,11 +240,6 @@ export default function Payment() {
       {error && (
         <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
           {error}
-        </div>
-      )}
-      {success && (
-        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700">
-          {success}
         </div>
       )}
 
@@ -440,15 +438,6 @@ export default function Payment() {
                   Mở trang thanh toán PayOS
                 </a>
 
-                <button
-                  type="button"
-                  onClick={handleVerifyPayment}
-                  className="mt-2 inline-flex px-8 py-3 rounded-full bg-secondary text-on-secondary font-semibold"
-                >
-                  Kiểm tra trạng thái thanh toán
-                </button>
-                {paymentStatus === 'checking' && <p className="text-on-surface-variant">Đang kiểm tra thanh toán...</p>}
-                {invoice?.status === 'paid' && <p className="text-emerald-700">Hóa đơn đã được thanh toán vào {formatDate(invoice.paidAt)}</p>}
               </div>
             </div>
           )}
@@ -486,6 +475,26 @@ export default function Payment() {
           </div>
         </div>
       </div>
+
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-surface-container-lowest rounded-2xl p-8 max-w-sm w-full card-shadow relative">
+            <button 
+              onClick={() => setShowSuccessModal(false)}
+              className="absolute top-4 right-4 text-on-surface-variant hover:bg-surface-container rounded-full p-1"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                <span className="material-symbols-outlined text-[32px]">check_circle</span>
+              </div>
+              <h3 className="text-headline-sm font-headline-sm text-on-surface">Thanh toán thành công!</h3>
+              <p className="text-body-md text-on-surface-variant">Hóa đơn của bạn đã được cập nhật trạng thái đã thanh toán.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -8,7 +8,7 @@ const BASE_URL = import.meta.env.VITE_API_URL
   ? (import.meta.env.VITE_API_URL.includes('/api/auth')
       ? import.meta.env.VITE_API_URL.replace('/api/auth', '/api/notifications')
       : `${import.meta.env.VITE_API_URL}/api/notifications`)
-  : 'http://localhost:5001/api/notifications';
+  : 'http://localhost:5002/api/notifications';
 
 
 /**

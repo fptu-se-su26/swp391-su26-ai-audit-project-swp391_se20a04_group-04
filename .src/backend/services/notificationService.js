@@ -259,6 +259,27 @@ async function deleteAdminNotification(id) {
   return { id, deleted: true };
 }
 
+/**
+ * [SYSTEM] Tạo một thông báo cá nhân cho người dùng cụ thể
+ */
+async function createPersonalNotification(userId, payload) {
+  const { title, message, type } = payload;
+  const newNotification = {
+    user_id: userId,
+    title,
+    content: message,
+    type: type || 'system',
+    sent_at: new Date(),
+    created_at: new Date().toISOString(),
+    is_read: false,
+    sender_role: 'system',
+    sender_name: 'Hệ thống',
+  };
+
+  const docRef = await db.collection(NOTIFICATIONS_COLLECTION).add(newNotification);
+  return { id: docRef.id, ...newNotification };
+}
+
 module.exports = {
   getNotifications,
   markAsRead,
@@ -269,4 +290,5 @@ module.exports = {
   createAdminNotification,
   updateAdminNotification,
   deleteAdminNotification,
+  createPersonalNotification,
 };

@@ -9,6 +9,7 @@ import './Header.css';
 const TYPE_ICON = {
   schedule: { icon: 'local_shipping', color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
   payment:  { icon: 'payments',       color: 'text-amber-600',   bg: 'bg-amber-500/10'   },
+  complaint:{ icon: 'report_problem', color: 'text-orange-600',  bg: 'bg-orange-500/10'  },
   system:   { icon: 'notifications_active', color: 'text-sky-600', bg: 'bg-sky-500/10'   },
 };
 

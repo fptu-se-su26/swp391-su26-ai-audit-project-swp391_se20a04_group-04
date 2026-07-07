@@ -34,12 +34,12 @@ export default function Footer() {
           </ul>
         </div>
         <div>
-          <h4 className="font-label-md text-label-md text-primary dark:text-primary-fixed mb-6 uppercase tracking-wider">Hỗ trợ</h4>
+          <h4 className="font-label-md text-label-md text-primary dark:text-primary-fixed mb-6 uppercase tracking-wider">Hệ thống Quản lý</h4>
           <ul className="space-y-4 font-body-md text-body-md text-on-surface-variant">
-            <li><a className="hover:text-primary transition-colors" href="#">Tra cứu lịch</a></li>
-            <li><a className="hover:text-primary transition-colors" href="#">Thanh toán phí</a></li>
-            <li><a className="hover:text-primary transition-colors" href="#">Khiếu nại / Góp ý</a></li>
-            <li><a className="hover:text-primary transition-colors" href="#">Chính sách bảo mật</a></li>
+            <li><a className="hover:text-primary transition-colors" href="/dashboard">Bảng điều khiển</a></li>
+            <li><a className="hover:text-primary transition-colors" href="/thong-bao">Thông báo</a></li>
+            <li><a className="hover:text-primary transition-colors" href="/hoa-don">Quản lý hóa đơn</a></li>
+            <li><a className="hover:text-primary transition-colors" href="/quan-ly">Quản trị viên</a></li>
           </ul>
         </div>
         <div>

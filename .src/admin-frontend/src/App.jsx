@@ -10,12 +10,10 @@ import AdminManagement from './pages/Admin/AdminManagement';
 
 import Home from './pages/Home';
 import Notifications from './pages/Notifications';
-import Payment from './pages/Payment';
 import Dashboard from './pages/Dashboard';
-import Complaints from './pages/Complaints';
-import Collector from './pages/Collector';
-import Guide from './pages/Guide';
 import ManagerInvoice from './pages/ManagerInvoice';
+import ProtectedRoute from './components/ProtectedRoute';
+import { ROLES } from './constants/roles';
 
 function App() {
   return (
@@ -28,15 +26,10 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/quan-ly" element={<AdminManagement />} />
-            <Route path="/tra-cuu" element={<Home />} />
-            <Route path="/thong-bao" element={<Notifications />} />
-            <Route path="/thanh-toan" element={<Payment />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/phan-anh" element={<Complaints />} />
-            <Route path="/collector" element={<Collector />} />
-            <Route path="/huong-dan" element={<Guide />} />
-            <Route path="/hoa-don" element={<ManagerInvoice />} />
+            <Route path="/quan-ly" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><AdminManagement /></ProtectedRoute>} />
+            <Route path="/thong-bao" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute allowedRoles={[ROLES.MANAGER, ROLES.ADMIN]}><Dashboard /></ProtectedRoute>} />
+            <Route path="/hoa-don" element={<ProtectedRoute allowedRoles={[ROLES.MANAGER, ROLES.ADMIN]}><ManagerInvoice /></ProtectedRoute>} />
             <Route path="/" element={<Home />} />
             <Route path="*" element={<Home />} />
           </Routes>

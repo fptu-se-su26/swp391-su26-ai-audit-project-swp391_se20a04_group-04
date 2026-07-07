@@ -9,6 +9,7 @@ import './Header.css';
 const TYPE_ICON = {
   schedule: { icon: 'local_shipping', color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
   payment:  { icon: 'payments',       color: 'text-amber-600',   bg: 'bg-amber-500/10'   },
+  complaint:{ icon: 'report_problem', color: 'text-orange-600',  bg: 'bg-orange-500/10'  },
   system:   { icon: 'notifications_active', color: 'text-sky-600', bg: 'bg-sky-500/10'   },
 };
 
@@ -168,14 +169,10 @@ export default function Header() {
 
         {/* Nav links */}
         <nav className="hidden md:flex items-center gap-8">
-          <Link className={navLinkClass('/tra-cuu')} to="/tra-cuu">Tra cứu lịch</Link>
+          <Link className={navLinkClass('/')} to="/">Trang chủ</Link>
           <Link className={navLinkClass('/thong-bao')} to="/thong-bao">Thông báo</Link>
-          <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
-          {userRole !== ROLES.ADMIN && (
-            <>
-              <Link className={navLinkClass('/huong-dan')} to="/huong-dan">Hướng dẫn phân loại</Link>
-              <Link className={navLinkClass('/phan-anh')} to="/phan-anh">Gửi phản ánh</Link>
-            </>
+          {isManager && (
+            <Link className={navLinkClass('/hoa-don')} to="/hoa-don">Hóa đơn</Link>
           )}
           {userRole === ROLES.ADMIN && (
             <Link className={navLinkClass('/quan-ly')} to="/quan-ly">Quản lý</Link>

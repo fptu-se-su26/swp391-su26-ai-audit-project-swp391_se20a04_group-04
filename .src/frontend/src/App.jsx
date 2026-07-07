@@ -16,6 +16,8 @@ import AssignedReports from './pages/Collector/AssignedReports';
 import ManagerInvoice from './pages/ManagerInvoice';
 import ResidentSchedules from './resident/ResidentSchedules';
 import Complaints from './pages/Complaints';
+import ProtectedRoute from './components/ProtectedRoute';
+import { ROLES } from './constants/roles';
 
 function App() {
   return (
@@ -28,16 +30,16 @@ function App() {
             <Route path="/tra-cuu" element={<ResidentSchedules />} />
             <Route path="/thanh-toan" element={<Payment />} />
             <Route path="/huong-dan" element={<Guide />} />
-            <Route path="/thong-bao" element={<Notifications />} />
+            <Route path="/thong-bao" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/collector" element={<CollectorDashboard />} />
-            <Route path="/collector/reports" element={<AssignedReports />} />
-            <Route path="/dashboard/invoices/new" element={<ManagerInvoice />} />
-            <Route path="/phan-anh" element={<Complaints />} />
+            <Route path="/dashboard" element={<ProtectedRoute allowedRoles={[ROLES.MANAGER]}><Dashboard /></ProtectedRoute>} />
+            <Route path="/collector" element={<ProtectedRoute allowedRoles={[ROLES.COLLECTOR]}><CollectorDashboard /></ProtectedRoute>} />
+            <Route path="/collector/reports" element={<ProtectedRoute allowedRoles={[ROLES.COLLECTOR]}><AssignedReports /></ProtectedRoute>} />
+            <Route path="/dashboard/invoices/new" element={<ProtectedRoute allowedRoles={[ROLES.MANAGER]}><ManagerInvoice /></ProtectedRoute>} />
+            <Route path="/phan-anh" element={<ProtectedRoute allowedRoles={[ROLES.RESIDENT, ROLES.COLLECTOR, ROLES.MANAGER]}><Complaints /></ProtectedRoute>} />
           </Routes>
         </div>
         <Footer />

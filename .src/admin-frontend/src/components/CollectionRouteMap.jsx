@@ -1,7 +1,126 @@
+<<<<<<< Updated upstream
 import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+=======
+import { useEffect, useRef, useState, useCallback } from 'react';
+import authService from '../services/authService';
+
+const API_BASE = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace('/api/auth', '')
+  : 'http://localhost:5002';
+
+// Cache the API key & Google Maps script globally so we only load once
+let cachedApiKey = null;
+let googleMapsLoadPromise = null;
+
+async function getAuthHeaders() {
+  const token = await authService.getFreshToken();
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+}
+
+async function fetchApiKey() {
+  if (cachedApiKey) return cachedApiKey;
+  try {
+    const res = await fetch(`${API_BASE}/api/maps/key`, { headers: await getAuthHeaders() });
+    if (!res.ok) throw new Error('Không thể lấy Google Maps API key');
+    const data = await res.json();
+    cachedApiKey = data.apiKey;
+    return cachedApiKey;
+  } catch (err) {
+    console.error('[GoogleMaps] Lỗi lấy API key:', err);
+    return null;
+  }
+}
+
+function loadGoogleMaps(apiKey) {
+  if (googleMapsLoadPromise) return googleMapsLoadPromise;
+  if (window.google?.maps) return Promise.resolve();
+
+  googleMapsLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,marker&language=vi`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Không thể tải Google Maps SDK'));
+    document.head.appendChild(script);
+  });
+  return googleMapsLoadPromise;
+}
+
+async function fetchDirections(origin, destination, waypoints) {
+  try {
+    const params = new URLSearchParams({ origin, destination });
+    if (waypoints) params.set('waypoints', waypoints);
+    const res = await fetch(`${API_BASE}/api/maps/directions?${params}`, {
+      headers: await getAuthHeaders(),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchGeocode(address) {
+  try {
+    const params = new URLSearchParams({ address });
+    const res = await fetch(`${API_BASE}/api/maps/geocode?${params}`, {
+      headers: await getAuthHeaders(),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchReverseGeocode(lat, lng) {
+  try {
+    const params = new URLSearchParams({ latlng: `${lat},${lng}` });
+    const res = await fetch(`${API_BASE}/api/maps/geocode?${params}`, {
+      headers: await getAuthHeaders(),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchDistanceMatrix(origins, destinations) {
+  try {
+    const params = new URLSearchParams({ origins, destinations });
+    const res = await fetch(`${API_BASE}/api/maps/distance-matrix?${params}`, {
+      headers: await getAuthHeaders(),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchPlaces(query, location) {
+  try {
+    const params = new URLSearchParams({ query });
+    if (location) params.set('location', location);
+    params.set('radius', '50000');
+    const res = await fetch(`${API_BASE}/api/maps/places?${params}`, {
+      headers: await getAuthHeaders(),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+>>>>>>> Stashed changes
 
 const defaultRoutePoints = [
   [16.0628, 108.2232],
