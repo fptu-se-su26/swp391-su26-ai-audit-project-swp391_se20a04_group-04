@@ -180,8 +180,13 @@ async function confirmRoute(req, res) {
 
     const scheduleData = snapshot.data();
     const assigned = scheduleData.assigned_collector || scheduleData.collector_id || '';
-    const isOwner = assigned === req.uid || assigned === req.userProfile.fullName;
-    if (assigned && !isOwner) {
+    let isOwner = assigned === req.uid || assigned === req.userProfile.fullName;
+
+    if (!isOwner && scheduleData.assigned_collectors && Array.isArray(scheduleData.assigned_collectors)) {
+      isOwner = scheduleData.assigned_collectors.some(c => c.id === req.uid || c.name === req.userProfile.fullName);
+    }
+
+    if (!isOwner) {
       return res.status(403).json({ error: 'Lịch này không được gán cho bạn.' });
     }
 

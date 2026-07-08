@@ -420,4 +420,176 @@ module.exports = {
   approveReport,
   getReports,
   createInvoice,
+  getRoutes,
+  createRoute,
+  updateRoute,
+  deleteRoute,
+  getTeams,
+  createTeam,
+  updateTeam,
+  deleteTeam,
 };
+
+/**
+ * GET /api/manager/routes
+ */
+async function getRoutes(req, res) {
+  try {
+    const snapshot = await db.collection('collection_routes').get();
+    const routes = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.route_points && Array.isArray(data.route_points)) {
+        data.route_points = data.route_points.map(p => {
+          if (p && p.lat !== undefined && p.lng !== undefined) return [p.lat, p.lng];
+          return p;
+        });
+      }
+      routes.push({ id: doc.id, ...data });
+    });
+    return res.status(200).json(routes);
+  } catch (error) {
+    console.error('[API] Lỗi lấy danh sách tuyến mẫu:', error.message);
+    return res.status(500).json({ error: 'Không thể tải danh sách tuyến mẫu.' });
+  }
+}
+
+/**
+ * POST /api/manager/routes
+ */
+async function createRoute(req, res) {
+  const { routeName, city, ward, neighborhood, routePoints } = req.body;
+  if (!routeName) {
+    return res.status(400).json({ error: 'Tên tuyến là bắt buộc.' });
+  }
+  try {
+    const formattedPoints = (routePoints || []).map(p => {
+      if (Array.isArray(p)) return { lat: p[0], lng: p[1] };
+      return p;
+    });
+    const newRoute = {
+      route_name: routeName,
+      city: city || '',
+      ward: ward || '',
+      neighborhood: neighborhood || '',
+      route_points: formattedPoints,
+      created_by: req.userProfile?.fullName || req.uid,
+      created_at: new Date().toISOString(),
+    };
+    const docRef = await db.collection('collection_routes').add(newRoute);
+    
+    // Map back for response to match frontend expectation
+    newRoute.route_points = routePoints || [];
+    return res.status(201).json({ success: true, id: docRef.id, route: newRoute });
+  } catch (error) {
+    console.error('[API] Lỗi tạo tuyến mẫu:', error.message);
+    return res.status(500).json({ error: 'Không thể tạo tuyến mẫu.' });
+  }
+}
+
+/**
+ * PUT /api/manager/routes/:routeId
+ */
+async function updateRoute(req, res) {
+  const { routeId } = req.params;
+  const { routeName, city, ward, neighborhood, routePoints } = req.body;
+  try {
+    const formattedPoints = (routePoints || []).map(p => {
+      if (Array.isArray(p)) return { lat: p[0], lng: p[1] };
+      return p;
+    });
+    const docRef = db.collection('collection_routes').doc(routeId);
+    await docRef.update({
+      route_name: routeName,
+      city: city || '',
+      ward: ward || '',
+      neighborhood: neighborhood || '',
+      route_points: formattedPoints,
+      updated_at: new Date().toISOString(),
+    });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[API] Lỗi cập nhật tuyến mẫu:', error.message);
+    return res.status(500).json({ error: 'Không thể cập nhật tuyến mẫu.' });
+  }
+}
+
+/**
+ * DELETE /api/manager/routes/:routeId
+ */
+async function deleteRoute(req, res) {
+  const { routeId } = req.params;
+  try {
+    await db.collection('collection_routes').doc(routeId).delete();
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'Không thể xóa tuyến mẫu.' });
+  }
+}
+
+/**
+ * GET /api/manager/teams
+ */
+async function getTeams(req, res) {
+  try {
+    const snapshot = await db.collection('collection_teams').get();
+    const teams = [];
+    snapshot.forEach(doc => teams.push({ id: doc.id, ...doc.data() }));
+    return res.status(200).json(teams);
+  } catch (error) {
+    return res.status(500).json({ error: 'Không thể tải danh sách đội nhóm.' });
+  }
+}
+
+/**
+ * POST /api/manager/teams
+ */
+async function createTeam(req, res) {
+  const { teamName, members } = req.body; // members = [{ id, name }, ...]
+  if (!teamName || !members || members.length === 0) {
+    return res.status(400).json({ error: 'Tên đội và thành viên là bắt buộc.' });
+  }
+  try {
+    const newTeam = {
+      team_name: teamName,
+      members,
+      created_by: req.userProfile?.fullName || req.uid,
+      created_at: new Date().toISOString(),
+    };
+    const docRef = await db.collection('collection_teams').add(newTeam);
+    return res.status(201).json({ success: true, id: docRef.id, team: newTeam });
+  } catch (error) {
+    return res.status(500).json({ error: 'Không thể tạo đội.' });
+  }
+}
+
+/**
+ * PUT /api/manager/teams/:teamId
+ */
+async function updateTeam(req, res) {
+  const { teamId } = req.params;
+  const { teamName, members } = req.body;
+  try {
+    await db.collection('collection_teams').doc(teamId).update({
+      team_name: teamName,
+      members,
+      updated_at: new Date().toISOString(),
+    });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'Không thể cập nhật đội.' });
+  }
+}
+
+/**
+ * DELETE /api/manager/teams/:teamId
+ */
+async function deleteTeam(req, res) {
+  const { teamId } = req.params;
+  try {
+    await db.collection('collection_teams').doc(teamId).delete();
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'Không thể xóa đội.' });
+  }
+}

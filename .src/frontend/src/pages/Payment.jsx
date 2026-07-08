@@ -294,87 +294,37 @@ export default function Payment() {
           </div>
 
           <div className="bg-surface-container-lowest rounded-xl p-8 card-shadow border border-surface-container">
-            <h3 className="font-headline-md text-headline-md mb-6 text-on-surface">Chọn phương thức thanh toán</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className={`relative flex items-center p-4 rounded-lg border cursor-pointer hover:bg-surface-container-low transition-colors ${paymentMethod === 'credit_card' ? 'border-primary bg-surface-container-low' : 'border-surface-container-high'}`}>
-                <input
-                  className="hidden"
-                  name="payment"
-                  type="radio"
-                  value="credit_card"
-                  checked={paymentMethod === 'credit_card'}
-                  onChange={() => setPaymentMethod('credit_card')}
-                />
-                <span className="material-symbols-outlined mr-4 text-primary">credit_card</span>
+            <h3 className="font-headline-md text-headline-md mb-6 text-on-surface">Phương thức thanh toán</h3>
+            <div className="mb-4">
+              <div className="flex items-center p-4 rounded-lg border border-primary bg-surface-container-low">
+                <span className="material-symbols-outlined mr-4 text-primary">qr_code_2</span>
                 <div className="flex-1">
-                  <p className="font-label-md text-label-md text-on-surface">Thẻ tín dụng / Ghi nợ</p>
+                  <p className="font-label-md text-label-md text-on-surface">Thanh toán qua PayOS (Quét mã VietQR)</p>
+                  <p className="text-sm text-on-surface-variant mt-1">Hỗ trợ MoMo, VNPay, ZaloPay và các ứng dụng ngân hàng</p>
                 </div>
                 <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  {paymentMethod === 'credit_card' ? 'check_circle' : 'radio_button_unchecked'}
+                  check_circle
                 </span>
-              </label>
-              <label className={`relative flex items-center p-4 rounded-lg border cursor-pointer hover:bg-surface-container-low transition-colors ${paymentMethod === 'momo' ? 'border-primary bg-surface-container-low' : 'border-surface-container-high'}`}>
-                <input
-                  className="hidden"
-                  name="payment"
-                  type="radio"
-                  value="momo"
-                  checked={paymentMethod === 'momo'}
-                  onChange={() => setPaymentMethod('momo')}
-                />
-                <span className="material-symbols-outlined mr-4 text-on-surface-variant">account_balance_wallet</span>
-                <div className="flex-1">
-                  <p className="font-label-md text-label-md text-on-surface">Ví MoMo</p>
-                </div>
-                <span className="material-symbols-outlined text-outline-variant">
-                  {paymentMethod === 'momo' ? 'check_circle' : 'radio_button_unchecked'}
-                </span>
-              </label>
-              <label className={`relative flex items-center p-4 rounded-lg border cursor-pointer hover:bg-surface-container-low transition-colors ${paymentMethod === 'payos' ? 'border-primary bg-surface-container-low' : 'border-surface-container-high'}`}>
-                <input
-                  className="hidden"
-                  name="payment"
-                  type="radio"
-                  value="payos"
-                  checked={paymentMethod === 'payos'}
-                  onChange={() => setPaymentMethod('payos')}
-                />
-                <span className="material-symbols-outlined mr-4 text-on-surface-variant">qr_code_2</span>
-                <div className="flex-1">
-                  <p className="font-label-md text-label-md text-on-surface">PayOS (quét QR)</p>
-                </div>
-                <span className="material-symbols-outlined text-outline-variant">
-                  {paymentMethod === 'payos' ? 'check_circle' : 'radio_button_unchecked'}
-                </span>
-              </label>
-              <label className={`relative flex items-center p-4 rounded-lg border cursor-pointer hover:bg-surface-container-low transition-colors ${paymentMethod === 'bank_transfer' ? 'border-primary bg-surface-container-low' : 'border-surface-container-high'}`}>
-                <input
-                  className="hidden"
-                  name="payment"
-                  type="radio"
-                  value="bank_transfer"
-                  checked={paymentMethod === 'bank_transfer'}
-                  onChange={() => setPaymentMethod('bank_transfer')}
-                />
-                <span className="material-symbols-outlined mr-4 text-on-surface-variant">account_balance</span>
-                <div className="flex-1">
-                  <p className="font-label-md text-label-md text-on-surface">Chuyển khoản ngân hàng</p>
-                </div>
-                <span className="material-symbols-outlined text-outline-variant">
-                  {paymentMethod === 'bank_transfer' ? 'check_circle' : 'radio_button_unchecked'}
-                </span>
-              </label>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleRequestPayment}
-              className="mt-8 w-full md:w-auto px-10 py-4 bg-primary text-on-primary rounded-full font-headline-md text-headline-md active:scale-95 transition-transform flex items-center justify-center gap-2"
-              disabled={invoice?.status === 'paid'}
-            >
-              <span>{invoice?.status === 'paid' ? 'Hóa đơn đã thanh toán' : 'Tạo mã QR và thanh toán'}</span>
-              <span className="material-symbols-outlined">arrow_forward</span>
-            </button>
+            {!paymentRequest?.paymentUrl && invoice?.status !== 'paid' && (
+              <button
+                type="button"
+                onClick={handleRequestPayment}
+                className="mt-4 w-full md:w-auto px-10 py-4 bg-primary text-on-primary rounded-full font-headline-md text-headline-md active:scale-95 transition-transform flex items-center justify-center gap-2"
+              >
+                <span>Tạo mã QR thanh toán</span>
+                <span className="material-symbols-outlined">qr_code_scanner</span>
+              </button>
+            )}
+            
+            {invoice?.status === 'paid' && (
+              <div className="mt-4 flex items-center gap-2 text-emerald-700 bg-emerald-50 p-4 rounded-lg">
+                <span className="material-symbols-outlined">check_circle</span>
+                <span className="font-semibold">Hóa đơn này đã được thanh toán hoàn tất.</span>
+              </div>
+            )}
           </div>
 
           {paymentRequest?.paymentUrl && invoice?.status !== 'paid' && (

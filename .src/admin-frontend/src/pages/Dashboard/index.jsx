@@ -5,10 +5,9 @@ import managerReportService from '../../services/managerReportService';
 import complaintService from '../../services/complaintService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
+import AIComplaintSummary from '../../components/AIComplaintSummary';
 
-const API_BASE = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace('/api/auth', '')
-  : 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5002';
 
 const safeJson = async (response) => {
   try {
@@ -993,6 +992,8 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
+
+            <AIComplaintSummary />
 
             <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
