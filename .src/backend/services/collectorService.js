@@ -104,7 +104,8 @@ function matchesCollector(data, collectorId, collectorName) {
 function mapAssignment(doc, routes, targetDate) {
   const data = doc.data();
   const assignedKey = toDateKey(data.assignedDate);
-  if (assignedKey !== targetDate) return null;
+  if (!assignedKey) return null;
+  if (targetDate && assignedKey !== targetDate) return null;
 
   const route = routes[data.routeId] || {};
   return {
@@ -136,7 +137,8 @@ function mapSchedule(doc, routes, targetDate, collectorId, collectorName) {
 
   const dateField = data.schedule_date || data.scheduleDate;
   const assignedKey = toDateKey(dateField);
-  if (assignedKey !== targetDate) return null;
+  if (!assignedKey) return null;
+  if (targetDate && assignedKey !== targetDate) return null;
 
   const route = routes[data.routeId] || {};
   const timeParts = (data.time_slot || '').split(' - ');
@@ -197,6 +199,43 @@ async function getDailySchedules(collectorId, collectorName, dateStr) {
 
   items.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
   return { date: targetDate, items };
+}
+
+async function getAllSchedules(collectorId, collectorName) {
+  const routes = await getRouteMap();
+  const items = [];
+  const seen = new Set();
+
+  const assignSnap = await db
+    .collection(ASSIGNMENTS_COLLECTION)
+    .where('collectorId', '==', collectorId)
+    .get();
+
+  assignSnap.forEach((doc) => {
+    const item = mapAssignment(doc, routes, null);
+    if (item) {
+      items.push(item);
+      seen.add(`assignment:${doc.id}`);
+    }
+  });
+
+  const schedSnap = await db.collection(SCHEDULES_COLLECTION).get();
+  schedSnap.forEach((doc) => {
+    if (seen.has(`schedule:${doc.id}`)) return;
+    const item = mapSchedule(doc, routes, null, collectorId, collectorName);
+    if (item) {
+      items.push(item);
+      seen.add(`schedule:${doc.id}`);
+    }
+  });
+
+  items.sort((a, b) => {
+    const byDate = (a.date || '').localeCompare(b.date || '');
+    if (byDate !== 0) return byDate;
+    return (a.startTime || '').localeCompare(b.startTime || '');
+  });
+
+  return { items, total: items.length };
 }
 
 async function getAssignmentsInRange(collectorId, fromDate, toDate) {
@@ -543,6 +582,7 @@ async function updateItemStatus(collectorId, collectorName, payload) {
 
 module.exports = {
   getDailySchedules,
+  getAllSchedules,
   getAssignmentsInRange,
   getDashboardSummary,
   updateItemStatus,

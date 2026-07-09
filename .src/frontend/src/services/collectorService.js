@@ -46,6 +46,15 @@ const collectorService = {
     return data.data;
   },
 
+  async getAllSchedules() {
+    const response = await fetch(`${API_BASE}/api/collector/schedules?all=true`, {
+      headers: await getAuthHeaders(),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || 'Không thể tải lịch làm việc.');
+    return data.data;
+  },
+
   async updateStatus({ sourceType, id, action, imageUrls, incidentType, description }) {
     const response = await fetch(`${API_BASE}/api/collector/schedules/${sourceType}/${id}/status`, {
       method: 'PATCH',

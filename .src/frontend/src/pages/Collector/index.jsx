@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
 import collectorService from '../../services/collectorService';
@@ -48,7 +48,7 @@ function canComplete(status) {
 export default function CollectorDashboard() {
   const navigate = useNavigate();
   const [user] = useState(() => authService.getCurrentUser());
-  const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [dateFilter, setDateFilter] = useState('');
   const [summary, setSummary] = useState(null);
   const [schedules, setSchedules] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -82,8 +82,8 @@ export default function CollectorDashboard() {
     setError('');
     try {
       const [dashboardData, scheduleData] = await Promise.all([
-        collectorService.getDashboard(selectedDate),
-        collectorService.getDailySchedules(selectedDate),
+        collectorService.getDashboard(todayISO()),
+        collectorService.getAllSchedules(),
       ]);
       setSummary(dashboardData);
       const items = scheduleData.items || [];
@@ -97,7 +97,22 @@ export default function CollectorDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate]);
+  }, []);
+
+  const filteredSchedules = useMemo(() => {
+    if (!dateFilter) return schedules;
+    return schedules.filter((item) => item.date === dateFilter);
+  }, [schedules, dateFilter]);
+
+  const groupedSchedules = useMemo(() => {
+    const groups = new Map();
+    filteredSchedules.forEach((item) => {
+      const key = item.date || 'unknown';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    });
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredSchedules]);
 
   useEffect(() => {
     if (user) {
@@ -189,11 +204,23 @@ export default function CollectorDashboard() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setDateFilter('')}
+              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
+                !dateFilter
+                  ? 'bg-emerald-600 text-white'
+                  : 'border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200'
+              }`}
+            >
+              Tất cả lịch
+            </button>
             <input
               type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
               className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm"
+              title="Lọc theo ngày"
             />
             <button
               type="button"
@@ -239,51 +266,69 @@ export default function CollectorDashboard() {
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
+          <div className="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5 max-h-[calc(100vh-12rem)] overflow-y-auto">
             <p className="text-xs uppercase tracking-widest text-slate-500 mb-1">Lịch làm việc</p>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">{formatDateLabel(selectedDate)}</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+              {dateFilter ? formatDateLabel(dateFilter) : 'Tất cả lịch được gán'}
+            </h2>
+            <p className="text-xs text-slate-400 mb-4">
+              {filteredSchedules.length} tuyến{dateFilter ? '' : ` / ${schedules.length} tổng`}
+            </p>
 
             {loading ? (
               <p className="text-sm text-slate-500">Đang tải...</p>
-            ) : schedules.length === 0 ? (
+            ) : filteredSchedules.length === 0 ? (
               <div className="text-center py-10 text-slate-500">
                 <span className="material-symbols-outlined text-4xl opacity-30">event_busy</span>
-                <p className="mt-3 text-sm">Không có lịch thu gom trong ngày này.</p>
+                <p className="mt-3 text-sm">
+                  {dateFilter ? 'Không có lịch thu gom trong ngày này.' : 'Chưa có lịch thu gom được gán.'}
+                </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {schedules.map((item) => {
-                  const itemBadge = getStatusBadge(item.status);
-                  const isSelected = selectedItem?.id === item.id && selectedItem?.sourceType === item.sourceType;
-                  return (
-                    <button
-                      key={`${item.sourceType}-${item.id}`}
-                      type="button"
-                      onClick={() => setSelectedItem(item)}
-                      className={`w-full text-left rounded-2xl border p-4 transition-colors ${
-                        isSelected
-                          ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-emerald-300'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-semibold text-slate-900 dark:text-white text-sm">{item.routeName}</p>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${itemBadge.className}`}>
-                          {itemBadge.label}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-2">
-                        {item.startTime && item.endTime ? `${item.startTime} – ${item.endTime}` : 'Giờ chưa xác định'}
+              <div className="space-y-5">
+                {groupedSchedules.map(([groupDate, items]) => (
+                  <div key={groupDate}>
+                    {!dateFilter && (
+                      <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-2 sticky top-0 bg-white dark:bg-slate-800 py-1">
+                        {formatDateLabel(groupDate)}
                       </p>
-                      {item.ward && (
-                        <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-sm">location_on</span>
-                          {item.neighborhood ? `${item.neighborhood}, ${item.ward}` : item.ward}
-                        </p>
-                      )}
-                    </button>
-                  );
-                })}
+                    )}
+                    <div className="space-y-3">
+                      {items.map((item) => {
+                        const itemBadge = getStatusBadge(item.status);
+                        const isSelected = selectedItem?.id === item.id && selectedItem?.sourceType === item.sourceType;
+                        return (
+                          <button
+                            key={`${item.sourceType}-${item.id}`}
+                            type="button"
+                            onClick={() => setSelectedItem(item)}
+                            className={`w-full text-left rounded-2xl border p-4 transition-colors ${
+                              isSelected
+                                ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-semibold text-slate-900 dark:text-white text-sm">{item.routeName}</p>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${itemBadge.className}`}>
+                                {itemBadge.label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2">
+                              {item.startTime && item.endTime ? `${item.startTime} – ${item.endTime}` : 'Giờ chưa xác định'}
+                            </p>
+                            {item.ward && (
+                              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">location_on</span>
+                                {item.neighborhood ? `${item.neighborhood}, ${item.ward}` : item.ward}
+                              </p>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
