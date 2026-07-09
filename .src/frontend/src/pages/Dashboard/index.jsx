@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
 import managerReportService from '../../services/managerReportService';
+import managerScheduleService from '../../services/managerScheduleService';
 import complaintService from '../../services/complaintService';
 import routeService from '../../services/routeService';
 import teamService from '../../services/teamService';
@@ -31,8 +32,18 @@ function getStatusBadge(status) {
   if (state.includes('assigned')) return 'bg-emerald-100 text-emerald-700';
   if (state.includes('planned')) return 'bg-sky-100 text-sky-700';
   if (state.includes('delayed')) return 'bg-amber-100 text-amber-700';
-  if (state.includes('completed')) return 'bg-slate-100 text-slate-600';
+  if (state.includes('completed_pending_approval')) return 'bg-amber-100 text-amber-800';
+  if (state.includes('completed')) return 'bg-emerald-100 text-emerald-700';
   return 'bg-slate-100 text-slate-700';
+}
+
+function formatStatusLabel(status) {
+  const state = (status || '').toLowerCase();
+  if (state === 'completed_pending_approval') return 'Chờ xác nhận';
+  if (state === 'in_progress') return 'Đang thu gom';
+  if (state === 'completed') return 'Đã xác nhận';
+  if (state === 'delayed') return 'Bị hoãn';
+  return status || 'Planned';
 }
 
 function formatDate(dateString) {
@@ -61,6 +72,10 @@ export default function Dashboard() {
   const [teams, setTeams] = useState([]);
   const [report, setReport] = useState(null);
   const [viewingIncident, setViewingIncident] = useState(null);
+  const [completionPending, setCompletionPending] = useState([]);
+  const [completionGroups, setCompletionGroups] = useState([]);
+  const [viewingCompletion, setViewingCompletion] = useState(null);
+  const [rejectCompletionNote, setRejectCompletionNote] = useState('');
 
   // Complaint management state
   const [viewingComplaint, setViewingComplaint] = useState(null);
@@ -251,6 +266,65 @@ export default function Dashboard() {
     }
   };
 
+  const fetchCompletionPending = async () => {
+    const data = await managerScheduleService.getPendingCompletions();
+    setCompletionPending(data.pending || []);
+    setCompletionGroups(data.groups || []);
+    return data;
+  };
+
+  const handleApproveCompletion = async (scheduleId) => {
+    setManagerLoading(true);
+    setApiMessage('');
+    setManagerError('');
+    try {
+      await managerScheduleService.approveCompletion(scheduleId, 'Manager đã kiểm tra và xác nhận hoàn thành tuyến.');
+      setApiMessage('Đã xác nhận hoàn thành tuyến.');
+      setViewingCompletion(null);
+      await Promise.all([fetchSchedules(), fetchCompletionPending()]);
+    } catch (error) {
+      setManagerError(error.message || 'Không thể xác nhận hoàn thành tuyến.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
+  const handleRejectCompletion = async (scheduleId) => {
+    if (rejectCompletionNote.trim().length < 10) {
+      setManagerError('Vui lòng nhập lý do từ chối từ 10 ký tự trở lên.');
+      return;
+    }
+    setManagerLoading(true);
+    setApiMessage('');
+    setManagerError('');
+    try {
+      await managerScheduleService.rejectCompletion(scheduleId, rejectCompletionNote.trim());
+      setApiMessage('Đã từ chối xác nhận. Tuyến trả về collector để xử lý tiếp.');
+      setViewingCompletion(null);
+      setRejectCompletionNote('');
+      await Promise.all([fetchSchedules(), fetchCompletionPending()]);
+    } catch (error) {
+      setManagerError(error.message || 'Không thể từ chối xác nhận tuyến.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
+  const handleApproveDay = async (date) => {
+    setManagerLoading(true);
+    setApiMessage('');
+    setManagerError('');
+    try {
+      const result = await managerScheduleService.approveDay(date, `Xác nhận toàn bộ tuyến ngày ${formatDate(`${date}T12:00:00`)}.`);
+      setApiMessage(result.message || 'Đã xác nhận toàn bộ tuyến trong ngày.');
+      await Promise.all([fetchSchedules(), fetchCompletionPending()]);
+    } catch (error) {
+      setManagerError(error.message || 'Không thể xác nhận toàn bộ tuyến trong ngày.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
   const fetchReport = async () => {
     const response = await fetch(`${API_BASE}/api/manager/reports`, {
       headers: await getAuthHeaders(),
@@ -291,6 +365,7 @@ export default function Dashboard() {
         fetchReport(),
         fetchCollectors(),
         fetchFeedbackReports(),
+        fetchCompletionPending(),
         fetchRoutes(),
         fetchTeams(),
       ]);
@@ -915,6 +990,81 @@ export default function Dashboard() {
             <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Xác nhận thu gom</p>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Tuyến chờ xác nhận</h2>
+                </div>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {completionPending.length} tuyến
+                </span>
+              </div>
+
+              {completionGroups.filter((g) => g.canApproveDay).length > 0 && (
+                <div className="mb-4 space-y-2">
+                  {completionGroups.filter((g) => g.canApproveDay).slice(0, 3).map((group) => (
+                    <div key={group.date} className="rounded-2xl border border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900/40 p-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                          Ngày {formatDate(`${group.date}T12:00:00`)}
+                        </p>
+                        <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                          {group.pending} tuyến chờ · {group.activeTotal} tuyến hoàn thành
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={managerLoading}
+                        onClick={() => handleApproveDay(group.date)}
+                        className="shrink-0 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                      >
+                        Xác nhận cả ngày
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {completionPending.length === 0 ? (
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-950/50 p-4 text-sm text-slate-500 dark:text-slate-400">
+                    Không có tuyến chờ xác nhận.
+                  </div>
+                ) : (
+                  completionPending.slice(0, 6).map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-amber-200 dark:border-amber-900/50 p-4 bg-amber-50/50 dark:bg-amber-950/20">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900 dark:text-white">{item.route_name || 'Tuyến'}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {formatDate(item.schedule_date)} · {item.assigned_collector || 'Chưa gán'}
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => { setViewingCompletion(item); setRejectCompletionNote(''); }}
+                            className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200"
+                          >
+                            Xem minh chứng
+                          </button>
+                          <button
+                            type="button"
+                            disabled={managerLoading}
+                            onClick={() => handleApproveCompletion(item.id)}
+                            className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                          >
+                            Xác nhận
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Duyệt kết quả</p>
                   <h2 className="text-lg font-bold text-slate-900 dark:text-white">Phản ánh chờ duyệt</h2>
                 </div>
@@ -1094,7 +1244,7 @@ export default function Dashboard() {
                       <td className="px-4 py-4 text-slate-600 dark:text-slate-300">{formatDate(schedule.schedule_date)} {schedule.schedule_time || ''}</td>
                       <td className="px-4 py-4">
                         <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusBadge(schedule.status)}`}>
-                          {schedule.status || 'Planned'}
+                          {formatStatusLabel(schedule.status)}
                         </span>
                       </td>
                       <td className="px-4 py-4">{schedule.assigned_truck || 'Chưa gán'}</td>
@@ -1113,6 +1263,35 @@ export default function Dashboard() {
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {(schedule.status || '').toLowerCase() === 'completed_pending_approval' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setViewingCompletion({
+                                    id: schedule.id,
+                                    route_name: schedule.route_name,
+                                    schedule_date: schedule.schedule_date,
+                                    assigned_collector: schedule.assigned_collector,
+                                    evidence_urls: schedule.evidence_urls || schedule.evidenceUrls || [],
+                                  });
+                                  setRejectCompletionNote('');
+                                }}
+                                className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
+                              >
+                                <span className="material-symbols-outlined text-sm">image</span>
+                                Minh chứng
+                              </button>
+                              <button
+                                type="button"
+                                disabled={managerLoading}
+                                onClick={() => handleApproveCompletion(schedule.id)}
+                                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                              >
+                                Xác nhận
+                              </button>
+                            </>
+                          )}
                           {schedule.incident && (
                             <button
                               type="button"
@@ -1256,6 +1435,107 @@ export default function Dashboard() {
                   className="rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
                 >
                   Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {viewingCompletion && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={() => { setViewingCompletion(null); setRejectCompletionNote(''); }}>
+            <div
+              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-3xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-slate-100 dark:border-slate-700 p-6 flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
+                      <span className="material-symbols-outlined text-lg">task_alt</span>
+                    </span>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Minh chứng hoàn thành</h3>
+                  </div>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Tuyến: {viewingCompletion.route_name || 'Không xác định'} · {formatDate(viewingCompletion.schedule_date)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setViewingCompletion(null); setRejectCompletionNote(''); }}
+                  className="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 p-4">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Collector</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                    {viewingCompletion.assigned_collector || 'Chưa gán'}
+                  </p>
+                </div>
+
+                {viewingCompletion.evidence_urls && viewingCompletion.evidence_urls.length > 0 ? (
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white mb-3">
+                      Ảnh minh chứng ({viewingCompletion.evidence_urls.length})
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {viewingCompletion.evidence_urls.map((url, idx) => (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group relative aspect-square rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700"
+                        >
+                          <img src={url} alt={`Minh chứng ${idx + 1}`} className="w-full h-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 p-4 text-sm text-slate-500 text-center">
+                    Không có ảnh minh chứng.
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-sm text-slate-600 dark:text-slate-300">Lý do từ chối (nếu cần)</label>
+                  <textarea
+                    value={rejectCompletionNote}
+                    onChange={(e) => setRejectCompletionNote(e.target.value)}
+                    rows={3}
+                    placeholder="Nhập lý do nếu từ chối xác nhận..."
+                    className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 dark:border-slate-700 p-4 flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setViewingCompletion(null); setRejectCompletionNote(''); }}
+                  className="rounded-xl border px-5 py-2.5 text-sm font-semibold"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  disabled={managerLoading}
+                  onClick={() => handleRejectCompletion(viewingCompletion.id)}
+                  className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-2.5 text-sm font-semibold text-rose-700 disabled:opacity-50"
+                >
+                  Từ chối
+                </button>
+                <button
+                  type="button"
+                  disabled={managerLoading}
+                  onClick={() => handleApproveCompletion(viewingCompletion.id)}
+                  className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Xác nhận hoàn thành
                 </button>
               </div>
             </div>

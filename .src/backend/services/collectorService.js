@@ -163,6 +163,7 @@ function mapSchedule(doc, routes, targetDate, collectorId, collectorName) {
     notes: data.notes || data.note || '',
     startedAt: data.started_at || null,
     completedAt: data.completed_at || null,
+    managerConfirmed: Boolean(data.manager_confirmed),
     teamId: data.team_id || null,
     assignedCollectors: data.assigned_collectors || [],
   };
@@ -279,7 +280,13 @@ async function getDashboardSummary(collectorId, collectorName, dateStr) {
 
   return {
     todayAssignments: items.length,
-    completedAssignments: items.filter((i) => normalizeStatus(i.status) === 'completed').length,
+    completedAssignments: items.filter((i) => {
+      const s = normalizeStatus(i.status);
+      return s === 'completed' || s === 'completed_pending_approval';
+    }).length,
+    pendingApprovalAssignments: items.filter(
+      (i) => normalizeStatus(i.status) === 'completed_pending_approval',
+    ).length,
     inProgressAssignments: items.filter((i) => normalizeStatus(i.status) === 'in_progress').length,
     pendingReports,
   };
@@ -530,11 +537,13 @@ async function updateItemStatus(collectorId, collectorName, payload) {
     }
     update = {
       ...update,
-      status: 'completed',
+      status: 'completed_pending_approval',
       completedAt: now,
       completed_at: now,
+      collector_submitted_at: now,
       evidenceUrls: imageUrls,
       evidence_urls: imageUrls,
+      manager_confirmed: false,
     };
   } else if (action === 'incident') {
     const desc = (description || '').trim();

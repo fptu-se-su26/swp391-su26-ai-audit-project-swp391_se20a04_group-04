@@ -32,7 +32,8 @@ function formatDateLabel(dateStr) {
 function getStatusBadge(status) {
   const s = (status || '').toLowerCase();
   if (s === 'in_progress') return { label: 'Đang thu gom', className: 'bg-sky-100 text-sky-700' };
-  if (s === 'completed') return { label: 'Hoàn thành', className: 'bg-emerald-100 text-emerald-700' };
+  if (s === 'completed_pending_approval') return { label: 'Chờ Manager xác nhận', className: 'bg-amber-100 text-amber-800' };
+  if (s === 'completed') return { label: 'Đã xác nhận', className: 'bg-emerald-100 text-emerald-700' };
   if (s === 'delayed') return { label: 'Bị hoãn', className: 'bg-amber-100 text-amber-800' };
   return { label: 'Chờ thực hiện', className: 'bg-slate-100 text-slate-700' };
 }
@@ -134,6 +135,9 @@ export default function CollectorDashboard() {
         ...extra,
       });
       setMessage(result.message || 'Cập nhật thành công.');
+      if (action === 'complete') {
+        setMessage('Đã gửi hoàn thành tuyến. Chờ Manager xác nhận.');
+      }
       if (action === 'incident' && result.data?.notificationResult?.notified > 0) {
         setMessage(`Đã báo sự cố. Thông báo đã gửi tới ${result.data.notificationResult.notified} cư dân.`);
       }
@@ -241,7 +245,7 @@ export default function CollectorDashboard() {
         )}
 
         {summary && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
               <p className="text-xs uppercase tracking-widest text-slate-500">Lịch hôm nay</p>
               <p className="text-3xl font-bold text-slate-900 dark:text-white mt-2">{summary.todayAssignments}</p>
@@ -249,6 +253,10 @@ export default function CollectorDashboard() {
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
               <p className="text-xs uppercase tracking-widest text-slate-500">Đang thực hiện</p>
               <p className="text-3xl font-bold text-sky-600 mt-2">{summary.inProgressAssignments}</p>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
+              <p className="text-xs uppercase tracking-widest text-slate-500">Chờ xác nhận</p>
+              <p className="text-3xl font-bold text-amber-600 mt-2">{summary.pendingApprovalAssignments ?? 0}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
               <p className="text-xs uppercase tracking-widest text-slate-500">Đã hoàn thành</p>
@@ -393,6 +401,13 @@ export default function CollectorDashboard() {
                     </div>
                   )}
 
+                  {(selectedItem.status || '').toLowerCase() === 'completed_pending_approval' && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                      <p className="font-semibold">Đã gửi hoàn thành</p>
+                      <p className="mt-1">Tuyến đang chờ Manager xác nhận kết quả thu gom.</p>
+                    </div>
+                  )}
+
                   <div className="mt-6 flex flex-wrap gap-3">
                     {canStart(selectedItem.status) && (
                       <button
@@ -416,7 +431,7 @@ export default function CollectorDashboard() {
                         Hoàn thành
                       </button>
                     )}
-                    {!['completed', 'delayed'].includes((selectedItem.status || '').toLowerCase()) && (
+                    {!['completed', 'completed_pending_approval', 'delayed'].includes((selectedItem.status || '').toLowerCase()) && (
                       <button
                         type="button"
                         disabled={actionLoading}

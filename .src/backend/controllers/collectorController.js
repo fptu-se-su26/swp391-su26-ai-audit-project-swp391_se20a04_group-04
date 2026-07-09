@@ -78,7 +78,9 @@ async function updateScheduleStatus(req, res) {
     });
     return res.status(200).json({
       success: true,
-      message: 'Cập nhật trạng thái thành công.',
+      message: action === 'complete'
+        ? 'Đã gửi hoàn thành tuyến. Chờ Manager xác nhận.'
+        : 'Cập nhật trạng thái thành công.',
       data: result,
     });
   } catch (error) {
