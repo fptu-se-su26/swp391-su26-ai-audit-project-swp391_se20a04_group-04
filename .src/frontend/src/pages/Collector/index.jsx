@@ -4,6 +4,7 @@ import authService from '../../services/authService';
 import collectorService from '../../services/collectorService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
+import CollectorTabs from '../../components/CollectorTabs';
 import { filesToEvidenceUrls } from '../../utils/imageUtils';
 
 const INCIDENT_TYPES = [
@@ -192,7 +193,9 @@ export default function CollectorDashboard() {
   const modalOpen = showCompleteModal || showIncidentModal;
 
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900 py-10 px-4 md:px-8 animate-fade-in">
+    <>
+      <CollectorTabs />
+      <div className="min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900 py-10 px-4 md:px-8 animate-fade-in">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-4">
@@ -554,6 +557,7 @@ export default function CollectorDashboard() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

@@ -149,8 +149,7 @@ export default function Header() {
   const userRole = user ? normalizeRole(user.role) : null;
   const isManager = userRole === ROLES.MANAGER || userRole === ROLES.ADMIN;
   const isCollector = userRole === ROLES.COLLECTOR;
-  const isManagerOrCollector = isManager || isCollector;
-  const dashboardPath = isCollector ? '/collector' : '/dashboard';
+  const dashboardPath = '/dashboard';
 
   return (
     <header className="header bg-surface dark:bg-inverse-surface shadow-sm docked full-width">
@@ -168,17 +167,27 @@ export default function Header() {
 
         {/* Nav links */}
         <nav className="hidden md:flex items-center gap-8">
-          <Link className={navLinkClass('/tra-cuu')} to="/tra-cuu">Tra cứu lịch</Link>
-          <Link className={navLinkClass('/thong-bao')} to="/thong-bao">Thông báo</Link>
-          <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
-          {userRole !== ROLES.ADMIN && (
+          {isCollector ? (
             <>
-              <Link className={navLinkClass('/huong-dan')} to="/huong-dan">Hướng dẫn phân loại</Link>
-              <Link className={navLinkClass('/phan-anh')} to="/phan-anh">Gửi phản ánh</Link>
+              <Link className={navLinkClass('/collector')} to="/collector">Lịch làm việc</Link>
+              <Link className={navLinkClass('/collector/reports')} to="/collector/reports">Phản ánh chỉ định</Link>
+              <Link className={navLinkClass('/thong-bao')} to="/thong-bao">Thông báo</Link>
             </>
-          )}
-          {userRole === ROLES.ADMIN && (
-            <Link className={navLinkClass('/quan-ly')} to="/quan-ly">Quản lý</Link>
+          ) : (
+            <>
+              <Link className={navLinkClass('/tra-cuu')} to="/tra-cuu">Tra cứu lịch</Link>
+              <Link className={navLinkClass('/thong-bao')} to="/thong-bao">Thông báo</Link>
+              <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
+              {userRole !== ROLES.ADMIN && (
+                <>
+                  <Link className={navLinkClass('/huong-dan')} to="/huong-dan">Hướng dẫn phân loại</Link>
+                  <Link className={navLinkClass('/phan-anh')} to="/phan-anh">Gửi phản ánh</Link>
+                </>
+              )}
+              {userRole === ROLES.ADMIN && (
+                <Link className={navLinkClass('/quan-ly')} to="/quan-ly">Quản lý</Link>
+              )}
+            </>
           )}
         </nav>
 
@@ -345,13 +354,31 @@ export default function Header() {
 
                   {/* Menu items */}
                   <div className="py-1.5">
-                    {isManagerOrCollector && (
+                    {isCollector && (
+                      <>
+                        <button
+                          onClick={() => { setShowUserMenu(false); navigate('/collector'); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                        >
+                          <span className="material-symbols-outlined text-base text-slate-400">calendar_month</span>
+                          Lịch làm việc
+                        </button>
+                        <button
+                          onClick={() => { setShowUserMenu(false); navigate('/collector/reports'); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                        >
+                          <span className="material-symbols-outlined text-base text-slate-400">assignment</span>
+                          Phản ánh chỉ định
+                        </button>
+                      </>
+                    )}
+                    {isManager && (
                       <button
                         onClick={() => { setShowUserMenu(false); navigate(dashboardPath); }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                       >
                         <span className="material-symbols-outlined text-base text-slate-400">dashboard</span>
-                        {isCollector ? 'Lịch làm việc' : 'Bảng điều khiển'}
+                        Bảng điều khiển
                       </button>
                     )}
                     <button
