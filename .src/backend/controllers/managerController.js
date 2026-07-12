@@ -32,7 +32,16 @@ async function getSchedules(req, res) {
   try {
     const snapshot = await db.collection('collection_schedules').orderBy('schedule_date', 'asc').get();
     const schedules = [];
-    snapshot.forEach((doc) => schedules.push({ id: doc.id, ...doc.data() }));
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.route_points && Array.isArray(data.route_points)) {
+        data.route_points = data.route_points.map(p => {
+          if (p && p.lat !== undefined && p.lng !== undefined) return [p.lat, p.lng];
+          return p;
+        });
+      }
+      schedules.push({ id: doc.id, ...data });
+    });
     return res.status(200).json(schedules);
   } catch (error) {
     console.error('[API] Lỗi lấy lịch quản lý:', error.message);
@@ -55,12 +64,14 @@ async function createSchedule(req, res) {
     assignedTruck,
     assignedDriver,
     assignedCollector,
+    assignedCollectors,
+    teamId,
     notes,
     routePoints,
   } = req.body;
 
-  if (!routeName || !serviceType || !date || !time || !city || !ward) {
-    return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin lịch thu gom.' });
+  if (!routeName || !serviceType || !date || !time) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin lịch thu gom (tên tuyến, dịch vụ, ngày, giờ).' });
   }
 
   if (routePoints && !Array.isArray(routePoints)) {
@@ -73,20 +84,27 @@ async function createSchedule(req, res) {
       return res.status(400).json({ error: 'Ngày hoặc giờ không hợp lệ.' });
     }
 
+    const formattedPoints = (routePoints || []).map(p => {
+      if (Array.isArray(p)) return { lat: p[0], lng: p[1] };
+      return p;
+    });
+
     const newSchedule = {
       route_name: routeName,
       service_type: serviceType,
       schedule_date: scheduleDate.toISOString(),
-      city,
-      ward,
+      city: city || '',
+      ward: ward || '',
       neighborhood: neighborhood || '',
       assigned_truck: assignedTruck || '',
       assigned_driver: assignedDriver || '',
       assigned_collector: assignedCollector || '',
+      assigned_collectors: assignedCollectors || [],
+      team_id: teamId || null,
       collector_confirmed: false,
       status: assignedTruck && assignedDriver ? 'Assigned' : 'Planned',
       notes: notes || '',
-      route_points: routePoints || [],
+      route_points: formattedPoints,
       created_by: req.userProfile.fullName || req.uid,
       created_at: new Date().toISOString(),
     };

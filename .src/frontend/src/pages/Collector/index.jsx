@@ -381,6 +381,19 @@ export default function CollectorDashboard() {
                           : 'Đi 1 mình'}
                       </p>
                     </div>
+                    {selectedItem.teamId && selectedItem.assignedCollectors?.length > 0 && (
+                      <div className="col-span-full">
+                        <p className="text-slate-500 text-xs mb-1.5">Thành viên Đội</p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedItem.assignedCollectors.map((c, i) => (
+                            <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-100 text-sky-700 text-xs font-medium dark:bg-sky-900/30 dark:border-sky-800 dark:text-sky-300">
+                              <span className="material-symbols-outlined text-[14px]">person</span>
+                              {c.name || c.fullName || 'Thành viên'} {c.role ? `(${c.role})` : ''}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <p className="text-slate-500 text-xs">Xe / phương tiện</p>
                       <p className="font-semibold text-slate-800 dark:text-white">{selectedItem.vehicleCode || '—'}</p>

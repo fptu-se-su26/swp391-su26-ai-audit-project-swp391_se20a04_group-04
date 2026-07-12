@@ -60,7 +60,13 @@ function toDateKey(value) {
 }
 
 function parseRoutePoints(route, schedule) {
-  if (schedule?.route_points?.length) return schedule.route_points;
+  if (schedule?.route_points?.length) {
+    return schedule.route_points.map(p => {
+      if (Array.isArray(p)) return p;
+      if (p && p.lat !== undefined && p.lng !== undefined) return [p.lat, p.lng];
+      return p;
+    });
+  }
   if (route?.startPoint && route?.endPoint) {
     return [
       [route.startPoint.lat, route.startPoint.lng],
