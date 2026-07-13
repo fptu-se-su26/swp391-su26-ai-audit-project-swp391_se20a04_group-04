@@ -60,7 +60,13 @@ function toDateKey(value) {
 }
 
 function parseRoutePoints(route, schedule) {
-  if (schedule?.route_points?.length) return schedule.route_points;
+  if (schedule?.route_points?.length) {
+    return schedule.route_points.map(p => {
+      if (Array.isArray(p)) return p;
+      if (p && p.lat !== undefined && p.lng !== undefined) return [p.lat, p.lng];
+      return p;
+    });
+  }
   if (route?.startPoint && route?.endPoint) {
     return [
       [route.startPoint.lat, route.startPoint.lng],
@@ -104,7 +110,8 @@ function matchesCollector(data, collectorId, collectorName) {
 function mapAssignment(doc, routes, targetDate) {
   const data = doc.data();
   const assignedKey = toDateKey(data.assignedDate);
-  if (assignedKey !== targetDate) return null;
+  if (!assignedKey) return null;
+  if (targetDate && assignedKey !== targetDate) return null;
 
   const route = routes[data.routeId] || {};
   return {
@@ -136,7 +143,8 @@ function mapSchedule(doc, routes, targetDate, collectorId, collectorName) {
 
   const dateField = data.schedule_date || data.scheduleDate;
   const assignedKey = toDateKey(dateField);
-  if (assignedKey !== targetDate) return null;
+  if (!assignedKey) return null;
+  if (targetDate && assignedKey !== targetDate) return null;
 
   const route = routes[data.routeId] || {};
   const timeParts = (data.time_slot || '').split(' - ');
@@ -161,6 +169,7 @@ function mapSchedule(doc, routes, targetDate, collectorId, collectorName) {
     notes: data.notes || data.note || '',
     startedAt: data.started_at || null,
     completedAt: data.completed_at || null,
+    managerConfirmed: Boolean(data.manager_confirmed),
     teamId: data.team_id || null,
     assignedCollectors: data.assigned_collectors || [],
   };
@@ -197,6 +206,43 @@ async function getDailySchedules(collectorId, collectorName, dateStr) {
 
   items.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
   return { date: targetDate, items };
+}
+
+async function getAllSchedules(collectorId, collectorName) {
+  const routes = await getRouteMap();
+  const items = [];
+  const seen = new Set();
+
+  const assignSnap = await db
+    .collection(ASSIGNMENTS_COLLECTION)
+    .where('collectorId', '==', collectorId)
+    .get();
+
+  assignSnap.forEach((doc) => {
+    const item = mapAssignment(doc, routes, null);
+    if (item) {
+      items.push(item);
+      seen.add(`assignment:${doc.id}`);
+    }
+  });
+
+  const schedSnap = await db.collection(SCHEDULES_COLLECTION).get();
+  schedSnap.forEach((doc) => {
+    if (seen.has(`schedule:${doc.id}`)) return;
+    const item = mapSchedule(doc, routes, null, collectorId, collectorName);
+    if (item) {
+      items.push(item);
+      seen.add(`schedule:${doc.id}`);
+    }
+  });
+
+  items.sort((a, b) => {
+    const byDate = (a.date || '').localeCompare(b.date || '');
+    if (byDate !== 0) return byDate;
+    return (a.startTime || '').localeCompare(b.startTime || '');
+  });
+
+  return { items, total: items.length };
 }
 
 async function getAssignmentsInRange(collectorId, fromDate, toDate) {
@@ -240,7 +286,13 @@ async function getDashboardSummary(collectorId, collectorName, dateStr) {
 
   return {
     todayAssignments: items.length,
-    completedAssignments: items.filter((i) => normalizeStatus(i.status) === 'completed').length,
+    completedAssignments: items.filter((i) => {
+      const s = normalizeStatus(i.status);
+      return s === 'completed' || s === 'completed_pending_approval';
+    }).length,
+    pendingApprovalAssignments: items.filter(
+      (i) => normalizeStatus(i.status) === 'completed_pending_approval',
+    ).length,
     inProgressAssignments: items.filter((i) => normalizeStatus(i.status) === 'in_progress').length,
     pendingReports,
   };
@@ -491,11 +543,13 @@ async function updateItemStatus(collectorId, collectorName, payload) {
     }
     update = {
       ...update,
-      status: 'completed',
+      status: 'completed_pending_approval',
       completedAt: now,
       completed_at: now,
+      collector_submitted_at: now,
       evidenceUrls: imageUrls,
       evidence_urls: imageUrls,
+      manager_confirmed: false,
     };
   } else if (action === 'incident') {
     const desc = (description || '').trim();
@@ -543,6 +597,7 @@ async function updateItemStatus(collectorId, collectorName, payload) {
 
 module.exports = {
   getDailySchedules,
+  getAllSchedules,
   getAssignmentsInRange,
   getDashboardSummary,
   updateItemStatus,

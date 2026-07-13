@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
 import collectorService from '../../services/collectorService';
 import { ROLES, normalizeRole } from '../../constants/roles';
+import CollectorTabs from '../../components/CollectorTabs';
 import { filesToEvidenceUrls } from '../../utils/imageUtils';
 
 const CATEGORY_LABELS = {
@@ -172,14 +173,12 @@ export default function AssignedReports() {
   const canResolve = selectedReport && (selectedReport.status || '').toLowerCase() === 'in_progress';
 
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900 py-10 px-4 md:px-8">
+    <>
+      <CollectorTabs />
+      <div className="min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900 py-10 px-4 md:px-8">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <Link to="/collector" className="text-sm text-emerald-600 hover:underline flex items-center gap-1 mb-2">
-              <span className="material-symbols-outlined text-base">arrow_back</span>
-              Lịch làm việc
-            </Link>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Phản ánh được giao</h1>
             <p className="text-sm text-slate-500 mt-1">Xử lý các phản ánh môi trường Manager đã phân công cho bạn.</p>
           </div>
@@ -384,6 +383,7 @@ export default function AssignedReports() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

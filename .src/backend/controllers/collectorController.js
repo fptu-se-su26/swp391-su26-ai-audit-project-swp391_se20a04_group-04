@@ -24,6 +24,14 @@ async function getDashboard(req, res) {
  */
 async function getSchedules(req, res) {
   try {
+    if (req.query.all === 'true') {
+      const result = await collectorService.getAllSchedules(
+        req.uid,
+        req.userProfile.fullName,
+      );
+      return res.status(200).json({ success: true, data: result });
+    }
+
     const date = req.query.date || new Date().toISOString().slice(0, 10);
     const result = await collectorService.getDailySchedules(
       req.uid,
@@ -70,7 +78,9 @@ async function updateScheduleStatus(req, res) {
     });
     return res.status(200).json({
       success: true,
-      message: 'Cập nhật trạng thái thành công.',
+      message: action === 'complete'
+        ? 'Đã gửi hoàn thành tuyến. Chờ Manager xác nhận.'
+        : 'Cập nhật trạng thái thành công.',
       data: result,
     });
   } catch (error) {

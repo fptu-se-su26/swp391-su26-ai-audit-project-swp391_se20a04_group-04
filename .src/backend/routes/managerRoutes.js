@@ -7,6 +7,10 @@ const managerController = require('../controllers/managerController');
 router.use(verifyToken, ensureManager);
 
 router.get('/collectors', managerController.getCollectors);
+router.get('/schedules/completion-pending', managerController.getPendingCompletions);
+router.post('/schedules/approve-day', managerController.approveDayCompletions);
+router.patch('/schedules/:scheduleId/approve-completion', managerController.approveScheduleCompletion);
+router.patch('/schedules/:scheduleId/reject-completion', managerController.rejectScheduleCompletion);
 router.get('/schedules', managerController.getSchedules);
 router.post('/schedules', managerController.createSchedule);
 router.put('/schedules/:scheduleId', managerController.updateSchedule);

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
 import collectorService from '../../services/collectorService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
+import CollectorTabs from '../../components/CollectorTabs';
 import { filesToEvidenceUrls } from '../../utils/imageUtils';
 
 const INCIDENT_TYPES = [
@@ -32,7 +33,8 @@ function formatDateLabel(dateStr) {
 function getStatusBadge(status) {
   const s = (status || '').toLowerCase();
   if (s === 'in_progress') return { label: 'Đang thu gom', className: 'bg-sky-100 text-sky-700' };
-  if (s === 'completed') return { label: 'Hoàn thành', className: 'bg-emerald-100 text-emerald-700' };
+  if (s === 'completed_pending_approval') return { label: 'Chờ Manager xác nhận', className: 'bg-amber-100 text-amber-800' };
+  if (s === 'completed') return { label: 'Đã xác nhận', className: 'bg-emerald-100 text-emerald-700' };
   if (s === 'delayed') return { label: 'Bị hoãn', className: 'bg-amber-100 text-amber-800' };
   return { label: 'Chờ thực hiện', className: 'bg-slate-100 text-slate-700' };
 }
@@ -48,7 +50,7 @@ function canComplete(status) {
 export default function CollectorDashboard() {
   const navigate = useNavigate();
   const [user] = useState(() => authService.getCurrentUser());
-  const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [dateFilter, setDateFilter] = useState('');
   const [summary, setSummary] = useState(null);
   const [schedules, setSchedules] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -82,8 +84,8 @@ export default function CollectorDashboard() {
     setError('');
     try {
       const [dashboardData, scheduleData] = await Promise.all([
-        collectorService.getDashboard(selectedDate),
-        collectorService.getDailySchedules(selectedDate),
+        collectorService.getDashboard(todayISO()),
+        collectorService.getAllSchedules(),
       ]);
       setSummary(dashboardData);
       const items = scheduleData.items || [];
@@ -97,7 +99,22 @@ export default function CollectorDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate]);
+  }, []);
+
+  const filteredSchedules = useMemo(() => {
+    if (!dateFilter) return schedules;
+    return schedules.filter((item) => item.date === dateFilter);
+  }, [schedules, dateFilter]);
+
+  const groupedSchedules = useMemo(() => {
+    const groups = new Map();
+    filteredSchedules.forEach((item) => {
+      const key = item.date || 'unknown';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    });
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredSchedules]);
 
   useEffect(() => {
     if (user) {
@@ -119,6 +136,9 @@ export default function CollectorDashboard() {
         ...extra,
       });
       setMessage(result.message || 'Cập nhật thành công.');
+      if (action === 'complete') {
+        setMessage('Đã gửi hoàn thành tuyến. Chờ Manager xác nhận.');
+      }
       if (action === 'incident' && result.data?.notificationResult?.notified > 0) {
         setMessage(`Đã báo sự cố. Thông báo đã gửi tới ${result.data.notificationResult.notified} cư dân.`);
       }
@@ -173,7 +193,9 @@ export default function CollectorDashboard() {
   const modalOpen = showCompleteModal || showIncidentModal;
 
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900 py-10 px-4 md:px-8 animate-fade-in">
+    <>
+      <CollectorTabs />
+      <div className="min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900 py-10 px-4 md:px-8 animate-fade-in">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-4">
@@ -189,11 +211,23 @@ export default function CollectorDashboard() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setDateFilter('')}
+              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
+                !dateFilter
+                  ? 'bg-emerald-600 text-white'
+                  : 'border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200'
+              }`}
+            >
+              Tất cả lịch
+            </button>
             <input
               type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
               className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm"
+              title="Lọc theo ngày"
             />
             <button
               type="button"
@@ -214,7 +248,7 @@ export default function CollectorDashboard() {
         )}
 
         {summary && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
               <p className="text-xs uppercase tracking-widest text-slate-500">Lịch hôm nay</p>
               <p className="text-3xl font-bold text-slate-900 dark:text-white mt-2">{summary.todayAssignments}</p>
@@ -222,6 +256,10 @@ export default function CollectorDashboard() {
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
               <p className="text-xs uppercase tracking-widest text-slate-500">Đang thực hiện</p>
               <p className="text-3xl font-bold text-sky-600 mt-2">{summary.inProgressAssignments}</p>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
+              <p className="text-xs uppercase tracking-widest text-slate-500">Chờ xác nhận</p>
+              <p className="text-3xl font-bold text-amber-600 mt-2">{summary.pendingApprovalAssignments ?? 0}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
               <p className="text-xs uppercase tracking-widest text-slate-500">Đã hoàn thành</p>
@@ -239,51 +277,69 @@ export default function CollectorDashboard() {
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
+          <div className="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5 max-h-[calc(100vh-12rem)] overflow-y-auto">
             <p className="text-xs uppercase tracking-widest text-slate-500 mb-1">Lịch làm việc</p>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">{formatDateLabel(selectedDate)}</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+              {dateFilter ? formatDateLabel(dateFilter) : 'Tất cả lịch được gán'}
+            </h2>
+            <p className="text-xs text-slate-400 mb-4">
+              {filteredSchedules.length} tuyến{dateFilter ? '' : ` / ${schedules.length} tổng`}
+            </p>
 
             {loading ? (
               <p className="text-sm text-slate-500">Đang tải...</p>
-            ) : schedules.length === 0 ? (
+            ) : filteredSchedules.length === 0 ? (
               <div className="text-center py-10 text-slate-500">
                 <span className="material-symbols-outlined text-4xl opacity-30">event_busy</span>
-                <p className="mt-3 text-sm">Không có lịch thu gom trong ngày này.</p>
+                <p className="mt-3 text-sm">
+                  {dateFilter ? 'Không có lịch thu gom trong ngày này.' : 'Chưa có lịch thu gom được gán.'}
+                </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {schedules.map((item) => {
-                  const itemBadge = getStatusBadge(item.status);
-                  const isSelected = selectedItem?.id === item.id && selectedItem?.sourceType === item.sourceType;
-                  return (
-                    <button
-                      key={`${item.sourceType}-${item.id}`}
-                      type="button"
-                      onClick={() => setSelectedItem(item)}
-                      className={`w-full text-left rounded-2xl border p-4 transition-colors ${
-                        isSelected
-                          ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-emerald-300'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-semibold text-slate-900 dark:text-white text-sm">{item.routeName}</p>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${itemBadge.className}`}>
-                          {itemBadge.label}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-2">
-                        {item.startTime && item.endTime ? `${item.startTime} – ${item.endTime}` : 'Giờ chưa xác định'}
+              <div className="space-y-5">
+                {groupedSchedules.map(([groupDate, items]) => (
+                  <div key={groupDate}>
+                    {!dateFilter && (
+                      <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-2 sticky top-0 bg-white dark:bg-slate-800 py-1">
+                        {formatDateLabel(groupDate)}
                       </p>
-                      {item.ward && (
-                        <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-sm">location_on</span>
-                          {item.neighborhood ? `${item.neighborhood}, ${item.ward}` : item.ward}
-                        </p>
-                      )}
-                    </button>
-                  );
-                })}
+                    )}
+                    <div className="space-y-3">
+                      {items.map((item) => {
+                        const itemBadge = getStatusBadge(item.status);
+                        const isSelected = selectedItem?.id === item.id && selectedItem?.sourceType === item.sourceType;
+                        return (
+                          <button
+                            key={`${item.sourceType}-${item.id}`}
+                            type="button"
+                            onClick={() => setSelectedItem(item)}
+                            className={`w-full text-left rounded-2xl border p-4 transition-colors ${
+                              isSelected
+                                ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-semibold text-slate-900 dark:text-white text-sm">{item.routeName}</p>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${itemBadge.className}`}>
+                                {itemBadge.label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2">
+                              {item.startTime && item.endTime ? `${item.startTime} – ${item.endTime}` : 'Giờ chưa xác định'}
+                            </p>
+                            {item.ward && (
+                              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">location_on</span>
+                                {item.neighborhood ? `${item.neighborhood}, ${item.ward}` : item.ward}
+                              </p>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -325,6 +381,19 @@ export default function CollectorDashboard() {
                           : 'Đi 1 mình'}
                       </p>
                     </div>
+                    {selectedItem.teamId && selectedItem.assignedCollectors?.length > 0 && (
+                      <div className="col-span-full">
+                        <p className="text-slate-500 text-xs mb-1.5">Thành viên Đội</p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedItem.assignedCollectors.map((c, i) => (
+                            <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-100 text-sky-700 text-xs font-medium dark:bg-sky-900/30 dark:border-sky-800 dark:text-sky-300">
+                              <span className="material-symbols-outlined text-[14px]">person</span>
+                              {c.name || c.fullName || 'Thành viên'} {c.role ? `(${c.role})` : ''}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <p className="text-slate-500 text-xs">Xe / phương tiện</p>
                       <p className="font-semibold text-slate-800 dark:text-white">{selectedItem.vehicleCode || '—'}</p>
@@ -345,6 +414,13 @@ export default function CollectorDashboard() {
                     <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                       <p className="font-semibold">Sự cố đã báo</p>
                       <p className="mt-1">{selectedItem.incident.description}</p>
+                    </div>
+                  )}
+
+                  {(selectedItem.status || '').toLowerCase() === 'completed_pending_approval' && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                      <p className="font-semibold">Đã gửi hoàn thành</p>
+                      <p className="mt-1">Tuyến đang chờ Manager xác nhận kết quả thu gom.</p>
                     </div>
                   )}
 
@@ -371,7 +447,7 @@ export default function CollectorDashboard() {
                         Hoàn thành
                       </button>
                     )}
-                    {!['completed', 'delayed'].includes((selectedItem.status || '').toLowerCase()) && (
+                    {!['completed', 'completed_pending_approval', 'delayed'].includes((selectedItem.status || '').toLowerCase()) && (
                       <button
                         type="button"
                         disabled={actionLoading}
@@ -494,6 +570,7 @@ export default function CollectorDashboard() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

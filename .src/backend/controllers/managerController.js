@@ -4,6 +4,7 @@ const { normalizeUser } = require('../helpers/normalizeUser');
 const complaintService = require('../services/complaintService');
 const reportService = require('../services/reportService');
 const invoiceService = require('../services/invoiceService');
+const scheduleCompletionService = require('../services/scheduleCompletionService');
 
 const USERS_COLLECTION = 'users';
 
@@ -31,7 +32,16 @@ async function getSchedules(req, res) {
   try {
     const snapshot = await db.collection('collection_schedules').orderBy('schedule_date', 'asc').get();
     const schedules = [];
-    snapshot.forEach((doc) => schedules.push({ id: doc.id, ...doc.data() }));
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.route_points && Array.isArray(data.route_points)) {
+        data.route_points = data.route_points.map(p => {
+          if (p && p.lat !== undefined && p.lng !== undefined) return [p.lat, p.lng];
+          return p;
+        });
+      }
+      schedules.push({ id: doc.id, ...data });
+    });
     return res.status(200).json(schedules);
   } catch (error) {
     console.error('[API] Lỗi lấy lịch quản lý:', error.message);
@@ -54,12 +64,14 @@ async function createSchedule(req, res) {
     assignedTruck,
     assignedDriver,
     assignedCollector,
+    assignedCollectors,
+    teamId,
     notes,
     routePoints,
   } = req.body;
 
-  if (!routeName || !serviceType || !date || !time || !city || !ward) {
-    return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin lịch thu gom.' });
+  if (!routeName || !serviceType || !date || !time) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin lịch thu gom (tên tuyến, dịch vụ, ngày, giờ).' });
   }
 
   if (routePoints && !Array.isArray(routePoints)) {
@@ -72,20 +84,27 @@ async function createSchedule(req, res) {
       return res.status(400).json({ error: 'Ngày hoặc giờ không hợp lệ.' });
     }
 
+    const formattedPoints = (routePoints || []).map(p => {
+      if (Array.isArray(p)) return { lat: p[0], lng: p[1] };
+      return p;
+    });
+
     const newSchedule = {
       route_name: routeName,
       service_type: serviceType,
       schedule_date: scheduleDate.toISOString(),
-      city,
-      ward,
+      city: city || '',
+      ward: ward || '',
       neighborhood: neighborhood || '',
       assigned_truck: assignedTruck || '',
       assigned_driver: assignedDriver || '',
       assigned_collector: assignedCollector || '',
+      assigned_collectors: assignedCollectors || [],
+      team_id: teamId || null,
       collector_confirmed: false,
       status: assignedTruck && assignedDriver ? 'Assigned' : 'Planned',
       notes: notes || '',
-      route_points: routePoints || [],
+      route_points: formattedPoints,
       created_by: req.userProfile.fullName || req.uid,
       created_at: new Date().toISOString(),
     };
@@ -358,9 +377,6 @@ async function getReports(req, res) {
   }
 }
 
-/**
- * POST /api/manager/invoices
- */
 async function createInvoice(req, res) {
   try {
     const {
@@ -405,6 +421,89 @@ async function createInvoice(req, res) {
   }
 }
 
+/**
+ * GET /api/manager/schedules/completion-pending
+ */
+async function getPendingCompletions(req, res) {
+  try {
+    const [pending, groups] = await Promise.all([
+      scheduleCompletionService.listPendingCompletions(),
+      scheduleCompletionService.getCompletionGroupsByDate(),
+    ]);
+    return res.status(200).json({
+      success: true,
+      data: { pending, groups },
+    });
+  } catch (error) {
+    console.error('[API] Lỗi lấy tuyến chờ xác nhận:', error.message);
+    return res.status(500).json({ error: 'Không thể tải danh sách tuyến chờ xác nhận.' });
+  }
+}
+
+/**
+ * PATCH /api/manager/schedules/:scheduleId/approve-completion
+ */
+async function approveScheduleCompletion(req, res) {
+  try {
+    const result = await scheduleCompletionService.approveScheduleCompletion(
+      req.uid,
+      req.userProfile?.fullName || 'Manager',
+      req.params.scheduleId,
+      req.body || {},
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    const status = error.status || 500;
+    if (status >= 500) {
+      console.error('[API] Lỗi duyệt hoàn thành tuyến:', error.message);
+    }
+    return res.status(status).json({ error: error.message || 'Không thể xác nhận hoàn thành tuyến.' });
+  }
+}
+
+/**
+ * PATCH /api/manager/schedules/:scheduleId/reject-completion
+ */
+async function rejectScheduleCompletion(req, res) {
+  try {
+    const result = await scheduleCompletionService.rejectScheduleCompletion(
+      req.uid,
+      req.userProfile?.fullName || 'Manager',
+      req.params.scheduleId,
+      req.body || {},
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    const status = error.status || 500;
+    if (status >= 500) {
+      console.error('[API] Lỗi từ chối hoàn thành tuyến:', error.message);
+    }
+    return res.status(status).json({ error: error.message || 'Không thể từ chối xác nhận tuyến.' });
+  }
+}
+
+/**
+ * POST /api/manager/schedules/approve-day
+ */
+async function approveDayCompletions(req, res) {
+  try {
+    const { date, message } = req.body || {};
+    const result = await scheduleCompletionService.approveDayCompletions(
+      req.uid,
+      req.userProfile?.fullName || 'Manager',
+      date,
+      { message },
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    const status = error.status || 500;
+    if (status >= 500) {
+      console.error('[API] Lỗi xác nhận toàn bộ ngày:', error.message);
+    }
+    return res.status(status).json({ error: error.message || 'Không thể xác nhận toàn bộ tuyến trong ngày.' });
+  }
+}
+
 module.exports = {
   getCollectors,
   getSchedules,
@@ -420,6 +519,10 @@ module.exports = {
   approveReport,
   getReports,
   createInvoice,
+  getPendingCompletions,
+  approveScheduleCompletion,
+  rejectScheduleCompletion,
+  approveDayCompletions,
   getRoutes,
   createRoute,
   updateRoute,
