@@ -234,7 +234,9 @@ feat, fix, docs, test, refactor, style, chore
 ## 8. How to Run
 
 ```text
-Students write project running instructions here.
+cd the file to frontend e2e-tests folder
+use: "npx playwright test --headed" for test all the file.
+use: "npx playwright XX.js --headed" for test only 1 file.
 ```
 
 ---
