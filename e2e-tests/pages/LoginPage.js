@@ -1,4 +1,4 @@
-const { BasePage } = require('./BasePage');
+const { BasePage } = require('../base/BasePage');
 const { expect } = require('@playwright/test');
 
 class LoginPage extends BasePage {

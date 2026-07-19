@@ -151,6 +151,11 @@ export default function Header() {
   const isCollector = userRole === ROLES.COLLECTOR;
   const dashboardPath = '/dashboard';
 
+  const isCollectorWorkspace = location.pathname.startsWith('/collector') || (isCollector && location.pathname === '/thong-bao');
+  if (isCollectorWorkspace) {
+    return null;
+  }
+
   return (
     <header className="header bg-surface dark:bg-inverse-surface shadow-sm docked full-width">
       <div className="flex justify-between items-center px-margin-desktop w-full max-w-container-max-width mx-auto h-20">

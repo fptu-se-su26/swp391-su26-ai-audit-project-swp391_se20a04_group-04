@@ -1,6 +1,20 @@
+import { useLocation } from 'react-router-dom';
 import './Footer.css';
+import authService from '../services/authService';
+import { ROLES, normalizeRole } from '../constants/roles';
 
-export default function Footer() {
+export default function Footer({ isInsideCollectorLayout = false }) {
+  const location = useLocation();
+  const user = authService.getCurrentUser();
+  const userRole = user ? normalizeRole(user.role) : null;
+  const isCollector = userRole === ROLES.COLLECTOR;
+
+  const isCollectorWorkspace = location.pathname.startsWith('/collector') || (isCollector && location.pathname === '/thong-bao');
+
+  if (isCollectorWorkspace && !isInsideCollectorLayout) {
+    return null;
+  }
+
   return (
     <footer className="footer bg-surface-container-highest dark:bg-inverse-surface border-t border-outline-variant dark:border-outline py-12 mt-auto">
       <div className="max-w-container-max-width mx-auto px-margin-desktop grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter mb-12">
