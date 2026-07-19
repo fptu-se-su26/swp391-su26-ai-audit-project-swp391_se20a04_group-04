@@ -13,6 +13,7 @@ import authService from '../../services/authService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import NotificationCard from './NotificationCard';
 import NotificationSettings from './NotificationSettings';
+import CollectorLayout from '../../components/CollectorLayout';
 import { TABS } from './notificationUtils';
 
 export default function Notifications() {
@@ -124,7 +125,9 @@ export default function Notifications() {
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   // ─── Render ───────────────────────────────────────────────────────────────
-  return (
+  const isCollector = currentUser && normalizeRole(currentUser.role) === ROLES.COLLECTOR;
+
+  const content = (
     <main className="max-w-container-max-width mx-auto px-margin-desktop py-12">
 
       {/* Breadcrumb + Tiêu đề trang */}
@@ -242,4 +245,10 @@ export default function Notifications() {
       </div>
     </main>
   );
+
+  if (isCollector) {
+    return <CollectorLayout user={currentUser}>{content}</CollectorLayout>;
+  }
+
+  return content;
 }

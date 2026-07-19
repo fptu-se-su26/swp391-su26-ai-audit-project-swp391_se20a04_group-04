@@ -1,0 +1,7 @@
+{
+  "baseURL": "http://localhost:5173",
+  "adminBaseURL": "http://localhost:5174",
+  "device": "Desktop Chrome",
+  "headless": false,
+  "slowMo": 300
+}

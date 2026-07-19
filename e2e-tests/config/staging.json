@@ -1,0 +1,7 @@
+{
+  "baseURL": "https://staging.example.com",
+  "adminBaseURL": "https://admin-staging.example.com",
+  "device": "Desktop Chrome",
+  "headless": true,
+  "slowMo": 0
+}

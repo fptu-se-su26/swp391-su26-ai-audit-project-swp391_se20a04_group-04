@@ -1,31 +1,17 @@
-import { defineConfig, devices } from '@playwright/test';
+const { defineConfig, devices } = require('@playwright/test');
+const { readConfig } = require('./utils/ConfigReader');
+const { createProjectUse } = require('./utils/DriverFactory');
 
-export default defineConfig({
+const envConfig = readConfig();
+
+module.exports = defineConfig({
   testDir: './tests',
   fullyParallel: false,
-  forbidOnly: !!process.env.CI,
+  forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  workers: 1,
-  reporter: 'html',
-  use: {
-    trace: 'on-first-retry',
-    launchOptions: {
-      slowMo: 1000, // Slows down Playwright operations by 1000ms so you can see what is happening
-    },
-  },
-
-  projects: [
-    {
-      name: 'frontend',
-      testMatch: /.*\.spec\.js/,
-      use: { 
-        ...devices['Desktop Chrome'],
-        baseURL: 'http://localhost:5173',
-      },
-
-    },
-  ],
-
+  workers: process.env.CI ? 2 : 1,
+  reporter: [['html', { outputFolder: 'playwright-report', open: 'never' }]],
+  use: createProjectUse(envConfig),
   webServer: [
     {
       command: 'npm run frontend',
