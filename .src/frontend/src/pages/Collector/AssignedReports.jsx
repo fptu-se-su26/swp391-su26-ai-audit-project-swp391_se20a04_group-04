@@ -97,8 +97,8 @@ export default function AssignedReports() {
   }, [selectedReport]);
 
   const filteredReports = reports.filter((r) => {
-    const s = (r.status || '').toLowerCase();
-    if (filter === 'pending') return ['assigned', 'submitted', 'verified', 'in_progress'].includes(s);
+    const s = (r.status || 'assigned').toLowerCase();
+    if (filter === 'pending') return ['assigned', 'submitted', 'verified', 'in_progress', 'pending', 'new', 'open', 'unread'].includes(s);
     if (filter === 'awaiting') return ['resolved_pending_approval', 'resolved'].includes(s);
     if (filter === 'closed') return ['closed', 'rejected', 'cancelled'].includes(s);
     return true;

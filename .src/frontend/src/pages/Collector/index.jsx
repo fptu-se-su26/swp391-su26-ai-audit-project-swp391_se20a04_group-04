@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
 import collectorService from '../../services/collectorService';
+import notificationService from '../../services/notificationService';
 import { ROLES, normalizeRole } from '../../constants/roles';
 import CollectionRouteMap from '../../components/CollectionRouteMap';
 import CollectorLayout from '../../components/CollectorLayout';
 import { filesToEvidenceUrls } from '../../utils/imageUtils';
+import { timeAgo } from '../Notifications/notificationUtils';
 
 const INCIDENT_TYPES = [
   { value: 'vehicle_breakdown', label: 'Xe hỏng / sự cố phương tiện' },
@@ -54,6 +56,7 @@ export default function CollectorDashboard() {
   const [summary, setSummary] = useState(null);
   const [schedules, setSchedules] = useState([]);
   const [assignedReports, setAssignedReports] = useState([]);
+  const [recentNotifications, setRecentNotifications] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -83,15 +86,17 @@ export default function CollectorDashboard() {
     setLoading(true);
     setError('');
     try {
-      const [dashboardData, scheduleData, reportData] = await Promise.all([
+      const [dashboardData, scheduleData, reportData, notifData] = await Promise.all([
         collectorService.getDashboard(todayISO()),
         collectorService.getAllSchedules(),
-        collectorService.getAssignedReports().catch(() => ({ data: [] })),
+        collectorService.getAssignedReports().catch(() => []),
+        notificationService.getNotifications().catch(() => []),
       ]);
       setSummary(dashboardData);
       const items = scheduleData.items || [];
       setSchedules(items);
       setAssignedReports(Array.isArray(reportData) ? reportData : reportData?.data || []);
+      setRecentNotifications(Array.isArray(notifData) ? notifData : []);
       setSelectedItem((prev) => {
         if (!prev) return items[0] || null;
         return items.find((i) => i.id === prev.id && i.sourceType === prev.sourceType) || items[0] || null;
@@ -425,28 +430,35 @@ export default function CollectorDashboard() {
                 </button>
               </div>
               <div className="divide-y divide-outline-variant">
-                <div className="p-4 bg-primary-container/5 hover:bg-surface-container transition-colors cursor-pointer">
-                  <div className="flex gap-3">
-                    <div className="mt-1 w-2 h-2 rounded-full bg-primary flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-bold">Lộ trình thay đổi</p>
-                      <p className="text-xs text-on-surface-variant line-clamp-2">
-                        Tuyến Test 1 có thêm điểm thu gom tại số 45 Lê Lợi do yêu cầu đột xuất.
-                      </p>
-                      <p className="text-[10px] text-outline mt-1 uppercase font-bold">5 phút trước</p>
+                {recentNotifications.length > 0 ? (
+                  recentNotifications.slice(0, 3).map((notif) => (
+                    <div
+                      key={notif.id}
+                      onClick={() => navigate('/thong-bao')}
+                      className="p-4 hover:bg-surface-container transition-colors cursor-pointer"
+                    >
+                      <div className="flex gap-3 items-start">
+                        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${!notif.is_read ? 'bg-primary' : 'bg-transparent'}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm ${!notif.is_read ? 'font-bold text-on-surface' : 'font-medium text-on-surface-variant'}`}>
+                            {notif.title || notif.content}
+                          </p>
+                          {notif.title && (
+                            <p className="text-xs text-on-surface-variant line-clamp-2 mt-0.5">{notif.content}</p>
+                          )}
+                          <p className="text-[10px] text-outline mt-1 font-bold">
+                            {timeAgo(notif.sent_at)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="p-6 text-center text-on-surface-variant">
+                    <span className="material-symbols-outlined text-3xl opacity-30">notifications_off</span>
+                    <p className="mt-1 text-xs">Chưa có thông báo mới nào.</p>
                   </div>
-                </div>
-                <div className="p-4 hover:bg-surface-container transition-colors cursor-pointer">
-                  <div className="flex gap-3">
-                    <div className="mt-1 w-2 h-2 rounded-full bg-transparent flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-bold">Báo cáo tuần</p>
-                      <p className="text-xs text-on-surface-variant">Báo cáo hiệu suất công việc tuần 27 đã sẵn sàng.</p>
-                      <p className="text-[10px] text-outline mt-1 uppercase font-bold">Hôm qua</p>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -547,6 +559,7 @@ export default function CollectorDashboard() {
                         type="button"
                         disabled={actionLoading}
                         onClick={() => {
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
                           setShowIncidentModal(true);
                           setEvidenceFiles([]);
                           setIncidentForm({ incidentType: 'vehicle_breakdown', description: '' });
@@ -635,84 +648,33 @@ export default function CollectorDashboard() {
                     </div>
                   ))
                 ) : (
-                  <>
-                    <div
-                      onClick={() => navigate('/collector/reports')}
-                      className="flex items-start gap-4 p-4 border border-outline-variant rounded-lg bg-surface-container-lowest hover:border-primary transition-colors cursor-pointer"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-error-container/20 flex items-center justify-center text-error">
-                        <span className="material-symbols-outlined">report</span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-on-surface">Rác chưa được thu gom</h4>
-                          <span className="text-[10px] font-bold px-2 py-0.5 bg-error-container text-on-error-container rounded uppercase">
-                            Khẩn cấp
-                          </span>
-                        </div>
-                        <p className="text-sm text-on-surface-variant mt-1">
-                          Tại địa chỉ 12 Trần Hưng Đạo, thùng rác đã đầy từ tối qua nhưng chưa thấy xe qua.
-                        </p>
-                        <div className="flex items-center gap-4 mt-3">
-                          <span className="text-xs text-outline flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">person</span> Chị Lan
-                          </span>
-                          <span className="text-xs text-outline flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">history</span> 15 phút trước
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => navigate('/collector/reports')}
-                      className="flex items-start gap-4 p-4 border border-outline-variant rounded-lg bg-surface-container-lowest hover:border-primary transition-colors cursor-pointer"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-secondary-container/20 flex items-center justify-center text-secondary">
-                        <span className="material-symbols-outlined">delete_sweep</span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-on-surface">Yêu cầu dọn dẹp vệ sinh</h4>
-                          <span className="text-[10px] font-bold px-2 py-0.5 bg-surface-container-highest text-on-surface-variant rounded uppercase">
-                            Thường
-                          </span>
-                        </div>
-                        <p className="text-sm text-on-surface-variant mt-1">
-                          Có dầu mỡ đổ trên vỉa hè trước cửa nhà số 89 An Hải Tây.
-                        </p>
-                        <div className="flex items-center gap-4 mt-3">
-                          <span className="text-xs text-outline flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">person</span> Anh Hùng
-                          </span>
-                          <span className="text-xs text-outline flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">history</span> 1 giờ trước
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </>
+                  <div className="p-8 text-center text-on-surface-variant">
+                    <span className="material-symbols-outlined text-4xl opacity-30">assignment_turned_in</span>
+                    <p className="mt-2 text-sm font-semibold">Hiện chưa có phản ánh nào được giao</p>
+                    <p className="text-xs text-outline mt-1">Các phản ánh mới từ cư dân sẽ xuất hiện tại đây khi Manager phân công cho bạn.</p>
+                  </div>
                 )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Floating Action Button */}
+        {/* Floating Action Button - Báo sự cố trực tiếp */}
         <button
           type="button"
           onClick={() => {
-            if (selectedItem) {
-              setShowIncidentModal(true);
-            } else {
-              navigate('/collector/reports');
-            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setShowIncidentModal(true);
+            setEvidenceFiles([]);
+            setIncidentForm({ incidentType: 'vehicle_breakdown', description: '' });
+            setError('');
           }}
           className="fixed bottom-8 right-8 w-16 h-16 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 group cursor-pointer"
           title="Tạo phản ánh / Báo sự cố"
         >
           <span className="material-symbols-outlined text-3xl">add</span>
           <span className="absolute right-full mr-4 bg-inverse-surface text-inverse-on-surface px-4 py-2 rounded-lg text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-            Tạo phản ánh / báo sự cố
+            Tạo phản ánh / Báo sự cố
           </span>
         </button>
 
