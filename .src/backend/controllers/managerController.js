@@ -377,6 +377,77 @@ async function getReports(req, res) {
   }
 }
 
+/**
+ * GET /api/manager/residents/search?q=<query>
+ * Search residents by fullName or email (no UID exposed)
+ */
+async function searchResidents(req, res) {
+  try {
+    const query = (req.query.q || '').trim().toLowerCase();
+    if (!query || query.length < 1) {
+      return res.status(200).json([]);
+    }
+
+    const snapshot = await db.collection(USERS_COLLECTION).where('role', '==', ROLES.RESIDENT).get();
+    const results = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const fullName = (data.fullName || '').toLowerCase();
+      const email = (data.email || '').toLowerCase();
+      if (fullName.includes(query) || email.includes(query)) {
+        results.push({
+          uid: doc.id,
+          fullName: data.fullName || '',
+          email: data.email || '',
+          phone: data.phone || '',
+        });
+      }
+    });
+
+    return res.status(200).json(results);
+  } catch (error) {
+    console.error('[Manager] Lỗi tìm kiếm cư dân:', error.message);
+    return res.status(500).json({ error: 'Không thể tìm kiếm cư dân.' });
+  }
+}
+
+/**
+ * GET /api/manager/residents/:userId/invoices
+ * Get all invoices for a specific resident so manager can check for duplicates
+ */
+async function getResidentInvoices(req, res) {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId là bắt buộc.' });
+    }
+
+    const snapshot = await db.collection('invoices')
+      .where('userId', '==', userId)
+      .get();
+
+    const invoices = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      // Serialize date fields
+      const dateFields = ['createdAt', 'dueDate', 'paidAt', 'updatedAt'];
+      dateFields.forEach((field) => {
+        if (data[field] && typeof data[field].toDate === 'function') {
+          data[field] = data[field].toDate().toISOString();
+        } else if (data[field] instanceof Date) {
+          data[field] = data[field].toISOString();
+        }
+      });
+      invoices.push({ id: doc.id, ...data });
+    });
+
+    return res.status(200).json(invoices);
+  } catch (error) {
+    console.error('[Manager] Lỗi lấy hóa đơn cư dân:', error.message);
+    return res.status(500).json({ error: 'Không thể tải hóa đơn của cư dân.' });
+  }
+}
+
 async function createInvoice(req, res) {
   try {
     const {
@@ -396,6 +467,20 @@ async function createInvoice(req, res) {
 
     if (!invoiceId || !userId || !amount || !currency || !dueDate || !feeType) {
       return res.status(400).json({ error: 'invoiceId, userId, amount, currency, dueDate và feeType là bắt buộc.' });
+    }
+
+    // Check for duplicate unpaid invoice for same userId + billingMonth
+    const existingSnapshot = await db.collection('invoices')
+      .where('userId', '==', userId)
+      .where('billingMonth', '==', Number(billingMonth))
+      .where('billingYear', '==', Number(billingYear))
+      .where('status', '==', 'unpaid')
+      .get();
+
+    if (!existingSnapshot.empty) {
+      return res.status(409).json({
+        error: `Cư dân này đã có hóa đơn chưa thanh toán cho tháng ${billingMonth}/${billingYear}. Không thể tạo thêm.`,
+      });
     }
 
     const invoice = await invoiceService.createOrUpdateInvoice({
@@ -518,6 +603,8 @@ module.exports = {
   getReportComments,
   approveReport,
   getReports,
+  searchResidents,
+  getResidentInvoices,
   createInvoice,
   getPendingCompletions,
   approveScheduleCompletion,

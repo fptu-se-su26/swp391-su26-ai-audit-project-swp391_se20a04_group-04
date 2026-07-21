@@ -86,3 +86,17 @@ export async function getAdminTransactions(roleFilter = '') {
   });
   return parseJsonResponse(response);
 }
+
+export async function searchResidents(query) {
+  const response = await fetch(`${API_BASE}/api/manager/residents/search?q=${encodeURIComponent(query)}`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(response);
+}
+
+export async function getResidentInvoices(userId) {
+  const response = await fetch(`${API_BASE}/api/manager/residents/${encodeURIComponent(userId)}/invoices`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(response);
+}

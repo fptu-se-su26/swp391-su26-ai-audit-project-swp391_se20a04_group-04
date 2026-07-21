@@ -141,6 +141,9 @@ export default function Payment() {
     }
   };
 
+  const [autoChecking, setAutoChecking] = useState(false);
+  const pollingRef = useRef(null);
+
   const handleVerifyPayment = async () => {
     if (!invoice) {
       setError('Không có hóa đơn để kiểm tra.');
@@ -176,6 +179,61 @@ export default function Payment() {
       setError(buildErrorMessage(err));
     }
   };
+
+  // Auto-polling: check payment status every 3 seconds when QR is active
+  useEffect(() => {
+    const shouldPoll = paymentRequest?.paymentUrl && invoice?.status !== 'paid';
+
+    if (!shouldPoll || !invoice?.invoiceId) {
+      // Clear any existing interval
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      setAutoChecking(false);
+      return;
+    }
+
+    setAutoChecking(true);
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const result = await verifyPaymentStatus(invoice.invoiceId);
+        if (result.paid) {
+          // Payment confirmed - stop polling and update state
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+          setAutoChecking(false);
+          setInvoice(result.invoice);
+          setPaymentStatus('paid');
+          setPaymentRequest(null);
+          setSuccess('Thanh toán đã hoàn tất. Hóa đơn đã được cập nhật.');
+          setError('');
+          // Refresh history
+          try {
+            const hist = await fetchInvoiceHistory();
+            setHistory(hist);
+          } catch {
+            // ignore
+          }
+          setTimeout(() => {
+            historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 300);
+        }
+      } catch {
+        // Silently ignore errors during auto-polling to avoid spam
+      }
+    }, 3000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      setAutoChecking(false);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentRequest?.paymentUrl, invoice?.invoiceId, invoice?.status]);
 
   // Removed Admin check for regular frontend
 
@@ -390,12 +448,22 @@ export default function Payment() {
                   Mở trang thanh toán PayOS
                 </a>
 
+                {autoChecking && (
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 border border-blue-200">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                    </span>
+                    <span className="text-sm font-medium text-blue-700">Đang tự động kiểm tra thanh toán mỗi 3 giây...</span>
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={handleVerifyPayment}
-                  className="mt-2 inline-flex px-8 py-3 rounded-full bg-secondary text-on-secondary font-semibold"
+                  className="mt-2 inline-flex px-6 py-2 rounded-full bg-secondary/80 text-on-secondary font-medium text-sm hover:bg-secondary transition-colors"
                 >
-                  Kiểm tra trạng thái thanh toán
+                  Kiểm tra thủ công
                 </button>
                 {paymentStatus === 'checking' && <p className="text-on-surface-variant">Đang kiểm tra thanh toán...</p>}
                 {invoice?.status === 'paid' && <p className="text-emerald-700">Hóa đơn đã được thanh toán vào {formatDate(invoice.paidAt)}</p>}
