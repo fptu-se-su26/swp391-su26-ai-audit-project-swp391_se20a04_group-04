@@ -171,6 +171,11 @@ async function login(req, res) {
       };
     }
 
+    if (userData.role !== ROLES.ADMIN) {
+      console.log(`[Login] Role ${userData.role} không có quyền truy cập trang admin`);
+      return res.status(403).json({ error: 'Tài khoản của bạn không có quyền truy cập trang quản trị này.' });
+    }
+
     console.log(`[Login] Đăng nhập thành công: ${email}`);
     return res.status(200).json({
       user: userData,
@@ -226,6 +231,11 @@ async function googleLogin(req, res) {
       };
 
       await db.collection(USERS_COLLECTION).doc(uid).set(userData);
+    }
+
+    if (userData.role !== ROLES.ADMIN) {
+      console.log(`[GoogleLogin] Role ${userData.role} không có quyền truy cập trang admin`);
+      return res.status(403).json({ error: 'Tài khoản của bạn không có quyền truy cập trang quản trị này.' });
     }
 
     console.log(`[GoogleLogin] Đăng nhập Google thành công: ${email}`);

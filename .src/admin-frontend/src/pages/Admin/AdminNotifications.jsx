@@ -9,6 +9,7 @@ export default function AdminNotifications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [searchKeyword, setSearchKeyword] = useState('');
 
   // Pagination state
@@ -51,7 +52,7 @@ export default function AdminNotifications() {
 
   useEffect(() => {
     fetchNotifications();
-  }, [currentPage, roleFilter]);
+  }, [currentPage, roleFilter, typeFilter]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -174,10 +175,11 @@ export default function AdminNotifications() {
     return "Vừa xong";
   };
 
-  // Filter Data (Client side for search only)
+  // Filter Data (Client side for search and type)
   const filteredData = notifications.filter(n => {
     const matchSearch = (n.title || '').toLowerCase().includes(searchKeyword.toLowerCase());
-    return matchSearch;
+    const matchType = typeFilter === 'all' || n.type === typeFilter;
+    return matchSearch && matchType;
   });
 
   // --- Phân trang ---
@@ -273,6 +275,34 @@ export default function AdminNotifications() {
                 <Filter size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               </div>
             </div>
+          </div>
+
+          {/* Tabs Lọc Loại Thông báo */}
+          <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto whitespace-nowrap mb-6">
+            {[
+              { key: 'all', label: 'Tất cả loại' },
+              { key: 'system', label: 'Hệ thống' },
+              { key: 'schedule', label: 'Lịch trình' },
+              { key: 'billing', label: 'Thanh toán' },
+              { key: 'update', label: 'Cập nhật' },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => { setTypeFilter(tab.key); setCurrentPage(1); }}
+                className={`px-5 py-3 border-b-2 font-medium transition-all text-sm ${
+                  typeFilter === tab.key
+                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'border-transparent text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400'
+                }`}
+              >
+                {tab.label}
+                {tab.key !== 'all' && (
+                  <span className="ml-1.5 text-xs opacity-60 font-normal">
+                    ({notifications.filter((n) => n.type === tab.key).length})
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
 
           {error && <div className="mb-4 text-rose-600 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 p-4 rounded-xl text-sm">{error}</div>}
