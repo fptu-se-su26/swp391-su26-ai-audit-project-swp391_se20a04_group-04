@@ -6,9 +6,9 @@
 
 const CHANNELS = [
   { key: 'email', label: 'Nhận qua Email',           desc: 'Bản tin hàng tuần & hóa đơn' },
-  { key: 'sms',   label: 'Nhận qua SMS',             desc: 'Thông báo khẩn cấp & nhắc lịch' },
   { key: 'push',  label: 'Nhận Push Notification',   desc: 'Cảnh báo trực tiếp trên ứng dụng' },
 ];
+
 
 /**
  * @param {Object}   settings        - { email: boolean, sms: boolean, push: boolean }

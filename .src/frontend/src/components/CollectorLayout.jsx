@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import authService from '../services/authService';
+import notificationService from '../services/notificationService';
+import { timeAgo } from '../pages/Notifications/notificationUtils';
 import Footer from './Footer';
 
 export default function CollectorLayout({ children, user }) {
@@ -9,6 +11,16 @@ export default function CollectorLayout({ children, user }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
+  // Notifications state
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
+  const [dropdownLoading, setDropdownLoading] = useState(false);
+
+  const notifDropdownRef = useRef(null);
+  const bellRef = useRef(null);
+  const userMenuRef = useRef(null);
+
   const currentUser = user || authService.getCurrentUser();
 
   const handleLogout = async () => {
@@ -16,11 +28,78 @@ export default function CollectorLayout({ children, user }) {
     navigate('/login');
   };
 
+  const fetchNotifications = useCallback(async () => {
+    if (!authService.isAuthenticated()) {
+      setUnreadCount(0);
+      setNotifications([]);
+      return;
+    }
+    try {
+      const data = await notificationService.getNotifications();
+      setNotifications(data);
+      setUnreadCount(data.filter((n) => !n.is_read).length);
+    } catch {
+      // Quiet fail
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 10000);
+    window.addEventListener('notificationsUpdated', fetchNotifications);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('notificationsUpdated', fetchNotifications);
+    };
+  }, [fetchNotifications]);
+
+  // Click outside to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        notifDropdownRef.current &&
+        !notifDropdownRef.current.contains(e.target) &&
+        bellRef.current &&
+        !bellRef.current.contains(e.target)
+      ) {
+        setShowNotificationDropdown(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleBellClick = async () => {
+    const isOpening = !showNotificationDropdown;
+    setShowNotificationDropdown(isOpening);
+    setUserDropdownOpen(false);
+
+    if (isOpening) {
+      setDropdownLoading(true);
+      await fetchNotifications();
+      setDropdownLoading(false);
+    }
+  };
+
+  const handleMarkRead = async (e, id) => {
+    e.stopPropagation();
+    try {
+      await notificationService.markAsRead(id);
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+      window.dispatchEvent(new Event('notificationsUpdated'));
+    } catch {
+      /* ignore */
+    }
+  };
+
   const navItems = [
-    { path: '/collector', label: 'Dashboard', icon: 'dashboard' },
-    { path: '/collector', label: 'Schedules', icon: 'calendar_today' },
-    { path: '/collector/reports', label: 'Phản ánh', icon: 'chat_bubble' },
-    { path: '/thong-bao', label: 'Thông báo', icon: 'notifications_active' },
+    { path: '/collector', label: 'Lịch & Tuyến thu gom', icon: 'calendar_today' },
+    { path: '/collector/reports', label: 'Phản ánh phân công', icon: 'chat_bubble' },
+    { path: '/thong-bao', label: 'Trung tâm thông báo', icon: 'notifications' },
   ];
 
   const getInitials = (name) => {
@@ -31,6 +110,8 @@ export default function CollectorLayout({ children, user }) {
     }
     return name.slice(0, 2).toUpperCase();
   };
+
+  const previewNotifications = notifications.slice(0, 5);
 
   return (
     <div className="bg-surface text-on-surface min-h-screen font-body relative">
@@ -66,10 +147,7 @@ export default function CollectorLayout({ children, user }) {
 
           <nav className="space-y-1">
             {navItems.map((item, idx) => {
-              const isActive =
-                item.path === '/collector' && idx < 2
-                  ? location.pathname === '/collector'
-                  : location.pathname === item.path;
+              const isActive = location.pathname === item.path;
 
               return (
                 <Link
@@ -95,7 +173,7 @@ export default function CollectorLayout({ children, user }) {
               {currentUser ? getInitials(currentUser.fullName) : 'E'}
             </div>
             <div>
-              <p className="text-sm font-bold text-on-surface">{currentUser?.fullName || 'EcoSchedule Admin'}</p>
+              <p className="text-sm font-bold text-on-surface">{currentUser?.fullName || 'EcoSchedule Collector'}</p>
               <p className="text-xs text-on-surface-variant">Collector Portal</p>
             </div>
           </div>
@@ -126,21 +204,107 @@ export default function CollectorLayout({ children, user }) {
         </div>
 
         <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => navigate('/thong-bao')}
-            className="relative p-2 rounded-full hover:bg-surface-container transition-transform active:scale-95 text-on-surface-variant"
-            title="Thông báo"
-          >
-            <span className="material-symbols-outlined">notifications</span>
-            <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full" />
-          </button>
-
-          {/* User Profile Pill */}
-          <div className="relative">
+          {/* Notification Bell & Dropdown */}
+          <div className="relative" ref={bellRef}>
             <button
               type="button"
-              onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+              onClick={handleBellClick}
+              className="relative p-2 rounded-full hover:bg-surface-container transition-transform active:scale-95 text-on-surface-variant flex items-center justify-center"
+              title="Thông báo"
+            >
+              <span className="material-symbols-outlined">notifications</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-error text-on-error text-[10px] font-bold rounded-full h-4 min-w-4 px-1 flex items-center justify-center animate-pulse">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {showNotificationDropdown && (
+              <div
+                ref={notifDropdownRef}
+                className="absolute right-0 top-12 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl border border-outline-variant shadow-2xl z-50 overflow-hidden"
+              >
+                <div className="px-5 py-4 border-b border-outline-variant/60 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-xl">notifications</span>
+                    <h3 className="font-bold text-on-surface text-base">Thông báo mới</h3>
+                  </div>
+                  {unreadCount > 0 && (
+                    <span className="px-2 py-0.5 bg-primary-container text-on-primary-container text-xs font-bold rounded-full">
+                      {unreadCount} chưa đọc
+                    </span>
+                  )}
+                </div>
+
+                <div className="max-h-80 overflow-y-auto divide-y divide-outline-variant/30">
+                  {dropdownLoading ? (
+                    <div className="py-8 text-center text-sm text-outline">Đang tải thông báo...</div>
+                  ) : previewNotifications.length === 0 ? (
+                    <div className="py-8 text-center text-sm text-outline">Không có thông báo nào.</div>
+                  ) : (
+                    previewNotifications.map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => {
+                          setShowNotificationDropdown(false);
+                          navigate('/thong-bao');
+                        }}
+                        className={`p-4 cursor-pointer transition-colors flex items-start gap-3 ${
+                          n.is_read
+                            ? 'bg-surface hover:bg-surface-container-low'
+                            : 'bg-primary-container/10 hover:bg-primary-container/20'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-primary text-xl mt-0.5">
+                          notifications_active
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm ${n.is_read ? 'text-on-surface-variant' : 'font-bold text-on-surface'}`}>
+                            {n.title}
+                          </p>
+                          <p className="text-xs text-on-surface-variant truncate mt-0.5">{n.message}</p>
+                          <p className="text-[10px] text-outline mt-1">{timeAgo(n.sent_at)}</p>
+                        </div>
+                        {!n.is_read && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleMarkRead(e, n.id)}
+                            title="Đánh dấu đã đọc"
+                            className="text-primary hover:scale-110 transition-transform"
+                          >
+                            <span className="material-symbols-outlined text-sm">check_circle</span>
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="p-3 border-t border-outline-variant/60 bg-surface-container-low text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNotificationDropdown(false);
+                      navigate('/thong-bao');
+                    }}
+                    className="w-full py-2 text-sm font-bold text-primary hover:bg-primary-container/20 rounded-xl transition-colors"
+                  >
+                    Xem tất cả thông báo
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* User Profile Pill */}
+          <div className="relative" ref={userMenuRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setUserDropdownOpen(!userDropdownOpen);
+                setShowNotificationDropdown(false);
+              }}
               className="flex items-center gap-3 bg-surface-container-low px-3 py-1.5 rounded-full border border-outline-variant hover:border-primary transition-colors cursor-pointer"
             >
               <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container text-xs font-bold">
@@ -184,3 +348,4 @@ export default function CollectorLayout({ children, user }) {
     </div>
   );
 }
+

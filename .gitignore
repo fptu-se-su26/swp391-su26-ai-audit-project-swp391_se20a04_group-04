@@ -15,9 +15,12 @@ node_modules/
 Thumbs.db
 swp391-database-firebase-adminsdk-fbsvc-098b1ea896.json
 
-# Test outputs
+# Test outputs & logs
 coverage/
 test_results.txt
 Test_Cases_Server.csv
 *.test.log
+*.log
+firebase-debug.log
 swp391-database-firebase-adminsdk-fbsvc-829bd8e1e2.json
+
