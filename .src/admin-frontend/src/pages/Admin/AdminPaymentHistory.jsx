@@ -148,9 +148,7 @@ export default function AdminPaymentHistory() {
               >
                 <option value="">Tất cả vai trò</option>
                 <option value={ROLES.RESIDENT}>Cư dân</option>
-                <option value={ROLES.MANAGER}>Quản lý</option>
                 <option value={ROLES.COLLECTOR}>Nhân viên thu gom</option>
-                <option value={ROLES.ADMIN}>Admin</option>
               </select>
 
             </div>
@@ -282,7 +280,9 @@ export default function AdminPaymentHistory() {
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl text-slate-700 dark:text-slate-300 text-sm leading-relaxed border border-slate-100 dark:border-slate-700 space-y-2">
                 <p><strong>Mã giao dịch / Hóa đơn:</strong> {selectedItem.transactionId || selectedItem.invoiceId || 'N/A'}</p>
-                <p><strong>Người dùng:</strong> {selectedItem.userName || selectedItem.userEmail || selectedItem.userId || 'Ẩn danh'}</p>
+                <p><strong>ID Khách hàng (UID):</strong> {selectedItem.userId || 'Không có'}</p>
+                <p><strong>Email:</strong> {selectedItem.userEmail || 'Không có'}</p>
+                <p><strong>Tên người dùng:</strong> {selectedItem.userName || 'Ẩn danh'}</p>
                 <p><strong>Ngày tạo:</strong> {formatDate(selectedItem.createdAt)}</p>
                 {selectedItem.paidAt && <p><strong>Ngày thanh toán:</strong> {formatDate(selectedItem.paidAt)}</p>}
                 {selectedItem.feeType && <p><strong>Loại phí:</strong> {selectedItem.feeType}</p>}
