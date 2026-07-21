@@ -14,5 +14,8 @@
     "frontend": "npm run dev --prefix .src/frontend",
     "admin-backend": "npm run dev --prefix .src/admin-backend",
     "admin-frontend": "npm run dev --prefix .src/admin-frontend"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.2.0"
   }
 }
