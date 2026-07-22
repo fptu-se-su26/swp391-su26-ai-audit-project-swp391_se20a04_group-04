@@ -40,9 +40,17 @@ export default function Header() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownLoading, setDropdownLoading] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const dropdownRef = useRef(null);
   const bellRef = useRef(null);
   const userMenuRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+  const mobileMenuBtnRef = useRef(null);
+
+  // Tự động đóng mobile menu khi chuyển route
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   // Lấy thông báo từ API
   const fetchNotifications = useCallback(async () => {
@@ -88,7 +96,7 @@ export default function Header() {
     };
   }, [fetchNotifications]);
 
-  // Đóng dropdown khi click bên ngoài
+  // Đóng dropdown & mobile menu khi click bên ngoài
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (
@@ -99,6 +107,12 @@ export default function Header() {
       }
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
         setShowUserMenu(false);
+      }
+      if (
+        mobileMenuRef.current && !mobileMenuRef.current.contains(e.target) &&
+        mobileMenuBtnRef.current && !mobileMenuBtnRef.current.contains(e.target)
+      ) {
+        setIsMobileMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -113,6 +127,7 @@ export default function Header() {
     const isOpening = !showDropdown;
     setShowDropdown(isOpening);
     setShowUserMenu(false);
+    setIsMobileMenuOpen(false);
 
     if (isOpening) {
       setDropdownLoading(true);
@@ -133,6 +148,7 @@ export default function Header() {
 
   const handleLogout = async () => {
     setShowUserMenu(false);
+    setIsMobileMenuOpen(false);
     await authService.logout();
     navigate('/login');
   };
@@ -161,7 +177,7 @@ export default function Header() {
       <div className="flex justify-between items-center px-margin-desktop w-full max-w-container-max-width mx-auto h-20">
 
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2">
           <span className="material-symbols-outlined text-primary dark:text-primary-fixed" style={{ fontSize: '32px' }}>
             recycling
           </span>
@@ -432,8 +448,135 @@ export default function Header() {
           )}
           {/* ===== KẾT THÚC USER MENU ===== */}
 
+          {/* ===== NÚT HAMBURGER MOBILE ===== */}
+          <button
+            ref={mobileMenuBtnRef}
+            onClick={() => {
+              setIsMobileMenuOpen((prev) => !prev);
+              setShowDropdown(false);
+              setShowUserMenu(false);
+            }}
+            className="md:hidden flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-primary dark:text-primary-fixed transition-colors ml-1"
+            aria-label="Toggle menu"
+          >
+            <span className="material-symbols-outlined text-2xl">
+              {isMobileMenuOpen ? 'close' : 'menu'}
+            </span>
+          </button>
+
         </div>
       </div>
+
+      {/* ===== MOBILE NAVIGATION DRAWER / DROPDOWN ===== */}
+      {isMobileMenuOpen && (
+        <div
+          ref={mobileMenuRef}
+          className="mobile-menu-drawer md:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-xl px-6 py-4 animate-mobile-menu"
+        >
+          <nav className="flex flex-col gap-2">
+            {isCollector ? (
+              <>
+                <Link
+                  to="/collector"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/collector') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                >
+                  <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">calendar_month</span>
+                  Lịch làm việc
+                </Link>
+                <Link
+                  to="/collector/reports"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/collector/reports') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                >
+                  <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">assignment</span>
+                  Phản ánh chỉ định
+                </Link>
+                <Link
+                  to="/thong-bao"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/thong-bao') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                >
+                  <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">notifications</span>
+                  Thông báo
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/tra-cuu"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/tra-cuu') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                >
+                  <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">search</span>
+                  Tra cứu lịch
+                </Link>
+                <Link
+                  to="/thong-bao"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/thong-bao') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                >
+                  <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">notifications</span>
+                  Thông báo
+                </Link>
+                <Link
+                  to="/thanh-toan"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/thanh-toan') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                >
+                  <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">payments</span>
+                  Thanh toán
+                </Link>
+                {userRole !== ROLES.ADMIN && (
+                  <>
+                    <Link
+                      to="/huong-dan"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/huong-dan') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                    >
+                      <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">menu_book</span>
+                      Hướng dẫn phân loại
+                    </Link>
+                    <Link
+                      to="/phan-anh"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/phan-anh') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                    >
+                      <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">rate_review</span>
+                      Gửi phản ánh
+                    </Link>
+                  </>
+                )}
+                {userRole === ROLES.ADMIN && (
+                  <Link
+                    to="/quan-ly"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/quan-ly') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                  >
+                    <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">admin_panel_settings</span>
+                    Quản lý
+                  </Link>
+                )}
+              </>
+            )}
+
+            {!user && (
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 mt-2">
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    navigate('/login');
+                  }}
+                  className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 active:opacity-80 transition-all shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-lg">login</span>
+                  Đăng nhập
+                </button>
+              </div>
+            )}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
