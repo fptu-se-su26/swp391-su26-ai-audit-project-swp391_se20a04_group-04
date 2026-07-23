@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import authService from '../services/authService';
+import { ROLES, normalizeRole } from '../constants/roles';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 export default function AIChatBox({ city, ward, neighborhood }) {
+  const [user, setUser] = useState(authService.getCurrentUser());
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
     { role: 'ai', text: 'Xin chào! Tôi là trợ lý EcoSchedule. Bạn có thể hỏi tôi về lịch thu gom rác hoặc cách tạo phản ánh.' },
@@ -13,8 +15,22 @@ export default function AIChatBox({ city, ward, neighborhood }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
+    const handleAuthChange = () => {
+      setUser(authService.getCurrentUser());
+    };
+    window.addEventListener('authChange', handleAuthChange);
+    return () => window.removeEventListener('authChange', handleAuthChange);
+  }, []);
+
+  useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, open]);
+
+  if (!user) return null;
+  const userRole = normalizeRole(user.role);
+  if (userRole !== ROLES.RESIDENT && userRole !== ROLES.MANAGER && userRole !== ROLES.ADMIN) {
+    return null;
+  }
 
   async function sendMessage() {
     const text = input.trim();

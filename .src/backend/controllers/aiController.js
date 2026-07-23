@@ -3,6 +3,7 @@ const https = require('https');
 const invoiceService = require('../services/invoiceService');
 const complaintService = require('../services/complaintService');
 const notificationService = require('../services/notificationService');
+const { ROLES, normalizeRole } = require('../constants/roles');
 
 // ─── OpenRouter Configuration ─────────────────────────────────────────────────
 const OPENROUTER_HOST = 'openrouter.ai';
@@ -104,8 +105,26 @@ async function residentChat(req, res) {
     return res.status(400).json({ error: 'Tin nhắn không được để trống.' });
   }
 
+  // 1. Giới hạn độ dài tin nhắn (tối đa 500 ký tự) chống spam/DDoS
+  if (currentMessage.length > 500) {
+    return res.status(400).json({ error: 'Tin nhắn quá dài. Giới hạn tối đa là 500 ký tự.' });
+  }
+
   try {
-    // 1. Trích xuất Tỉnh và Phường bằng AI (Fast Extractor)
+    // 2. Xác thực vai trò người dùng (chỉ cho phép resident, manager, admin truy cập AI)
+    let userRole = null;
+    if (req.uid) {
+      const userDoc = await db.collection('users').doc(req.uid).get();
+      if (userDoc.exists) {
+        userRole = normalizeRole(userDoc.data().role);
+      }
+    }
+
+    if (!userRole || (userRole !== ROLES.RESIDENT && userRole !== ROLES.MANAGER && userRole !== ROLES.ADMIN)) {
+      return res.status(403).json({ error: 'Tài khoản của bạn không được cấp quyền sử dụng trợ lý AI.' });
+    }
+
+    // 3. Trích xuất Tỉnh và Phường bằng AI (Fast Extractor)
     let searchCity = city || '';
     let searchWard = ward || '';
 
@@ -134,7 +153,7 @@ BẮT BUỘC trả về định dạng JSON (không có markdown):
       console.log('[AI Extract Location] Error:', err.message);
     }
 
-    // 2. Fetch and Fuzzy Filter Schedules
+    // 4. Fetch and Fuzzy Filter Schedules
     let scheduleContext = 'Hãy yêu cầu người dùng cung cấp Phường/Xã để tra cứu lịch.';
 
     if (searchWard || searchCity) {
@@ -179,7 +198,7 @@ BẮT BUỘC trả về định dạng JSON (không có markdown):
       }
     }
 
-    // 2. Fetch User Dynamic Context (Invoices & Complaints & Notifications)
+    // 5. Fetch User Dynamic Context (Invoices & Complaints & Notifications)
     let invoiceContext = 'Khách vãng lai hoặc chưa có dữ liệu hóa đơn.';
     let complaintContext = 'Chưa có phản ánh nào.';
     let unreadNotificationCount = 0;
@@ -206,7 +225,7 @@ BẮT BUỘC trả về định dạng JSON (không có markdown):
       }
     }
 
-    // 3. Build System Prompt
+    // 6. Build System Prompt
     const currentDate = new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' });
     const systemPrompt = `Bạn là trợ lý AI chính thức của EcoSchedule — Hệ thống quản lý lịch thu gom rác thông minh tại Việt Nam.
 Hôm nay là: ${currentDate}.
@@ -230,6 +249,9 @@ Hệ thống có các tính năng sau, hãy hướng dẫn cư dân bấm vào c
 - NẾU DỮ LIỆU ĐỊA PHƯƠNG có chứa lịch trình ở hiện tại/tương lai: Hãy ưu tiên đọc và thông báo trực tiếp lịch trình đó cho người dùng. SAU ĐÓ mới gợi ý thêm: "Để xem chi tiết hơn, bạn vui lòng bấm vào mục 'Tra cứu lịch'".
 - NẾU KHÔNG CÓ DỮ LIỆU (hoặc người dùng hỏi chung chung về lịch): Hãy lịch sự hỏi họ đang ở Tỉnh/Thành, Phường/Xã nào để bạn tra cứu giúp, HOẶC khuyên họ tự bấm vào nút "Tra cứu lịch".
 - NẾU NGƯỜI DÙNG HỎI VỀ TIỀN RÁC HOẶC PHẢN ÁNH: Dựa vào [DỮ LIỆU CÁ NHÂN CỦA NGƯỜI DÙNG] bên dưới để trả lời ngay lập tức tình trạng của họ.
+- NGUYÊN TẮC PHẠM VI HỖ TRỢ (QUAN TRỌNG NHẤT): Bạn CHỈ được phép trả lời các câu hỏi liên quan trực tiếp đến EcoSchedule, dịch vụ thu gom rác, phản ánh vệ sinh môi trường, hóa đơn tiền rác, hướng dẫn phân loại rác hoặc các tính năng của hệ thống EcoSchedule.
+- TUYỆT ĐỐI KHÔNG trả lời các câu hỏi ngoài phạm vi này (ví dụ: viết code/lập trình, tạo trò chơi Flappy Bird, làm thơ, giải toán, dịch thuật hoặc trả lời kiến thức chung không liên quan đến rác thải và EcoSchedule).
+- NẾU CÂU HỎI NGOÀI PHẠM VI: Hãy lịch sự từ chối bằng chính xác câu sau: "Xin lỗi, tôi chỉ có thể hỗ trợ các vấn đề liên quan đến EcoSchedule như lịch thu gom rác, phản ánh vệ sinh, hóa đơn tiền rác và hướng dẫn phân loại rác. Bạn vui lòng đặt câu hỏi trong phạm vi này nhé!"
 - NGUYÊN TẮC CHỐNG BỊA ĐẶT: Nếu người dùng hỏi thông tin bạn không biết, hãy nói: "Xin lỗi, hiện tại tôi chưa có thông tin về vấn đề này. Bạn có thể bấm vào mục 'Gửi phản ánh' để ban quản lý hỗ trợ nhé".
 - TUYỆT ĐỐI KHÔNG tự bịa ra tính năng hoặc tự tạo ra dữ liệu giả.
 
@@ -245,15 +267,19 @@ ${complaintContext}
 
 Hãy trả lời ngắn gọn, thông minh, thân thiện và lịch sự bằng tiếng Việt.`;
 
-    // 4. Prepare chat payload with history
+    // 7. Prepare chat payload with history (Giới hạn tối đa 6 tin nhắn để chống DDoS context token)
     const chatPayload = [
       { role: 'system', content: systemPrompt }
     ];
 
     if (messages && Array.isArray(messages)) {
-      chatPayload.push(...messages);
+      const limitedHistory = messages.slice(-6).map((msg) => ({
+        role: msg.role === 'assistant' ? 'assistant' : 'user',
+        content: typeof msg.content === 'string' ? msg.content.substring(0, 500) : '',
+      }));
+      chatPayload.push(...limitedHistory);
     } else {
-      chatPayload.push({ role: 'user', content: currentMessage });
+      chatPayload.push({ role: 'user', content: currentMessage.substring(0, 500) });
     }
 
     const reply = await callOpenRouter(chatPayload, 'resident');
