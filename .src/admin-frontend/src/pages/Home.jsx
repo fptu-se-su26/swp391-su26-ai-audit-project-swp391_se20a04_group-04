@@ -84,10 +84,6 @@ export default function Home() {
       <section className="home-hero">
         <div className="max-w-container-max-width mx-auto px-margin-desktop grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 rounded-full text-xs font-bold mb-6 border border-emerald-200 dark:border-emerald-800">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Quận Sơn Trà, Đà Nẵng
-            </div>
             <h1 className="font-display-hero text-display-hero text-on-surface mb-6 leading-tight">
               {isAdmin ? (
                 <>Quản trị hệ thống <span className="text-primary">nhanh chóng</span>, toàn diện</>
