@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
 import managerReportService from '../../services/managerReportService';
@@ -567,16 +569,130 @@ export default function Dashboard() {
 
   const downloadReport = () => {
     if (!report) return;
-    const content = JSON.stringify(report, null, 2);
-    const blob = new Blob([content], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `ecoschedule-report-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const dateStr = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Header
+    doc.setFillColor(16, 185, 129); // emerald-500
+    doc.rect(0, 0, pageWidth, 28, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('EcoSchedule', 14, 12);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Bao cao he thong quan ly thu gom rac', 14, 20);
+    doc.text(`Ngay xuat: ${dateStr}`, pageWidth - 14, 20, { align: 'right' });
+
+    let y = 36;
+
+    // Summary section
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tong quan', 14, y);
+    y += 6;
+
+    const summary = report.summary || {};
+    autoTable(doc, {
+      startY: y,
+      head: [['Chi so', 'Gia tri']],
+      body: [
+        ['Tong lich thu gom', String(summary.total_schedules ?? 0)],
+        ['Tuyen da gan', String(summary.assigned_routes ?? 0)],
+        ['Lich sap toi', String(summary.upcoming_schedules ?? 0)],
+        ['Phan anh dang mo', String(summary.open_complaints ?? 0)],
+      ],
+      styles: { fontSize: 10, cellPadding: 3 },
+      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [240, 253, 250] },
+      margin: { left: 14, right: 14 },
+    });
+    y = doc.lastAutoTable.finalY + 10;
+
+    // By service type
+    const byServiceType = report.by_service_type || {};
+    const serviceEntries = Object.entries(byServiceType);
+    if (serviceEntries.length > 0) {
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('Phan loai theo loai dich vu', 14, y);
+      y += 4;
+      autoTable(doc, {
+        startY: y,
+        head: [['Loai dich vu', 'So luong']],
+        body: serviceEntries.map(([k, v]) => [k, String(v)]),
+        styles: { fontSize: 10, cellPadding: 3 },
+        headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [240, 253, 250] },
+        margin: { left: 14, right: 14 },
+      });
+      y = doc.lastAutoTable.finalY + 10;
+    }
+
+    // Schedules table (abbreviated)
+    const schedules = report.schedules || [];
+    if (schedules.length > 0) {
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Danh sach lich thu gom (${schedules.length} lich)`, 14, y);
+      y += 4;
+      autoTable(doc, {
+        startY: y,
+        head: [['Tuyen', 'Ngay', 'Loai DV', 'Xe', 'Tai xe']],
+        body: schedules.slice(0, 50).map((s) => [
+          s.route_name || s.id || '',
+          s.schedule_date ? new Date(s.schedule_date).toLocaleDateString('vi-VN') : '',
+          s.service_type || '',
+          s.assigned_truck || 'Chua gan',
+          s.assigned_driver || 'Chua gan',
+        ]),
+        styles: { fontSize: 8, cellPadding: 2, overflow: 'ellipsize' },
+        headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [240, 253, 250] },
+        columnStyles: { 0: { cellWidth: 40 }, 1: { cellWidth: 25 }, 2: { cellWidth: 30 } },
+        margin: { left: 14, right: 14 },
+      });
+      y = doc.lastAutoTable.finalY + 10;
+    }
+
+    // Complaints table (abbreviated)
+    const complaints = report.complaints || [];
+    if (complaints.length > 0) {
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Danh sach phan anh (${complaints.length} phan anh)`, 14, y);
+      y += 4;
+      autoTable(doc, {
+        startY: y,
+        head: [['Tieu de', 'Trang thai', 'Ngay tao']],
+        body: complaints.slice(0, 30).map((c) => [
+          c.title || c.description || c.id || '',
+          c.status || '',
+          c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '',
+        ]),
+        styles: { fontSize: 8, cellPadding: 2, overflow: 'ellipsize' },
+        headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [240, 253, 250] },
+        columnStyles: { 0: { cellWidth: 90 } },
+        margin: { left: 14, right: 14 },
+      });
+    }
+
+    // Footer on each page
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text(`EcoSchedule © ${new Date().getFullYear()} — Trang ${i}/${totalPages}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+    }
+
+    doc.save(`ecoschedule-report-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   const handleDeleteSchedule = async (scheduleId, routeName) => {
