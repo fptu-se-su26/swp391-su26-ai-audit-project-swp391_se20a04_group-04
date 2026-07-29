@@ -659,24 +659,6 @@ export default function CollectorDashboard() {
           </div>
         </div>
 
-        {/* Floating Action Button - Báo sự cố trực tiếp */}
-        <button
-          type="button"
-          onClick={() => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            setShowIncidentModal(true);
-            setEvidenceFiles([]);
-            setIncidentForm({ incidentType: 'vehicle_breakdown', description: '' });
-            setError('');
-          }}
-          className="fixed bottom-8 right-8 w-16 h-16 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 group cursor-pointer"
-          title="Tạo phản ánh / Báo sự cố"
-        >
-          <span className="material-symbols-outlined text-3xl">add</span>
-          <span className="absolute right-full mr-4 bg-inverse-surface text-inverse-on-surface px-4 py-2 rounded-lg text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-            Tạo phản ánh / Báo sự cố
-          </span>
-        </button>
 
         {/* Modals */}
         {showCompleteModal && (

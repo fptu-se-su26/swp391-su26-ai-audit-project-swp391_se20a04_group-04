@@ -581,9 +581,7 @@ export default function ResidentSchedules() {
                       info
                     </span>
                     <p className="leading-relaxed">
-                      Để nhận được thông báo nhắc nhở tự động trước 30 phút khi xe thu gom rác đi qua nhà bạn, vui lòng truy cập 
-                      <strong className="text-emerald-600 dark:text-emerald-400 ml-1">Bảng điều khiển</strong> và nhấn bật nút 
-                      <strong> Nhận nhắc lịch qua email</strong>.
+                      Thông báo nhắc nhở tự động sẽ được hiển thị trực tiếp trên ứng dụng trước 30 phút khi xe thu gom rác đi qua khu vực của bạn.
                     </p>
                   </div>
 

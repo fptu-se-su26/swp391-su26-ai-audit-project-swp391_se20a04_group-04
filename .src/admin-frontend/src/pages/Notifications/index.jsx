@@ -189,60 +189,47 @@ export default function Notifications() {
         </div>
       </div>
 
-      {/* Layout 2 cột */}
-      <div className="grid grid-cols-1 md:grid-cols-10 gap-gutter">
+      {/* Danh sách thông báo */}
+      <div className="flex flex-col gap-4 w-full">
 
-        {/* Cột trái: Danh sách thông báo */}
-        <div className="md:col-span-7 flex flex-col gap-4">
+        {/* Loading */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-on-surface-variant">
+            <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <p className="text-body-md">Đang tải thông báo...</p>
+          </div>
+        )}
 
-          {/* Loading */}
-          {loading && (
-            <div className="flex flex-col items-center justify-center py-20 gap-4 text-on-surface-variant">
-              <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-              <p className="text-body-md">Đang tải thông báo...</p>
-            </div>
-          )}
+        {/* Lỗi */}
+        {!loading && error && (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 bg-rose-50 dark:bg-rose-950/20 rounded-xl border border-rose-200 dark:border-rose-900">
+            <span className="material-symbols-outlined text-4xl text-rose-500">error_outline</span>
+            <p className="text-body-md text-rose-700 dark:text-rose-300 font-semibold">{error}</p>
+            <button onClick={loadData} className="px-4 py-2 bg-primary text-on-primary rounded-lg text-label-sm font-semibold hover:opacity-90 transition-all">
+              Thử lại
+            </button>
+          </div>
+        )}
 
-          {/* Lỗi */}
-          {!loading && error && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 bg-rose-50 dark:bg-rose-950/20 rounded-xl border border-rose-200 dark:border-rose-900">
-              <span className="material-symbols-outlined text-4xl text-rose-500">error_outline</span>
-              <p className="text-body-md text-rose-700 dark:text-rose-300 font-semibold">{error}</p>
-              <button onClick={loadData} className="px-4 py-2 bg-primary text-on-primary rounded-lg text-label-sm font-semibold hover:opacity-90 transition-all">
-                Thử lại
-              </button>
-            </div>
-          )}
+        {/* Danh sách rỗng */}
+        {!loading && !error && filteredNotifications.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-on-surface-variant">
+            <span className="material-symbols-outlined text-5xl opacity-30">notifications_off</span>
+            <p className="text-body-md">Không có thông báo nào trong mục này.</p>
+          </div>
+        )}
 
-          {/* Danh sách rỗng */}
-          {!loading && !error && filteredNotifications.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 gap-3 text-on-surface-variant">
-              <span className="material-symbols-outlined text-5xl opacity-30">notifications_off</span>
-              <p className="text-body-md">Không có thông báo nào trong mục này.</p>
-            </div>
-          )}
-
-          {/* Danh sách thông báo — dùng NotificationCard */}
-          {!loading && !error && filteredNotifications.map((notification) => (
-            <NotificationCard
-              key={notification.id}
-              notification={notification}
-              onClick={handleNotificationClick}
-            />
-          ))}
-        </div>
-
-        {/* Cột phải: Sidebar cài đặt — dùng NotificationSettings */}
-        <NotificationSettings
-          settings={settings}
-          onSettingChange={handleSettingChange}
-          onSave={handleSaveSettings}
-          saving={savingSettings}
-          saved={settingsSaved}
-        />
+        {/* Danh sách thông báo — dùng NotificationCard */}
+        {!loading && !error && filteredNotifications.map((notification) => (
+          <NotificationCard
+            key={notification.id}
+            notification={notification}
+            onClick={handleNotificationClick}
+          />
+        ))}
       </div>
     </main>
   );
