@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import './App.css';
 import Header from './components/Header';
@@ -8,13 +8,12 @@ import ForgotPassword from './pages/Login/ForgotPassword';
 import ResetPassword from './pages/Login/ResetPassword';
 import AdminManagement from './pages/Admin/AdminManagement';
 
-import Home from './pages/Home';
 import Notifications from './pages/Notifications';
 import Payment from './pages/Payment';
-import Dashboard from './pages/Dashboard';
 import Complaints from './pages/Complaints';
 import Collector from './pages/Collector';
 import Guide from './pages/Guide';
+import ManagerInvoice from './pages/ManagerInvoice';
 
 function App() {
   return (
@@ -28,16 +27,14 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/quan-ly" element={<AdminManagement />} />
-            <Route path="/tra-cuu" element={<Home />} />
             <Route path="/thong-bao" element={<Notifications />} />
             <Route path="/thanh-toan" element={<Payment />} />
-            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/phan-anh" element={<Complaints />} />
             <Route path="/collector" element={<Collector />} />
             <Route path="/huong-dan" element={<Guide />} />
             <Route path="/hoa-don" element={<ManagerInvoice />} />
-            <Route path="/" element={<Home />} />
-            <Route path="*" element={<Home />} />
+            <Route path="/" element={<Navigate to="/quan-ly" replace />} />
+            <Route path="*" element={<Navigate to="/quan-ly" replace />} />
           </Routes>
         </div>
         <Footer />

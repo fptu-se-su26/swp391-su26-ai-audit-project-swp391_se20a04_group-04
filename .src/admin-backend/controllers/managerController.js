@@ -500,10 +500,7 @@ module.exports = {
   deleteSchedule,
   getComplaints,
   updateComplaintStatus,
-  getFeedbackReports,
-  getReportComments,
-  approveReport,
-  getReports,
+
   searchResidents,
   getResidentInvoices,
   createInvoice,

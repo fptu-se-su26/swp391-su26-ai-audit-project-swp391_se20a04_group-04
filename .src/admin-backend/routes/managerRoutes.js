@@ -15,10 +15,7 @@ router.post('/assign-route', managerController.assignRoute);
 router.post('/confirm-route', managerController.confirmRoute);
 router.get('/complaints', managerController.getComplaints);
 router.patch('/complaints/:complaintId/status', managerController.updateComplaintStatus);
-router.get('/feedback-reports', managerController.getFeedbackReports);
-router.get('/feedback-reports/:reportId/comments', managerController.getReportComments);
-router.patch('/feedback-reports/:reportId/approve', managerController.approveReport);
-router.get('/reports', managerController.getReports);
+
 router.get('/residents/search', managerController.searchResidents);
 router.get('/residents/:userId/invoices', managerController.getResidentInvoices);
 router.post('/invoices', managerController.createInvoice);
