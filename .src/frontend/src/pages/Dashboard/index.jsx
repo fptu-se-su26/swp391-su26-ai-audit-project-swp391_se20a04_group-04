@@ -114,6 +114,9 @@ export default function Dashboard() {
     assignedType: 'solo', // 'solo' or 'team'
     assignedCollector: '',
     teamId: '',
+    city: '',
+    ward: '',
+    neighborhood: '',
     notes: '',
   });
 
@@ -984,6 +987,38 @@ export default function Dashboard() {
                     >
                       <option value="solo">Cá nhân (Khu hẹp/nhỏ)</option>
                       <option value="team">Đội nhóm (Đường lớn)</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Tỉnh/Thành</span>
+                    <select
+                      name="province"
+                      value={selectedProvince}
+                      onChange={handleProvinceChange}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="">-- Chọn tỉnh/thành --</option>
+                      {provinces.map((province) => (
+                        <option key={province.code} value={province.code}>{province.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Phường/Xã</span>
+                    <select
+                      name="ward"
+                      value={selectedWard}
+                      onChange={handleWardChange}
+                      disabled={!selectedProvince || loadingWards}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="">-- Chọn phường/xã --</option>
+                      {wards.map((ward) => (
+                        <option key={ward.code} value={ward.code}>{ward.name}</option>
+                      ))}
                     </select>
                   </label>
                 </div>
