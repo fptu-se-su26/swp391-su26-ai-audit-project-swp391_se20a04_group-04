@@ -560,18 +560,19 @@ export default function ResidentSchedules() {
                           </div>
                         </div>
 
-                        <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
+                        <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-col gap-3 text-xs text-slate-500 dark:text-slate-400">
                           <div className="flex items-center gap-1">
                             <span className="material-symbols-outlined text-sm">schedule</span>
                             <span>{schedule.time_slot || (schedule.schedule_date ? new Date(schedule.schedule_date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '17:00 - 19:00')}</span>
                           </div>
-                          
-                          {schedule.neighborhood && (
-                            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-bold">
-                              <span className="material-symbols-outlined text-xs">home</span>
-                              <span>{schedule.neighborhood}</span>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                            <span className="material-symbols-outlined text-xs">location_on</span>
+                            <span>
+                              {schedule.neighborhood ? `${schedule.neighborhood}, ` : ''}
+                              {schedule.ward ? `${schedule.ward}, ` : ''}
+                              {schedule.city || 'Khu vực chưa rõ'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ))}
