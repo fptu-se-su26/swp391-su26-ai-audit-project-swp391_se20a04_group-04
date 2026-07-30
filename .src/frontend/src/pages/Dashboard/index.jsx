@@ -28,6 +28,13 @@ const safeJson = async (response) => {
   return {};
 };
 
+const normalizeSchedules = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.schedules)) return data.schedules;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+};
+
 function getStatusBadge(status) {
   const state = (status || '').toLowerCase();
   if (state.includes('confirmed')) return 'bg-emerald-200 text-emerald-800';
@@ -58,6 +65,18 @@ function formatDate(dateString) {
     year: 'numeric',
   });
 }
+
+const sanitizeRoutePoints = (points) => {
+  if (!Array.isArray(points)) return [];
+  return points.reduce((valid, point) => {
+    if (!Array.isArray(point) || point.length < 2) return valid;
+    const lat = Number(point[0]);
+    const lng = Number(point[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return valid;
+    valid.push([lat, lng]);
+    return valid;
+  }, []);
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -201,10 +220,12 @@ export default function Dashboard() {
     });
     const data = await safeJson(response);
     if (!response.ok) throw new Error(data.error || 'Không thể tải lịch thu gom.');
-    setSchedules(data);
-    if (data.length > 0) {
-      const selectedId = assignment.scheduleId || data[0].id;
-      const selectedSchedule = data.find((schedule) => schedule.id === selectedId);
+
+    const normalizedSchedules = normalizeSchedules(data);
+    setSchedules(normalizedSchedules);
+    if (normalizedSchedules.length > 0) {
+      const selectedId = assignment.scheduleId || normalizedSchedules[0].id;
+      const selectedSchedule = normalizedSchedules.find((schedule) => schedule.id === selectedId);
       if (selectedSchedule) {
         setAssignment((prev) => ({
           ...prev,
@@ -216,7 +237,7 @@ export default function Dashboard() {
         setRoutePoints(selectedSchedule.route_points || []);
       }
     }
-    return data;
+    return normalizedSchedules;
   };
 
   const fetchComplaints = async () => {
@@ -416,7 +437,7 @@ export default function Dashboard() {
           city = selectedRoute.city;
           ward = selectedRoute.ward;
           neighborhood = selectedRoute.neighborhood;
-          rtPoints = selectedRoute.route_points || [];
+          rtPoints = sanitizeRoutePoints(selectedRoute.route_points || []);
         }
       }
 
@@ -458,7 +479,7 @@ export default function Dashboard() {
       setApiMessage('Lịch thu gom mới đã được tạo thành công.');
       await fetchSchedules();
       if (data.schedule?.route_points) {
-        setRoutePoints(data.schedule.route_points);
+        setRoutePoints(sanitizeRoutePoints(data.schedule.route_points));
       }
     } catch (error) {
       setManagerError(error.message || 'Lỗi khi tạo lịch thu gom.');
@@ -737,7 +758,7 @@ export default function Dashboard() {
     if (name === 'scheduleId') {
       const selectedSchedule = schedules.find((schedule) => schedule.id === value);
       if (selectedSchedule) {
-        setRoutePoints(selectedSchedule.route_points || []);
+        setRoutePoints(sanitizeRoutePoints(selectedSchedule.route_points || []));
         setAssignment((prev) => ({
           ...prev,
           scheduleId: value,
@@ -905,7 +926,7 @@ export default function Dashboard() {
                          setNewSchedule(prev => ({ ...prev, routeId: val }));
                          const routeObj = routes.find(r => r.id === val);
                          if (routeObj && routeObj.route_points) {
-                           setRoutePoints(routeObj.route_points);
+                           setRoutePoints(sanitizeRoutePoints(routeObj.route_points));
                          }
                       }}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"

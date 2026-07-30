@@ -15,7 +15,6 @@ import Dashboard from './pages/Dashboard';
 import Complaints from './pages/Complaints';
 import Collector from './pages/Collector';
 import Guide from './pages/Guide';
-import ManagerInvoice from './pages/ManagerInvoice';
 
 function App() {
   return (

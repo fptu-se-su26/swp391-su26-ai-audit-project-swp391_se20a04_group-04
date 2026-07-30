@@ -21,6 +21,13 @@ const safeJson = async (response) => {
   return {};
 };
 
+const normalizeSchedules = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.schedules)) return data.schedules;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+};
+
 function getStatusBadge(status) {
   const state = (status || '').toLowerCase();
   if (state.includes('confirmed')) return 'bg-emerald-200 text-emerald-800';
@@ -179,10 +186,12 @@ export default function Dashboard() {
     });
     const data = await safeJson(response);
     if (!response.ok) throw new Error(data.error || 'Không thể tải lịch thu gom.');
-    setSchedules(data);
-    if (data.length > 0) {
-      const selectedId = assignment.scheduleId || data[0].id;
-      const selectedSchedule = data.find((schedule) => schedule.id === selectedId);
+
+    const normalizedSchedules = normalizeSchedules(data);
+    setSchedules(normalizedSchedules);
+    if (normalizedSchedules.length > 0) {
+      const selectedId = assignment.scheduleId || normalizedSchedules[0].id;
+      const selectedSchedule = normalizedSchedules.find((schedule) => schedule.id === selectedId);
       if (selectedSchedule) {
         setAssignment((prev) => ({
           ...prev,
@@ -194,7 +203,7 @@ export default function Dashboard() {
         setRoutePoints(selectedSchedule.route_points || []);
       }
     }
-    return data;
+    return normalizedSchedules;
   };
 
   const fetchComplaints = async () => {

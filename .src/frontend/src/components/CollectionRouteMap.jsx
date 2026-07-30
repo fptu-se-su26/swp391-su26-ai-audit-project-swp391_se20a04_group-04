@@ -120,6 +120,19 @@ const defaultRoutePoints = [
   [16.0818, 108.2322],
 ];
 
+const normalizeRoutePoints = (points) => {
+  if (!Array.isArray(points)) return [];
+  return points
+    .map((point) => {
+      if (!Array.isArray(point) || point.length < 2) return null;
+      const lat = Number(point[0]);
+      const lng = Number(point[1]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return [lat, lng];
+    })
+    .filter(Boolean);
+};
+
 export default function CollectionRouteMap({
   title = 'Route Map',
   collectorName = 'Collector pending',
@@ -143,11 +156,11 @@ export default function CollectionRouteMap({
   const [searchLoading, setSearchLoading] = useState(false);
   const [mapError, setMapError] = useState('');
 
-  const points = routePoints;
+  const points = normalizeRoutePoints(routePoints);
 
   const updatePoints = useCallback((nextPoints) => {
     if (typeof setRoutePoints === 'function') {
-      setRoutePoints(nextPoints);
+      setRoutePoints(normalizeRoutePoints(nextPoints));
     }
   }, [setRoutePoints]);
 
