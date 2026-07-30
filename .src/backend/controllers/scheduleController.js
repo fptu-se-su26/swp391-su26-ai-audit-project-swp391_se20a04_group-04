@@ -6,8 +6,8 @@ const scheduleService = require('../services/scheduleService');
  */
 async function getSchedules(req, res) {
   const { city, ward, neighborhood } = req.query;
-  if (!city || !ward) {
-    return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ Tỉnh/Thành phố và Phường/Xã để tra cứu.' });
+  if (!city) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp Tỉnh/Thành phố để tra cứu.' });
   }
   try {
     const schedules = await scheduleService.getSchedules({ city, ward, neighborhood });

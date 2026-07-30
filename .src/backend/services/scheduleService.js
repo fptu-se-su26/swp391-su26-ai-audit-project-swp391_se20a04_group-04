@@ -39,8 +39,8 @@ function locationMatch(storedName, queryName) {
  * @returns {Promise<Array>} Danh sách lịch thu gom khớp yêu cầu
  */
 async function getSchedules({ city, ward, neighborhood }) {
-  if (!city || !ward) {
-    throw new Error('Vui lòng chọn Tỉnh/Thành phố và Phường/Xã.');
+  if (!city) {
+    throw new Error('Vui lòng chọn Tỉnh/Thành phố.');
   }
 
   const neighTrimmed = (neighborhood || '').trim();
@@ -70,9 +70,13 @@ async function getSchedules({ city, ward, neighborhood }) {
     schedules = schedules.filter(s => locationMatch(s.city, city));
     console.log(`[scheduleService] Sau khi lọc theo city "${city}": ${schedules.length} lịch`);
 
-    // Bước 2: Lọc theo Phường/Xã (fuzzy match)
-    schedules = schedules.filter(s => locationMatch(s.ward, ward));
-    console.log(`[scheduleService] Sau khi lọc theo ward "${ward}": ${schedules.length} lịch`);
+    // Bước 2: Lọc theo Phường/Xã nếu người dùng chọn
+    if (ward) {
+      schedules = schedules.filter(s => locationMatch(s.ward, ward));
+      console.log(`[scheduleService] Sau khi lọc theo ward "${ward}": ${schedules.length} lịch`);
+    } else {
+      console.log(`[scheduleService] Không có ward trong truy vấn → hiển thị toàn bộ lịch cho city "${city}" (${schedules.length} lịch).`);
+    }
 
     // Bước 3: Lọc theo Tổ dân cư NẾU người dùng có nhập
     // Nếu để trống → trả về TOÀN BỘ lịch của phường đó

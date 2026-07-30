@@ -290,12 +290,12 @@ export default function ResidentSchedules() {
                           <span className="font-bold text-slate-700 dark:text-slate-200">{timeStr}</span>
                         </div>
 
-                        {schedule.neighborhood && (
-                          <div className="mt-2 flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <span className="material-symbols-outlined text-xs">location_on</span>
-                            {schedule.neighborhood}, {schedule.ward}
-                          </div>
-                        )}
+                        <div className="mt-2 flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+                          <span className="material-symbols-outlined text-xs">location_on</span>
+                          {schedule.neighborhood ? `${schedule.neighborhood}, ` : ''}
+                          {schedule.ward || 'Phường/Xã chưa rõ'}
+                          {schedule.city ? `, ${schedule.city}` : ''}
+                        </div>
                       </div>
                     );
                   })}
@@ -358,7 +358,7 @@ export default function ResidentSchedules() {
                 {/* Phường/Xã Dropdown */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Phường / Xã <span className="text-rose-500">*</span>
+                    Phường / Xã <span className="text-slate-400 text-[10px] normal-case">(Không bắt buộc)</span>
                   </label>
                   <div className="relative">
                     <select
@@ -384,6 +384,7 @@ export default function ResidentSchedules() {
                       </span>
                     )}
                   </div>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Bỏ trống để tra cứu toàn bộ lịch trong Thành phố đã chọn.</p>
                 </div>
 
                 {/* Tổ Dân Cư Input */}
