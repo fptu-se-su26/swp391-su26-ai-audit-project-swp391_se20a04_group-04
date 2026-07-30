@@ -88,7 +88,7 @@ export default function Login() {
       // Redirect dựa theo role
       const role = normalizeRole(user?.role);
       let redirectPath = '/';
-      if (role === ROLES.MANAGER || role === ROLES.ADMIN) redirectPath = '/dashboard';
+      if (role === ROLES.MANAGER || role === ROLES.ADMIN) redirectPath = '/quan-ly';
       else if (role === ROLES.COLLECTOR) redirectPath = '/collector';
 
       setTimeout(() => {
@@ -123,7 +123,7 @@ export default function Login() {
       // Redirect dựa theo role
       const role = normalizeRole(user?.role);
       let redirectPath = '/';
-      if (role === ROLES.MANAGER || role === ROLES.ADMIN) redirectPath = '/dashboard';
+      if (role === ROLES.MANAGER || role === ROLES.ADMIN) redirectPath = '/quan-ly';
       else if (role === ROLES.COLLECTOR) redirectPath = '/collector';
 
       setTimeout(() => {
