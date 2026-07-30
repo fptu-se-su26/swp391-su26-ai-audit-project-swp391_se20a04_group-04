@@ -113,16 +113,18 @@ export default function ResidentSchedules() {
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
 
-    if (!selectedProvince || !selectedWard) {
-      setError('Vui lòng chọn đầy đủ Tỉnh/Thành phố và Phường/Xã.');
+    if (!selectedProvince) {
+      setError('Vui lòng chọn Tỉnh/Thành phố.');
       return;
     }
 
     // Tìm tên tỉnh/thành để gửi đi query
     const provinceObj = provinces.find(p => p.code.toString() === selectedProvince.toString());
-    const wardObj = wards.find(w => w.code.toString() === selectedWard.toString());
+    const wardObj = selectedWard
+      ? wards.find(w => w.code.toString() === selectedWard.toString())
+      : null;
 
-    if (!provinceObj || !wardObj) {
+    if (!provinceObj || (selectedWard && !wardObj)) {
       setError('Thông tin khu vực đã chọn không hợp lệ.');
       return;
     }
@@ -133,10 +135,9 @@ export default function ResidentSchedules() {
 
     try {
       const cityParam = encodeURIComponent(provinceObj.name);
-      const wardParam = encodeURIComponent(wardObj.name);
-      const neighParam = encodeURIComponent(neighborhood.trim());
-
-      const url = `${API_BASE}/schedules?city=${cityParam}&ward=${wardParam}&neighborhood=${neighParam}`;
+      const wardQuery = wardObj ? `&ward=${encodeURIComponent(wardObj.name)}` : '';
+      const neighborhoodQuery = neighborhood.trim() ? `&neighborhood=${encodeURIComponent(neighborhood.trim())}` : '';
+      const url = `${API_BASE}/schedules?city=${cityParam}${wardQuery}${neighborhoodQuery}`;
       const res = await fetch(url);
       
       if (!res.ok) {
@@ -407,7 +408,7 @@ export default function ResidentSchedules() {
                 {/* Action button */}
                 <button
                   type="submit"
-                  disabled={searching || !selectedProvince || !selectedWard}
+                  disabled={searching || !selectedProvince}
                   className="w-full h-12 mt-6 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 disabled:dark:bg-slate-800 disabled:text-slate-400 text-white font-bold rounded-xl text-sm transition-all focus:outline-none focus:ring-4 focus:ring-emerald-100 dark:focus:ring-emerald-950 flex items-center justify-center gap-2 shadow-md shadow-emerald-600/10 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {searching ? (
