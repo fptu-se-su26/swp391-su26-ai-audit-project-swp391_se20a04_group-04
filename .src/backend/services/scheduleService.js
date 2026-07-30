@@ -24,10 +24,31 @@ function normalizeStr(str) {
  * Kiểm tra xem 2 chuỗi địa danh có khớp nhau không (fuzzy)
  * "Thành phố Đà Nẵng" khớp với "Đà Nẵng" và ngược lại
  */
-function locationMatch(storedName, queryName) {
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function locationMatch(storedName, queryName, strict = false) {
+  if (!storedName || !queryName) {
+    return false;
+  }
+
   const stored = normalizeStr(storedName);
   const query = normalizeStr(queryName);
-  return stored === query || stored.includes(query) || query.includes(stored);
+  if (!stored || !query) {
+    return false;
+  }
+
+  if (stored === query) {
+    return true;
+  }
+
+  if (strict) {
+    const regex = new RegExp(`\\b${escapeRegex(query)}\\b`, 'u');
+    return regex.test(stored);
+  }
+
+  return stored.includes(query) || query.includes(stored);
 }
 
 /**
@@ -72,7 +93,7 @@ async function getSchedules({ city, ward, neighborhood }) {
 
     // Bước 2: Lọc theo Phường/Xã nếu người dùng chọn
     if (ward) {
-      schedules = schedules.filter(s => locationMatch(s.ward, ward));
+      schedules = schedules.filter(s => locationMatch(s.ward, ward, true));
       console.log(`[scheduleService] Sau khi lọc theo ward "${ward}": ${schedules.length} lịch`);
     } else {
       console.log(`[scheduleService] Không có ward trong truy vấn → hiển thị toàn bộ lịch cho city "${city}" (${schedules.length} lịch).`);
