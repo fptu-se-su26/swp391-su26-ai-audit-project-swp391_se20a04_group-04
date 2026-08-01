@@ -8,7 +8,6 @@ const invoiceRoutes = require('./invoiceRoutes');
 const complaintRoutes = require('./complaintRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const healthRoutes = require('./healthRoutes');
-const mapsRoutes = require('./mapsRoutes');
 const aiRoutes = require('./aiRoutes');
 
 /**
@@ -33,9 +32,6 @@ function mountRoutes(app) {
 
   // Protected routes — Notifications (any authenticated user)
   app.use('/api/notifications', notificationRoutes);
-
-  // Maps key — authenticated clients only
-  app.use('/api/maps', mapsRoutes);
 
   // AI features — chat (resident) & complaint analysis (manager)
   app.use('/api/ai', aiRoutes);
