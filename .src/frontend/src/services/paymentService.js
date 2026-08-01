@@ -100,3 +100,28 @@ export async function getResidentInvoices(userId) {
   });
   return parseJsonResponse(response);
 }
+
+export async function getInvoiceTemplates() {
+  const response = await fetch(`${API_BASE}/api/manager/invoice-templates`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(response);
+}
+
+export async function createInvoiceTemplate(data) {
+  const response = await fetch(`${API_BASE}/api/manager/invoice-templates`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  return parseJsonResponse(response);
+}
+
+export async function deleteInvoiceTemplate(templateId) {
+  const response = await fetch(`${API_BASE}/api/manager/invoice-templates/${templateId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(response);
+}
+

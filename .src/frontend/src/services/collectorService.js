@@ -1,6 +1,13 @@
 import authService from './authService';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+let API_BASE = rawApiUrl.trim();
+if (API_BASE.endsWith('/')) {
+  API_BASE = API_BASE.slice(0, -1);
+}
+if (!API_BASE.endsWith('/api')) {
+  API_BASE = `${API_BASE}/api`;
+}
 
 async function getAuthHeaders() {
   return {
@@ -28,7 +35,7 @@ async function parseJsonResponse(response) {
 const collectorService = {
   async getDashboard(date) {
     const params = date ? `?date=${date}` : '';
-    const response = await fetch(`${API_BASE}/api/dashboard/collector${params}`, {
+    const response = await fetch(`${API_BASE}/dashboard/collector${params}`, {
       headers: await getAuthHeaders(),
     });
     const data = await parseJsonResponse(response);
@@ -38,7 +45,7 @@ const collectorService = {
 
   async getDailySchedules(date) {
     const params = date ? `?date=${date}` : '';
-    const response = await fetch(`${API_BASE}/api/collector/schedules${params}`, {
+    const response = await fetch(`${API_BASE}/collector/schedules${params}`, {
       headers: await getAuthHeaders(),
     });
     const data = await parseJsonResponse(response);
@@ -47,7 +54,7 @@ const collectorService = {
   },
 
   async getAllSchedules() {
-    const response = await fetch(`${API_BASE}/api/collector/schedules?all=true`, {
+    const response = await fetch(`${API_BASE}/collector/schedules?all=true`, {
       headers: await getAuthHeaders(),
     });
     const data = await parseJsonResponse(response);
@@ -56,18 +63,24 @@ const collectorService = {
   },
 
   async updateStatus({ sourceType, id, action, imageUrls, incidentType, description }) {
-    const response = await fetch(`${API_BASE}/api/collector/schedules/${sourceType}/${id}/status`, {
-      method: 'PATCH',
-      headers: await getAuthHeaders(),
-      body: JSON.stringify({ action, imageUrls, incidentType, description }),
-    });
+    let response;
+    try {
+      response = await fetch(`${API_BASE}/collector/schedules/${sourceType}/${id}/status`, {
+        method: 'PATCH',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ action, imageUrls, incidentType, description }),
+      });
+    } catch (networkError) {
+      console.error('[CollectorService] Network error on updateStatus:', networkError);
+      throw new Error('Không thể kết nối đến máy chủ. Kiểm tra backend đang chạy và thử lại.');
+    }
     const data = await parseJsonResponse(response);
     if (!response.ok) throw new Error(data.error || 'Không thể cập nhật trạng thái.');
     return data;
   },
 
   async getAssignedReports() {
-    const response = await fetch(`${API_BASE}/api/collector/reports`, {
+    const response = await fetch(`${API_BASE}/collector/reports`, {
       headers: await getAuthHeaders(),
     });
     const data = await parseJsonResponse(response);
@@ -76,7 +89,7 @@ const collectorService = {
   },
 
   async getReportComments(reportId) {
-    const response = await fetch(`${API_BASE}/api/reports/${reportId}/comments`, {
+    const response = await fetch(`${API_BASE}/reports/${reportId}/comments`, {
       headers: await getAuthHeaders(),
     });
     const data = await parseJsonResponse(response);
@@ -85,7 +98,7 @@ const collectorService = {
   },
 
   async updateReportStatus(reportId, { status, message, imageUrls }) {
-    const response = await fetch(`${API_BASE}/api/reports/${reportId}/status`, {
+    const response = await fetch(`${API_BASE}/reports/${reportId}/status`, {
       method: 'PATCH',
       headers: await getAuthHeaders(),
       body: JSON.stringify({ status, message, imageUrls }),

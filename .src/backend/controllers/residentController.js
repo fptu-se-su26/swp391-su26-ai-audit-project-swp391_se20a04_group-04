@@ -28,10 +28,25 @@ async function getUpcomingSchedules(req, res) {
       return res.status(200).json([]);
     }
 
+    // Tải danh sách tuyến mẫu để lấy thông tin khu vực fallback nếu lịch bị thiếu
+    const routesSnap = await db.collection('collection_routes').get();
+    const routesMap = {};
+    routesSnap.forEach(doc => {
+      routesMap[doc.id] = doc.data();
+    });
+
     const now = new Date();
     let schedules = [];
     snapshot.forEach(doc => {
-      schedules.push({ id: doc.id, ...doc.data() });
+      const data = doc.data();
+      const route = routesMap[data.routeId] || {};
+      schedules.push({
+        id: doc.id,
+        ...data,
+        city: data.city || route.city || '',
+        ward: data.ward || route.ward || '',
+        neighborhood: data.neighborhood || route.neighborhood || '',
+      });
     });
 
     // Lọc lịch theo khu vực user (fuzzy match với city hoặc ward)
@@ -40,9 +55,11 @@ async function getUpcomingSchedules(req, res) {
     schedules = schedules.filter(s => {
       const normalizedCity = normalizeStr(s.city);
       const normalizedWard = normalizeStr(s.ward);
-      // Khớp nếu city hoặc ward nằm trong area hoặc ngược lại
-      return normalizedArea.includes(normalizedCity) || normalizedCity.includes(normalizedArea) ||
-             normalizedArea.includes(normalizedWard) || normalizedWard.includes(normalizedArea);
+      
+      const matchCity = normalizedCity && (normalizedArea.includes(normalizedCity) || normalizedCity.includes(normalizedArea));
+      const matchWard = normalizedWard && (normalizedArea.includes(normalizedWard) || normalizedWard.includes(normalizedArea));
+      
+      return matchCity || matchWard;
     });
 
     // Chỉ lấy lịch sắp tới (ngày >= hôm nay)
@@ -78,4 +95,30 @@ async function getUpcomingSchedules(req, res) {
   }
 }
 
-module.exports = { getUpcomingSchedules };
+/**
+ * PATCH /api/resident/profile
+ * Body: { fullName?, phone?, address?, area? }
+ */
+async function updateProfile(req, res) {
+  const allowed = ['fullName', 'phone', 'address', 'area'];
+  const updates = {};
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) {
+      updates[key] = String(req.body[key]).trim();
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'Không có trường nào được cập nhật.' });
+  }
+
+  try {
+    await db.collection(USERS_COLLECTION).doc(req.uid).update(updates);
+    return res.status(200).json({ success: true, updated: updates });
+  } catch (error) {
+    console.error('[Profile] Lỗi khi cập nhật hồ sơ:', error.message);
+    return res.status(500).json({ error: 'Không thể cập nhật hồ sơ. Vui lòng thử lại.' });
+  }
+}
+
+module.exports = { getUpcomingSchedules, updateProfile };

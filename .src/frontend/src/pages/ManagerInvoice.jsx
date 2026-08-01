@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import authService from '../services/authService';
 import { ROLES, normalizeRole } from '../constants/roles';
-import { createManagerInvoice, searchResidents, getResidentInvoices } from '../services/paymentService';
+import { createManagerInvoice, searchResidents, getResidentInvoices, getInvoiceTemplates, createInvoiceTemplate, deleteInvoiceTemplate } from '../services/paymentService';
 
 const buildErrorMessage = (error) => {
   if (!error) return 'Đã xảy ra lỗi.';
@@ -67,6 +67,13 @@ export default function ManagerInvoice() {
   const [residentInvoices, setResidentInvoices] = useState([]);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
 
+  // Template state
+  const [templates, setTemplates] = useState([]);
+  const [templateName, setTemplateName] = useState('');
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+
   // Duplicate check
   const hasDuplicate = selectedResident && residentInvoices.some(
     (inv) => inv.status === 'unpaid'
@@ -83,7 +90,11 @@ export default function ManagerInvoice() {
     const role = normalizeRole(user.role);
     if (role !== ROLES.MANAGER && role !== ROLES.ADMIN) {
       navigate('/dashboard');
+      return;
     }
+
+    // Load templates on mount
+    getInvoiceTemplates().then(setTemplates).catch(() => {});
   }, [navigate, user]);
 
   // Close dropdown when clicking outside
@@ -204,6 +215,24 @@ export default function ManagerInvoice() {
       const created = await createManagerInvoice(payload);
       setInvoice((prev) => ({ ...prev, ...created }));
       setSuccess('Hóa đơn đã được tạo thành công.');
+
+      // Save as template if requested
+      if (saveAsTemplate && templateName.trim()) {
+        try {
+          await createInvoiceTemplate({
+            name: templateName.trim(),
+            feeType: payload.feeType,
+            amount: payload.amount,
+            currency: payload.currency,
+            dueOffsetDays: payload.dueDate ? Math.round((new Date(payload.dueDate) - new Date()) / 86400000) : 30,
+          });
+          setTemplates(prev => [...prev]);
+          setTemplateName('');
+          setSaveAsTemplate(false);
+        } catch {
+          // Template save failure is non-critical
+        }
+      }
 
       // Refresh resident invoices
       if (selectedResident) {
@@ -505,6 +534,94 @@ export default function ManagerInvoice() {
             >
               Hủy
             </button>
+          </div>
+
+          {/* Save as template option */}
+          <div className="mt-5 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+            <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-700 dark:text-slate-300 select-none">
+              <input
+                type="checkbox"
+                checked={saveAsTemplate}
+                onChange={e => setSaveAsTemplate(e.target.checked)}
+                className="w-4 h-4 accent-emerald-600"
+              />
+              Lưu hóa đơn này làm mẫu để tái sử dụng
+            </label>
+            {saveAsTemplate && (
+              <input
+                type="text"
+                placeholder="Tên mẫu (vd: Phí vệ sinh tháng thường)"
+                value={templateName}
+                onChange={e => setTemplateName(e.target.value)}
+                className="mt-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm"
+              />
+            )}
+          </div>
+
+          {/* Templates panel */}
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={async () => {
+                setShowTemplates(v => !v);
+                if (!showTemplates) {
+                  setTemplateLoading(true);
+                  try { setTemplates(await getInvoiceTemplates()); } catch { /* ignore */ }
+                  setTemplateLoading(false);
+                }
+              }}
+              className="flex items-center gap-2 text-sm font-semibold text-emerald-600 hover:text-emerald-500"
+            >
+              <span className="material-symbols-outlined text-base">library_books</span>
+              {showTemplates ? 'Ẩn danh sách mẫu' : 'Dùng mẫu hóa đơn có sẵn'}
+            </button>
+
+            {showTemplates && (
+              <div className="mt-3 space-y-2">
+                {templateLoading ? (
+                  <p className="text-sm text-slate-400">Đang tải...</p>
+                ) : templates.length === 0 ? (
+                  <p className="text-sm text-slate-400">Chưa có mẫu nào. Tạo hóa đơn và chọn "Lưu làm mẫu" để bắt đầu.</p>
+                ) : templates.map(t => (
+                  <div key={t.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-sm">
+                    <div>
+                      <p className="font-semibold text-slate-800 dark:text-white">{t.name}</p>
+                      <p className="text-slate-500 text-xs">{t.feeType} · {Number(t.amount).toLocaleString('vi-VN')} {t.currency} · Hạn sau {t.dueOffsetDays} ngày</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const dueDate = new Date();
+                          dueDate.setDate(dueDate.getDate() + Number(t.dueOffsetDays || 30));
+                          setInvoice(prev => ({
+                            ...prev,
+                            feeType: t.feeType,
+                            amount: t.amount,
+                            currency: t.currency,
+                            dueDate: dueDate.toISOString().slice(0, 10),
+                          }));
+                          setShowTemplates(false);
+                        }}
+                        className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-semibold hover:bg-emerald-100"
+                      >
+                        Dùng
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await deleteInvoiceTemplate(t.id).catch(() => {});
+                          setTemplates(prev => prev.filter(x => x.id !== t.id));
+                        }}
+                        className="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-semibold hover:bg-rose-100"
+                      >
+                        Xóa
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </form>
 

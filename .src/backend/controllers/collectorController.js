@@ -223,4 +223,94 @@ module.exports = {
   getReportComments,
   updateReportStatus,
   confirmRoute,
+  confirmWeek,
+  denyWeek,
 };
+
+/**
+ * POST /api/collector/confirm-week
+ * Body: { isoWeek: 'YYYY-WNN' }
+ * Marks all schedules assigned to this collector in the given ISO week as collector_confirmed: true
+ */
+async function confirmWeek(req, res) {
+  const { isoWeek } = req.body;
+  if (!isoWeek) return res.status(400).json({ error: 'isoWeek là bắt buộc (định dạng YYYY-WNN).' });
+
+  try {
+    const snap = await db.collection('collection_schedules')
+      .where('assigned_collector', '==', req.uid)
+      .get();
+
+    const batch = db.batch();
+    let count = 0;
+
+    snap.forEach(doc => {
+      const s = doc.data();
+      const dateStr = s.schedule_date;
+      if (!dateStr) return;
+      if (getISOWeekLabel(new Date(dateStr)) !== isoWeek) return;
+      if (['completed_pending_approval', 'completed'].includes((s.status || '').toLowerCase())) return;
+      batch.update(doc.ref, { collector_confirmed: true, updatedAt: new Date().toISOString() });
+      count++;
+    });
+
+    await batch.commit();
+    return res.status(200).json({ success: true, confirmed: count });
+  } catch (error) {
+    console.error('[Collector] Lỗi xác nhận tuần:', error.message);
+    return res.status(500).json({ error: 'Không thể xác nhận lịch tuần.' });
+  }
+}
+
+/**
+ * POST /api/collector/deny-week
+ * Body: { isoWeek: 'YYYY-WNN', reason: string }
+ */
+async function denyWeek(req, res) {
+  const { isoWeek, reason } = req.body;
+  if (!isoWeek || !reason?.trim()) {
+    return res.status(400).json({ error: 'isoWeek và reason là bắt buộc.' });
+  }
+
+  try {
+    const snap = await db.collection('collection_schedules')
+      .where('assigned_collector', '==', req.uid)
+      .get();
+
+    const batch = db.batch();
+    let count = 0;
+
+    snap.forEach(doc => {
+      const s = doc.data();
+      const dateStr = s.schedule_date;
+      if (!dateStr) return;
+      if (getISOWeekLabel(new Date(dateStr)) !== isoWeek) return;
+      const status = (s.status || '').toLowerCase();
+      if (['completed', 'completed_pending_approval'].includes(status)) return;
+      batch.update(doc.ref, {
+        status: 'denied_by_collector',
+        denial_reason: reason.trim(),
+        denied_by: req.uid,
+        deniedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      count++;
+    });
+
+    await batch.commit();
+    return res.status(200).json({ success: true, denied: count });
+  } catch (error) {
+    console.error('[Collector] Lỗi từ chối tuần:', error.message);
+    return res.status(500).json({ error: 'Không thể từ chối lịch tuần.' });
+  }
+}
+
+function getISOWeekLabel(date) {
+  const d = new Date(date);
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+  const yearStart = new Date(d.getFullYear(), 0, 1);
+  const weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  return `${d.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+

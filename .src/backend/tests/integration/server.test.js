@@ -25,7 +25,17 @@ jest.mock('../../config/firebase', () => {
     add: jest.fn().mockResolvedValue({ id: 'new-schedule-id' }),
   };
 
-  const db = { collection: jest.fn(() => collRef) };
+  const batch = {
+    set: jest.fn().mockReturnThis(),
+    update: jest.fn().mockReturnThis(),
+    delete: jest.fn().mockReturnThis(),
+    commit: jest.fn().mockResolvedValue({}),
+  };
+
+  const db = {
+    collection: jest.fn(() => collRef),
+    batch: jest.fn(() => batch),
+  };
 
   const auth = {
     verifyIdToken: jest.fn(),
@@ -57,9 +67,17 @@ jest.mock('../../helpers/payosHelper', () => ({
   verifyPayOSPayment: jest.fn().mockResolvedValue({ success: true, message: 'Thanh toán thành công.' }),
 }));
 
+jest.mock('../../services/emailService', () => ({
+  sendMail: jest.fn().mockResolvedValue({}),
+  sendVerificationCodeEmail: jest.fn().mockResolvedValue({}),
+}));
+
 // ─── App + mock references ────────────────────────────────────────────────────
 const app = require('../../server');
-const { auth, _docRef: docRef, _collRef: collRef } = require('../../config/firebase');
+const { db, auth, _docRef: docRef, _collRef: collRef } = require('../../config/firebase');
+const addressService = require('../../services/addressService');
+const payosHelper = require('../../helpers/payosHelper');
+const emailService = require('../../services/emailService');
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 const bearer = (token = 'valid-token') => ({ Authorization: `Bearer ${token}` });
@@ -101,6 +119,7 @@ function setupDefaultMocks(userRole = 'resident') {
   auth.deleteUser.mockResolvedValue({});
 
   // Firestore – restore chainable helpers and defaults
+  db.collection.mockReturnValue(collRef);
   collRef.doc.mockReturnValue(docRef);
   collRef.where.mockReturnThis();
   collRef.orderBy.mockReturnThis();
@@ -120,6 +139,14 @@ function setupDefaultMocks(userRole = 'resident') {
     ok: true,
     json: jest.fn().mockResolvedValue({ localId: 'test-uid', idToken: 'fake-id-token', email: 'test@test.com' }),
   });
+
+  // External Service Mocks – restore default values
+  addressService.getProvinces.mockResolvedValue([{ code: '01', name: 'Hà Nội' }]);
+  addressService.getWardsByProvince.mockResolvedValue([{ code: '001', name: 'Phường 1' }]);
+  payosHelper.createPayOSPaymentSession.mockResolvedValue({ paymentUrl: 'https://pay.test/link', qrCode: null });
+  payosHelper.verifyPayOSPayment.mockResolvedValue({ success: true, message: 'Thanh toán thành công.' });
+  emailService.sendMail.mockResolvedValue({});
+  emailService.sendVerificationCodeEmail.mockResolvedValue({});
 }
 
 beforeEach(() => setupDefaultMocks('resident'));
@@ -521,22 +548,22 @@ describe('TC_INT_039-048 — Collector Routes', () => {
   test('TC_INT_042: PATCH /api/collector/schedules/:source/:id/status → 200', async () => {
     docRef.get
       .mockResolvedValueOnce(makeUserDoc('collector'))
-      .mockResolvedValueOnce({ exists: true, data: () => ({ status: 'Assigned' }) });
+      .mockResolvedValueOnce({ exists: true, data: () => ({ status: 'Assigned', assigned_collector: 'test-uid' }) });
     const res = await request(app)
-      .patch('/api/collector/schedules/main/sched-001/status')
+      .patch('/api/collector/schedules/schedule/sched-001/status')
       .set(bearer())
-      .send({ status: 'In Progress' });
+      .send({ action: 'start' });
     expect([200, 201]).toContain(res.status);
   });
 
   test('TC_INT_043: PATCH /api/route-assignments/:id/status → 200', async () => {
     docRef.get
       .mockResolvedValueOnce(makeUserDoc('collector'))
-      .mockResolvedValueOnce({ exists: true, data: () => ({ assignedCollectorId: 'test-uid', status: 'pending' }) });
+      .mockResolvedValueOnce({ exists: true, data: () => ({ collectorId: 'test-uid', status: 'assigned' }) });
     const res = await request(app)
       .patch('/api/route-assignments/assign-001/status')
       .set(bearer())
-      .send({ status: 'accepted' });
+      .send({ status: 'in_progress' });
     expect([200, 201]).toContain(res.status);
   });
 
@@ -551,7 +578,7 @@ describe('TC_INT_039-048 — Collector Routes', () => {
   test('TC_INT_045: GET /api/reports/:id/comments → 200', async () => {
     docRef.get
       .mockResolvedValueOnce(makeUserDoc('collector'))
-      .mockResolvedValueOnce({ exists: true, data: () => ({ title: 'Report' }) });
+      .mockResolvedValueOnce({ exists: true, data: () => ({ title: 'Report', assignedTo: 'test-uid' }) });
     collRef.get.mockResolvedValue(makeQuerySnap([]));
     const res = await request(app)
       .get('/api/reports/report-001/comments')
@@ -562,18 +589,18 @@ describe('TC_INT_039-048 — Collector Routes', () => {
   test('TC_INT_046: PATCH /api/reports/:id/status → 200', async () => {
     docRef.get
       .mockResolvedValueOnce(makeUserDoc('collector'))
-      .mockResolvedValueOnce({ exists: true, data: () => ({ submittedBy: 'test-uid', status: 'pending' }) });
+      .mockResolvedValueOnce({ exists: true, data: () => ({ title: 'Report', assignedTo: 'test-uid', status: 'in_progress' }) });
     const res = await request(app)
       .patch('/api/reports/report-001/status')
       .set(bearer())
-      .send({ status: 'resolved' });
+      .send({ status: 'resolved', message: 'Tuyến đường đã được thu dọn sạch sẽ.', imageUrls: ['http://image.test/1.jpg'] });
     expect([200, 201]).toContain(res.status);
   });
 
   test('TC_INT_047: POST /api/collector/confirm-route (valid scheduleId) → 200', async () => {
     docRef.get
       .mockResolvedValueOnce(makeUserDoc('collector'))
-      .mockResolvedValueOnce({ exists: true, data: () => ({ collector_confirmed: false }) });
+      .mockResolvedValueOnce({ exists: true, data: () => ({ collector_confirmed: false, assigned_collector: 'test-uid' }) });
     const res = await request(app)
       .post('/api/collector/confirm-route')
       .set(bearer())
@@ -754,7 +781,7 @@ describe('TC_INT_059-063 — Notification Routes', () => {
   test('TC_INT_062: GET /api/notifications/settings → 200', async () => {
     docRef.get.mockResolvedValue({
       exists: true,
-      data: () => ({ emailEnabled: true, pushEnabled: true }),
+      data: () => ({ notificationSettings: { email: true, sms: false, push: true } }),
     });
     const res = await request(app)
       .get('/api/notifications/settings')
@@ -766,7 +793,7 @@ describe('TC_INT_059-063 — Notification Routes', () => {
     const res = await request(app)
       .post('/api/notifications/settings')
       .set(bearer())
-      .send({ emailEnabled: false });
+      .send({ email: false, sms: false, push: true });
     expect(res.status).toBe(200);
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useNavigate } from 'react-router-dom';
@@ -82,6 +83,9 @@ export default function Dashboard() {
   const navigate = useNavigate();
   // Khởi tạo user trực tiếp để tránh setState-in-effect
   const [user, setUser] = useState(() => authService.getCurrentUser());
+  const [activeTab, setActiveTab] = useState('overview');
+  const [dashStats, setDashStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
   const [managerLoading, setManagerLoading] = useState(false);
   const [apiMessage, setApiMessage] = useState('');
   const [managerError, setManagerError] = useState('');
@@ -111,7 +115,7 @@ export default function Dashboard() {
     time: '08:00',
     assignedTruck: 'TRUCK-402',
     assignedDriver: 'Nguyễn Văn A',
-    assignedType: 'solo', // 'solo' or 'team'
+    assignedType: 'team',
     assignedCollector: '',
     teamId: '',
     city: '',
@@ -119,6 +123,23 @@ export default function Dashboard() {
     neighborhood: '',
     notes: '',
   });
+
+  // Week-mode: create one schedule per selected day for a whole week
+  const [scheduleMode, setScheduleMode] = useState('week'); // 'single' | 'week'
+  const [weekStartDate, setWeekStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay() + 1); // Monday of current week
+    return d.toISOString().slice(0, 10);
+  });
+  const [selectedDays, setSelectedDays] = useState([1, 2, 3, 4, 5]); // Mon-Fri
+
+  const DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+
+  function getDateForDayOffset(weekMonday, dayIndex) {
+    const d = new Date(weekMonday);
+    d.setDate(d.getDate() + dayIndex);
+    return d.toISOString().slice(0, 10);
+  }
 
   const [assignment, setAssignment] = useState({
     scheduleId: '',
@@ -400,6 +421,15 @@ export default function Dashboard() {
     } finally {
       setManagerLoading(false);
     }
+
+    // Load chart stats independently (non-blocking)
+    setLoadingStats(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/manager/dashboard/stats`, { headers: await getAuthHeaders() });
+      if (res.ok) setDashStats(await res.json());
+    } catch { /* stats are optional */ } finally {
+      setLoadingStats(false);
+    }
   };
 
   useEffect(() => {
@@ -419,6 +449,27 @@ export default function Dashboard() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, navigate]);
+
+  // Fetch dashboard stats when overview tab is active
+  useEffect(() => {
+    if (activeTab !== 'overview' || !user) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingStats(true);
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`${API_BASE}/api/manager/dashboard/stats`, { headers });
+        const data = await res.json();
+        if (!cancelled) setDashStats(data);
+      } catch {
+        if (!cancelled) setDashStats(null);
+      } finally {
+        if (!cancelled) setLoadingStats(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, user]);
 
   const handleCreateSchedule = async (event) => {
     event.preventDefault();
@@ -449,41 +500,54 @@ export default function Dashboard() {
 
       if (newSchedule.assignedType === 'solo') {
         const collector = collectors.find(c => c.uid === newSchedule.assignedCollector);
-        if (collector) {
-          assignedCollectors = [{ id: collector.uid, name: collector.fullName }];
-        }
-      } else if (newSchedule.assignedType === 'team') {
+        if (collector) assignedCollectors = [{ id: collector.uid, name: collector.fullName }];
+      } else {
         teamId = newSchedule.teamId;
         const selectedTeam = teams.find(t => t.id === newSchedule.teamId);
-        if (selectedTeam) {
-          assignedCollectors = selectedTeam.members || [];
-        }
+        if (selectedTeam) assignedCollectors = selectedTeam.members || [];
       }
 
-      const payload = {
-        ...newSchedule,
-        routeName,
-        city,
-        ward,
-        neighborhood,
-        assignedCollectors,
-        teamId,
-        routePoints: rtPoints,
-      };
+      const basePayload = { ...newSchedule, routeName, city, ward, neighborhood, assignedCollectors, teamId, routePoints: rtPoints };
 
-      const response = await fetch(`${API_BASE}/api/manager/schedules`, {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-        body: JSON.stringify(payload),
-      });
-      const data = await safeJson(response);
-      if (!response.ok) throw new Error(data.error || 'Không thể tạo lịch thu gom mới.');
+      if (!routeName) {
+        throw new Error('Vui lòng chọn Tuyến Mẫu trước khi tạo lịch.');
+      }
+      if (newSchedule.assignedType === 'team' && !teamId) {
+        throw new Error('Vui lòng chọn Đội nhóm.');
+      }
+      if (newSchedule.assignedType === 'solo' && !newSchedule.assignedCollector) {
+        throw new Error('Vui lòng chọn Nhân viên thu gom.');
+      }
 
-      setApiMessage('Lịch thu gom mới đã được tạo thành công.');
+      // Week mode: create one schedule per selected day
+      const datesToCreate = scheduleMode === 'week'
+        ? selectedDays.map(d => getDateForDayOffset(weekStartDate, d - 1))
+        : [newSchedule.date];
+
+      if (datesToCreate.length === 0) {
+        throw new Error('Vui lòng chọn ít nhất 1 ngày trong tuần.');
+      }
+
+      const headers = await getAuthHeaders();
+      const results = await Promise.allSettled(
+        datesToCreate.map(date =>
+          fetch(`${API_BASE}/api/manager/schedules`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ ...basePayload, date }),
+          }).then(r => r.json())
+        )
+      );
+
+      const failed = results.filter(r => r.status === 'rejected' || r.value?.error);
+      if (failed.length === datesToCreate.length) {
+        const firstMsg = failed[0]?.value?.error || failed[0]?.reason?.message || 'Kiểm tra console để biết chi tiết.';
+        throw new Error(`Tất cả lịch đều tạo thất bại: ${firstMsg}`);
+      }
+
+      const created = datesToCreate.length - failed.length;
+      setApiMessage(`Đã tạo ${created}/${datesToCreate.length} lịch thành công${failed.length > 0 ? ` (${failed.length} thất bại do trùng lịch)` : ''}. `);
       await fetchSchedules();
-      if (data.schedule?.route_points) {
-        setRoutePoints(sanitizeRoutePoints(data.schedule.route_points));
-      }
     } catch (error) {
       setManagerError(error.message || 'Lỗi khi tạo lịch thu gom.');
     } finally {
@@ -883,6 +947,32 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Tab Navigation */}
+        {isManager && (
+          <div className="flex gap-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-1.5 shadow-sm w-fit">
+            {[
+              { id: 'overview', label: 'Tổng quan', icon: 'dashboard' },
+              { id: 'work', label: 'Quản lý lịch', icon: 'event_note' },
+              { id: 'complaints', label: 'Phản ánh', icon: 'feedback' },
+              { id: 'reports', label: 'Báo cáo', icon: 'assignment' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">{tab.icon}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* KPI Cards — always visible */}
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
             <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Lịch thu gom</p>
@@ -906,6 +996,90 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Overview Tab — Charts */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {loadingStats ? (
+              <div className="flex items-center justify-center py-16 gap-3">
+                <span className="h-6 w-6 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                <p className="text-sm text-slate-500">Đang tải thống kê...</p>
+              </div>
+            ) : dashStats ? (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Revenue line chart */}
+                  <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Doanh thu 6 tháng gần đây</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <LineChart data={dashStats.revenueChart}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
+                        <Tooltip formatter={v => `${Number(v).toLocaleString('vi-VN')} ₫`} />
+                        <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Complaints line chart */}
+                  <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Phản ánh 4 tuần gần đây</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <LineChart data={dashStats.complaintsChart}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="week" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <Tooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="received" stroke="#f59e0b" strokeWidth={2} name="Tiếp nhận" />
+                        <Line type="monotone" dataKey="resolved" stroke="#10b981" strokeWidth={2} name="Đã giải quyết" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Invoice status pie */}
+                  <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Trạng thái hóa đơn (tháng này)</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie data={dashStats.invoiceStatusChart} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({name, percent}) => `${name} ${(percent*100).toFixed(0)}%`}>
+                          {dashStats.invoiceStatusChart.map((entry, i) => (
+                            <Cell key={i} fill={['#10b981','#f59e0b','#ef4444'][i % 3]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Collector payload bar */}
+                  <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Tuyến hoàn thành của nhân viên (tuần này)</h3>
+                    {dashStats.collectorChart.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={dashStats.collectorChart}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                          <XAxis dataKey="collector" tick={{ fontSize: 10 }} />
+                          <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                          <Tooltip />
+                          <Bar dataKey="completed" fill="#10b981" name="Tuyến hoàn thành" radius={[4,4,0,0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="text-sm text-slate-400 text-center py-16">Chưa có dữ liệu tuần này.</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-slate-400 text-center py-16">Không thể tải thống kê. Vui lòng thử lại.</p>
+            )}
+          </div>
+        )}
+
+        {/* Work Tab (Schedules + Route/Team management) */}
+        {activeTab === 'work' && (
+        <div className="space-y-6">
         <div className={`grid grid-cols-1 ${normalizeRole(user.role) !== ROLES.ADMIN ? 'lg:grid-cols-3' : ''} gap-6`}>
           {normalizeRole(user.role) !== ROLES.ADMIN && (
             <div className="lg:col-span-2 space-y-6">
@@ -918,6 +1092,17 @@ export default function Dashboard() {
                 <span className="text-xs text-slate-500 dark:text-slate-400">UI + API Manager</span>
               </div>
               <form className="space-y-4" onSubmit={handleCreateSchedule}>
+
+                {/* Mode toggle */}
+                <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-700 rounded-xl w-fit">
+                  {[{ id: 'week', label: 'Cả tuần (đội)' }, { id: 'single', label: 'Một ngày' }].map(m => (
+                    <button key={m.id} type="button" onClick={() => setScheduleMode(m.id)}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${scheduleMode === m.id ? 'bg-white dark:bg-slate-800 shadow text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Tuyến Mẫu <span className="text-rose-500">*</span></span>
@@ -955,38 +1140,74 @@ export default function Dashboard() {
                   </label>
                 </div>
 
+                {/* Date selection: week mode or single day */}
+                {scheduleMode === 'week' ? (
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">Tuần bắt đầu (Thứ 2)</span>
+                      <input type="date" value={weekStartDate}
+                        onChange={(e) => {
+                          const d = new Date(e.target.value);
+                          // Snap to Monday
+                          const day = d.getDay();
+                          const diff = day === 0 ? -6 : 1 - day;
+                          d.setDate(d.getDate() + diff);
+                          setWeekStartDate(d.toISOString().slice(0, 10));
+                        }}
+                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
+                    </label>
+                    <div>
+                      <span className="text-sm text-slate-600 dark:text-slate-300 block mb-2">Ngày trong tuần <span className="text-rose-500">*</span></span>
+                      <div className="flex flex-wrap gap-2">
+                        {DAY_LABELS.map((label, i) => {
+                          const dayNum = i + 1;
+                          const checked = selectedDays.includes(dayNum);
+                          const dateStr = getDateForDayOffset(weekStartDate, i);
+                          return (
+                            <button key={dayNum} type="button"
+                              onClick={() => setSelectedDays(prev => checked ? prev.filter(d => d !== dayNum) : [...prev, dayNum].sort())}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${checked ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-emerald-400'}`}>
+                              {label}<br /><span className="font-normal opacity-75">{dateStr.slice(5)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">Ngày</span>
+                      <input type="date" name="date" min={new Date().toISOString().split('T')[0]} value={newSchedule.date}
+                        onChange={(e) => setNewSchedule(prev => ({...prev, date: e.target.value}))}
+                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
+                    </label>
+                    <label className="block">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">Giờ</span>
+                      <input type="time" name="time" value={newSchedule.time}
+                        onChange={(e) => setNewSchedule(prev => ({...prev, time: e.target.value}))}
+                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
+                    </label>
+                  </div>
+                )}
+
+                {/* Time + assignment type row */}
                 <div className="grid gap-4 md:grid-cols-3">
-                  <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Ngày</span>
-                    <input
-                      type="date"
-                      name="date"
-                      min={new Date().toISOString().split('T')[0]}
-                      value={newSchedule.date}
-                      onChange={(e) => setNewSchedule(prev => ({...prev, date: e.target.value}))}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Giờ</span>
-                    <input
-                      type="time"
-                      name="time"
-                      value={newSchedule.time}
-                      onChange={(e) => setNewSchedule(prev => ({...prev, time: e.target.value}))}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
-                  </label>
+                  {scheduleMode === 'week' && (
+                    <label className="block">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">Giờ bắt đầu</span>
+                      <input type="time" value={newSchedule.time}
+                        onChange={(e) => setNewSchedule(prev => ({...prev, time: e.target.value}))}
+                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
+                    </label>
+                  )}
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Phân công cho</span>
-                    <select
-                      name="assignedType"
-                      value={newSchedule.assignedType}
+                    <select name="assignedType" value={newSchedule.assignedType}
                       onChange={(e) => setNewSchedule(prev => ({...prev, assignedType: e.target.value}))}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    >
-                      <option value="solo">Cá nhân (Khu hẹp/nhỏ)</option>
-                      <option value="team">Đội nhóm (Đường lớn)</option>
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                      <option value="team">Đội nhóm</option>
+                      <option value="solo">Cá nhân</option>
                     </select>
                   </label>
                 </div>
@@ -1499,6 +1720,8 @@ export default function Dashboard() {
             </table>
           </div>
         </section>
+        </div>
+        )}
 
         {viewingIncident && viewingIncident.incident && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingIncident(null)}>

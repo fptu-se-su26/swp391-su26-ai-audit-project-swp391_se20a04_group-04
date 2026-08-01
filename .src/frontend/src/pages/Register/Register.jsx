@@ -24,6 +24,14 @@ export default function Register() {
   const [apiError, setApiError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  // Email verification code step
+  const [registeredEmail, setRegisteredEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState('');
+  const [verified, setVerified] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   // Handle Input Changes
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -97,7 +105,7 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      await authService.register({
+      const result = await authService.register({
         fullName: formData.fullName.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim().replace(/\s/g, ''),
@@ -106,13 +114,54 @@ export default function Register() {
         role: ROLES.RESIDENT, // Luôn đăng ký với vai trò Cư dân
       });
 
-      setSuccessMessage(
-        `Một email xác nhận đã được gửi đến ${formData.email.trim()}. Vui lòng kiểm tra hộp thư và nhấp vào đường link xác nhận để kích hoạt tài khoản trước khi đăng nhập.`
-      );
+      setRegisteredEmail(formData.email.trim());
+      if (result.warning) setVerifyError(result.warning);
     } catch (err) {
       setApiError(err.message || 'Có lỗi xảy ra trong quá trình đăng ký.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Verify Code Handler
+  const handleVerifyCode = async (e) => {
+    e.preventDefault();
+    setVerifyError('');
+
+    if (!verificationCode.trim() || verificationCode.trim().length !== 6) {
+      setVerifyError('Vui lòng nhập mã xác nhận gồm 6 chữ số.');
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      await authService.verifyEmailCode(registeredEmail, verificationCode.trim());
+      setVerified(true);
+      setSuccessMessage(`Email ${registeredEmail} đã được xác nhận thành công. Bạn có thể đăng nhập ngay bây giờ.`);
+    } catch (err) {
+      setVerifyError(err.message || 'Mã xác nhận không hợp lệ.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (resendCooldown > 0) return;
+    setVerifyError('');
+    try {
+      await authService.resendVerificationCode(registeredEmail);
+      setResendCooldown(60);
+      const timer = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      setVerifyError(err.message || 'Không thể gửi lại mã xác nhận.');
     }
   };
 
@@ -218,6 +267,59 @@ export default function Register() {
                 <span className="material-symbols-outlined text-lg">login</span>
                 <span>Đi đến trang Đăng nhập</span>
               </Link>
+            </div>
+          ) : registeredEmail && !verified ? (
+            <div className="py-4">
+              <div className="alert-success bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 rounded-lg p-5 mb-6 flex items-start gap-3 text-sm text-left animate-fade-in">
+                <span className="material-symbols-outlined text-2xl text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0">
+                  mark_email_unread
+                </span>
+                <p className="leading-relaxed">
+                  Chúng tôi đã gửi mã xác nhận gồm 6 chữ số đến <strong>{registeredEmail}</strong>. Vui lòng kiểm tra hộp thư (kể cả mục Spam) và nhập mã bên dưới.
+                </p>
+              </div>
+
+              {verifyError && (
+                <div className="alert-error bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 rounded-lg p-3.5 flex items-start gap-2.5 text-sm animate-fade-in mb-4">
+                  <span className="material-symbols-outlined text-lg mt-0.5 flex-shrink-0">error</span>
+                  <span>{verifyError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleVerifyCode} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-bold text-on-surface dark:text-slate-300 uppercase tracking-wider mb-2">
+                    Mã xác nhận
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                    disabled={isVerifying}
+                    placeholder="000000"
+                    className="w-full h-14 px-4 text-center text-2xl tracking-[0.5em] bg-white dark:bg-slate-900 border border-outline-variant dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-on-background dark:text-white"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isVerifying}
+                  className="w-full h-14 bg-primary hover:bg-on-primary-fixed-variant text-white font-bold rounded-xl text-sm transition-all shadow-lg active:scale-95 disabled:opacity-60"
+                >
+                  {isVerifying ? 'Đang xác nhận...' : 'Xác nhận email'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResendCode}
+                  disabled={resendCooldown > 0}
+                  className="w-full text-center text-sm font-semibold text-primary hover:underline disabled:text-outline disabled:no-underline disabled:cursor-not-allowed"
+                >
+                  {resendCooldown > 0 ? `Gửi lại mã sau ${resendCooldown}s` : 'Gửi lại mã xác nhận'}
+                </button>
+              </form>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">

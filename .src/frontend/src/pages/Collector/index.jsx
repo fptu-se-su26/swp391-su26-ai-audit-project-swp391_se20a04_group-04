@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
+import { format, parse, startOfWeek, getDay } from 'date-fns';
+import { vi } from 'date-fns/locale';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import authService from '../../services/authService';
 import collectorService from '../../services/collectorService';
 import notificationService from '../../services/notificationService';
@@ -8,6 +13,11 @@ import CollectionRouteMap from '../../components/CollectionRouteMap';
 import CollectorLayout from '../../components/CollectorLayout';
 import { filesToEvidenceUrls } from '../../utils/imageUtils';
 import { timeAgo } from '../Notifications/notificationUtils';
+
+const locales = { vi };
+const localizer = dateFnsLocalizer({ format, parse, startOfWeek: (date) => startOfWeek(date, { weekStartsOn: 1 }), getDay, locales });
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const INCIDENT_TYPES = [
   { value: 'vehicle_breakdown', label: 'Xe hỏng / sự cố phương tiện' },
@@ -52,6 +62,7 @@ function canComplete(status) {
 export default function CollectorDashboard() {
   const navigate = useNavigate();
   const [user] = useState(() => authService.getCurrentUser());
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'calendar'
   const [dateFilter, setDateFilter] = useState('');
   const [summary, setSummary] = useState(null);
   const [schedules, setSchedules] = useState([]);
@@ -62,6 +73,12 @@ export default function CollectorDashboard() {
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  // Deny-week state
+  const [showDenyModal, setShowDenyModal] = useState(false);
+  const [denyWeekLabel, setDenyWeekLabel] = useState('');
+  const [denyReason, setDenyReason] = useState('');
+  const [denyLoading, setDenyLoading] = useState(false);
 
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showIncidentModal, setShowIncidentModal] = useState(false);
@@ -122,6 +139,70 @@ export default function CollectorDashboard() {
     });
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [filteredSchedules]);
+
+  // Payload chart: completions per day this week
+  const payloadChartData = useMemo(() => {
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay() + 1); // Monday
+    weekStart.setHours(0, 0, 0, 0);
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      const iso = d.toISOString().slice(0, 10);
+      const count = schedules.filter(s => {
+        const done = ['completed', 'completed_pending_approval'].includes((s.status || '').toLowerCase());
+        return done && s.date === iso;
+      }).length;
+      days.push({ day: d.toLocaleDateString('vi-VN', { weekday: 'short' }), tuyến: count });
+    }
+    return days;
+  }, [schedules]);
+
+  // Calendar events
+  const calendarEvents = useMemo(() => schedules.map(s => ({
+    id: s.id,
+    title: s.routeName || s.route_name || 'Tuyến thu gom',
+    start: s.date ? new Date(`${s.date}T${s.time || '07:00'}:00`) : new Date(),
+    end: s.date ? new Date(`${s.date}T${s.time || '07:00'}:00`) : new Date(),
+    resource: s,
+  })), [schedules]);
+
+  // ISO week helper
+  function getISOWeekLabel(date = new Date()) {
+    const d = new Date(date);
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+    const y = d.getFullYear();
+    const yearStart = new Date(y, 0, 1);
+    const wk = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+    return `${y}-W${String(wk).padStart(2, '0')}`;
+  }
+
+  const handleDenyWeek = async () => {
+    if (!denyReason.trim()) return;
+    setDenyLoading(true);
+    setError('');
+    try {
+      const token = await authService.getFreshToken();
+      const res = await fetch(`${API_BASE}/api/collector/deny-week`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ isoWeek: denyWeekLabel, reason: denyReason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Không thể từ chối lịch tuần.');
+      setMessage(`Đã từ chối ${data.denied} lịch trong tuần ${denyWeekLabel}. Manager sẽ được thông báo.`);
+      setShowDenyModal(false);
+      setDenyReason('');
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDenyLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -335,125 +416,197 @@ export default function CollectorDashboard() {
         )}
 
         {/* Workspace Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Column: Route List & Alerts */}
-          <div className="lg:col-span-4 space-y-6">
-            <div>
-              <div className="flex justify-between items-end mb-4">
-                <div>
-                  <p className="text-outline text-xs font-bold uppercase">Lịch Làm Việc</p>
-                  <h3 className="text-xl font-bold font-headline">
-                    {dateFilter ? formatDateLabel(dateFilter) : 'Tất cả lịch được gán'}
-                  </h3>
-                  <p className="text-on-surface-variant text-sm">
-                    {filteredSchedules.length} tuyến{dateFilter ? '' : ` / ${schedules.length} tổng`}
-                  </p>
+        <div className="space-y-6">
+
+          {/* Top bar: deny week + payload chart */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={() => { setDenyWeekLabel(getISOWeekLabel()); setShowDenyModal(true); }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 text-xs font-semibold hover:bg-rose-100 transition-all"
+              >
+                <span className="material-symbols-outlined text-sm">block</span>
+                Từ chối tuần này
+              </button>
+            </div>
+            <div className="lg:col-span-2 bg-white rounded-xl border border-outline-variant p-4 shadow-sm">
+              <p className="text-xs font-bold text-outline uppercase tracking-widest mb-2">Tuyến hoàn thành tuần này</p>
+              <ResponsiveContainer width="100%" height={80}>
+                <BarChart data={payloadChartData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="tuyến" fill="#10b981" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Full-width Calendar */}
+          <div className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+            <div className="px-5 pt-4 pb-2 border-b border-outline-variant flex items-center justify-between">
+              <div>
+                <p className="text-outline text-xs font-bold uppercase">Lịch Làm Việc</p>
+                <p className="text-sm text-on-surface-variant">{schedules.length} tuyến được gán — nhấp vào tuyến để xem chi tiết</p>
+              </div>
+            </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-20 gap-3">
+                <span className="h-6 w-6 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-on-surface-variant">Đang tải lịch thu gom...</p>
+              </div>
+            ) : (
+              <div className="p-3">
+                <Calendar
+                  localizer={localizer}
+                  events={calendarEvents}
+                  startAccessor="start"
+                  endAccessor="end"
+                  style={{ height: 560 }}
+                  defaultView="week"
+                  views={['week', 'month']}
+                  culture="vi"
+                  messages={{ week: 'Tuần', month: 'Tháng', today: 'Hôm nay', previous: '‹', next: '›', noEventsInRange: 'Không có lịch trong khoảng này.' }}
+                  onSelectEvent={ev => {
+                    setSelectedItem(ev.resource);
+                    setTimeout(() => document.getElementById('collector-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+                  }}
+                  selected={selectedItem ? calendarEvents.find(e => e.id === selectedItem.id) : null}
+                  eventPropGetter={ev => {
+                    const s = (ev.resource?.status || '').toLowerCase();
+                    const bg = s.includes('completed') ? '#10b981' : s === 'in_progress' ? '#3b82f6' : s === 'denied_by_collector' ? '#ef4444' : '#6366f1';
+                    const isSelected = selectedItem?.id === ev.resource?.id;
+                    return { style: { backgroundColor: bg, borderRadius: '6px', border: isSelected ? '2px solid #fff' : 'none', fontSize: '12px', fontWeight: '600', outline: isSelected ? '2px solid ' + bg : 'none', outlineOffset: '1px' } };
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Route detail panel — appears when an event is selected */}
+          {selectedItem && (
+            <div id="collector-detail-panel" className="space-y-6 animate-fade-in">
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-primary/30">
+                <div className="flex justify-between items-start mb-5">
+                  <div>
+                    <p className="text-outline text-xs font-bold uppercase">Chi tiết tuyến đã chọn</p>
+                    <h3 className="text-2xl font-bold font-headline text-on-surface mt-1">{selectedItem.routeName}</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {badge && (
+                      <span className={`px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider border ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                    )}
+                    <button type="button" onClick={() => setSelectedItem(null)}
+                      className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                      <span className="material-symbols-outlined text-lg">close</span>
+                    </button>
+                  </div>
                 </div>
-                <p className="text-primary font-bold text-sm">
-                  {dateFilter ? formatDateLabel(dateFilter) : 'Hôm nay'}
-                </p>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-5 text-sm mb-5">
+                  <div>
+                    <p className="text-outline text-xs font-bold uppercase mb-1">Giờ dự kiến</p>
+                    <p className="font-bold text-on-surface">
+                      {selectedItem.startTime
+                        ? (selectedItem.endTime ? `${selectedItem.startTime} – ${selectedItem.endTime}` : selectedItem.startTime)
+                        : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-outline text-xs font-bold uppercase mb-1">Loại rác</p>
+                    <p className="font-bold text-on-surface">{selectedItem.wasteType || 'Recycling'}</p>
+                  </div>
+                  <div>
+                    <p className="text-outline text-xs font-bold uppercase mb-1">Phân công</p>
+                    <p className="font-bold text-secondary">{selectedItem.teamId ? 'Đi theo Đội' : 'Đi 1 mình'}</p>
+                  </div>
+                  <div>
+                    <p className="text-outline text-xs font-bold uppercase mb-1">Khu vực</p>
+                    <p className="font-bold text-on-surface">{selectedItem.neighborhood ? `${selectedItem.neighborhood}, ${selectedItem.ward}` : (selectedItem.ward || '—')}</p>
+                  </div>
+                </div>
+
+                {selectedItem.notes && (
+                  <div className="mb-5 p-3 bg-surface-container-low rounded-xl text-sm text-on-surface-variant">
+                    <span className="font-semibold text-xs text-outline uppercase">Ghi chú: </span>{selectedItem.notes}
+                  </div>
+                )}
+
+                {selectedItem.incident && (
+                  <div className="mb-5 p-4 rounded-xl border border-rose-200 bg-rose-50 text-sm text-rose-800">
+                    <p className="font-bold">Sự cố đã báo:</p>
+                    <p className="mt-1">{selectedItem.incident.description}</p>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-3 pt-4 border-t border-outline-variant">
+                  {canStart(selectedItem.status) && (
+                    <button type="button" disabled={actionLoading} onClick={() => handleAction('start')}
+                      className="px-5 py-2.5 bg-primary text-white font-bold text-sm rounded-xl hover:opacity-90 flex items-center gap-2 disabled:opacity-50">
+                      <span className="material-symbols-outlined text-lg">play_arrow</span>Bắt đầu thu gom
+                    </button>
+                  )}
+                  {canComplete(selectedItem.status) && (
+                    <button type="button" disabled={actionLoading} onClick={() => { setShowCompleteModal(true); setEvidenceFiles([]); setError(''); }}
+                      className="px-5 py-2.5 bg-primary-container text-on-primary-container font-bold text-sm rounded-xl hover:opacity-90 flex items-center gap-2 disabled:opacity-50">
+                      <span className="material-symbols-outlined text-lg">check_circle</span>Hoàn thành
+                    </button>
+                  )}
+                  {!['completed', 'completed_pending_approval', 'delayed'].includes((selectedItem.status || '').toLowerCase()) && (
+                    <button type="button" disabled={actionLoading}
+                      onClick={() => { setShowIncidentModal(true); setEvidenceFiles([]); setIncidentForm({ incidentType: 'vehicle_breakdown', description: '' }); setError(''); }}
+                      className="px-5 py-2.5 bg-error-container/40 text-error font-bold text-sm rounded-xl hover:bg-error-container/60 flex items-center gap-2 disabled:opacity-50">
+                      <span className="material-symbols-outlined text-lg">report</span>Báo sự cố
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {loading ? (
-                <p className="text-sm text-on-surface-variant py-4">Đang tải lịch thu gom...</p>
-              ) : filteredSchedules.length === 0 ? (
-                <div className="bg-white rounded-xl p-8 border border-outline-variant text-center text-on-surface-variant">
-                  <span className="material-symbols-outlined text-4xl opacity-40">event_busy</span>
-                  <p className="mt-2 text-sm font-medium">
-                    {dateFilter ? 'Không có lịch thu gom trong ngày này.' : 'Chưa có lịch thu gom được gán.'}
-                  </p>
+              {/* Map */}
+              <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-outline-variant">
+                <div className="px-6 py-4 border-b border-outline-variant">
+                  <h4 className="text-lg font-bold">{selectedItem.routeName}</h4>
+                  <p className="text-on-surface-variant text-sm">Nhân viên: {user.fullName}</p>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {groupedSchedules.map(([groupDate, items]) => (
-                    <div key={groupDate} className="space-y-3">
-                      {!dateFilter && (
-                        <p className="text-xs font-bold text-primary sticky top-0 bg-surface py-1">
-                          {formatDateLabel(groupDate)}
-                        </p>
-                      )}
-                      {items.map((item) => {
-                        const itemBadge = getStatusBadge(item.status);
-                        const isSelected = selectedItem?.id === item.id && selectedItem?.sourceType === item.sourceType;
-                        return (
-                          <button
-                            key={`${item.sourceType}-${item.id}`}
-                            type="button"
-                            onClick={() => setSelectedItem(item)}
-                            className={`w-full text-left rounded-xl p-5 relative overflow-hidden transition-all border cursor-pointer ${
-                              isSelected
-                                ? 'bg-primary-container/5 border-2 border-primary shadow-sm'
-                                : 'bg-white border-outline-variant hover:border-primary/50'
-                            }`}
-                          >
-                            {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-primary" />}
-                            <div className="flex justify-between items-start mb-3">
-                              <div>
-                                <h4 className="text-base font-bold text-on-surface">{item.routeName}</h4>
-                                <p className="text-on-surface-variant text-xs flex items-center gap-1 mt-1">
-                                  <span className="material-symbols-outlined text-sm">schedule</span>
-                                  {item.startTime && item.endTime ? `${item.startTime} – ${item.endTime}` : 'Giờ chưa xác định'}
-                                </p>
-                              </div>
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase border ${itemBadge.className}`}>
-                                {itemBadge.label}
-                              </span>
-                            </div>
-                            {item.ward && (
-                              <div className="flex items-center gap-1.5 text-on-surface-variant text-xs">
-                                <span className="material-symbols-outlined text-sm text-primary">location_on</span>
-                                {item.neighborhood ? `${item.neighborhood}, ${item.ward}` : item.ward}
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))}
+                <div className="p-3">
+                  <CollectionRouteMap
+                    title={selectedItem.routeName}
+                    collectorName={user.fullName}
+                    routePoints={selectedItem.routePoints?.length ? selectedItem.routePoints : undefined}
+                    readOnly
+                  />
                 </div>
-              )}
+              </div>
             </div>
+          )}
 
-            {/* Trung tâm thông báo (Notification Center) */}
+          {/* Notifications + Feedback row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Notification Center */}
             <div className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden">
               <div className="p-4 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
                 <h3 className="font-bold text-sm flex items-center gap-2">
                   <span className="material-symbols-outlined text-primary text-base">notifications</span>
                   Trung tâm thông báo
                 </h3>
-                <button
-                  type="button"
-                  onClick={() => navigate('/thong-bao')}
-                  className="text-primary text-xs font-bold hover:underline"
-                >
-                  Xem tất cả
-                </button>
+                <button type="button" onClick={() => navigate('/thong-bao')} className="text-primary text-xs font-bold hover:underline">Xem tất cả</button>
               </div>
               <div className="divide-y divide-outline-variant">
-                {recentNotifications.length > 0 ? (
-                  recentNotifications.slice(0, 3).map((notif) => (
-                    <div
-                      key={notif.id}
-                      onClick={() => navigate('/thong-bao')}
-                      className="p-4 hover:bg-surface-container transition-colors cursor-pointer"
-                    >
-                      <div className="flex gap-3 items-start">
-                        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${!notif.is_read ? 'bg-primary' : 'bg-transparent'}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm ${!notif.is_read ? 'font-bold text-on-surface' : 'font-medium text-on-surface-variant'}`}>
-                            {notif.title || notif.content}
-                          </p>
-                          {notif.title && (
-                            <p className="text-xs text-on-surface-variant line-clamp-2 mt-0.5">{notif.content}</p>
-                          )}
-                          <p className="text-[10px] text-outline mt-1 font-bold">
-                            {timeAgo(notif.sent_at)}
-                          </p>
-                        </div>
+                {recentNotifications.length > 0 ? recentNotifications.slice(0, 3).map((notif) => (
+                  <div key={notif.id} onClick={() => navigate('/thong-bao')} className="p-4 hover:bg-surface-container transition-colors cursor-pointer">
+                    <div className="flex gap-3 items-start">
+                      <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${!notif.is_read ? 'bg-primary' : 'bg-transparent'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm ${!notif.is_read ? 'font-bold text-on-surface' : 'font-medium text-on-surface-variant'}`}>{notif.title || notif.content}</p>
+                        {notif.title && <p className="text-xs text-on-surface-variant line-clamp-2 mt-0.5">{notif.content}</p>}
+                        <p className="text-[10px] text-outline mt-1 font-bold">{timeAgo(notif.sent_at)}</p>
                       </div>
                     </div>
-                  ))
-                ) : (
+                  </div>
+                )) : (
                   <div className="p-6 text-center text-on-surface-variant">
                     <span className="material-symbols-outlined text-3xl opacity-30">notifications_off</span>
                     <p className="mt-1 text-xs">Chưa có thông báo mới nào.</p>
@@ -461,203 +614,40 @@ export default function CollectorDashboard() {
                 )}
               </div>
             </div>
-          </div>
 
-          {/* Right Column: Route Details & Map */}
-          <div className="lg:col-span-8 space-y-6">
-            {selectedItem ? (
-              <>
-                {/* Route Detail Header */}
-                <div className="bg-white rounded-xl p-8 shadow-sm border border-outline-variant">
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <p className="text-outline text-xs font-bold uppercase">Chi tiết tuyến</p>
-                      <h3 className="text-2xl lg:text-3xl font-bold font-headline text-on-surface">
-                        {selectedItem.routeName}
-                      </h3>
-                    </div>
-                    {badge && (
-                      <span className={`px-4 py-1.5 text-xs font-bold rounded-full uppercase tracking-wider border ${badge.className}`}>
-                        {badge.label}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
-                    <div>
-                      <p className="text-outline text-xs font-bold uppercase mb-1">Giờ dự kiến</p>
-                      <p className="font-bold text-on-surface">
-                        {selectedItem.startTime && selectedItem.endTime
-                          ? `${selectedItem.startTime} – ${selectedItem.endTime}`
-                          : '—'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-outline text-xs font-bold uppercase mb-1">Loại rác</p>
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-secondary" />
-                        <p className="font-bold text-on-surface">{selectedItem.wasteType || 'Recycling'}</p>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-outline text-xs font-bold uppercase mb-1">Phân công</p>
-                      <p className="font-bold text-secondary">
-                        {selectedItem.teamId ? 'Đi theo Đội' : 'Đi 1 mình'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-outline text-xs font-bold uppercase mb-1">Xe / Phương tiện</p>
-                      <p className="font-bold text-on-surface">{selectedItem.vehicleCode || 'TRUCK-402'}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 pt-6 border-t border-outline-variant">
-                    <p className="text-outline text-xs font-bold uppercase mb-1">Khu vực</p>
-                    <p className="font-bold text-lg text-on-surface">{selectedItem.ward || 'Phường An Hải Tây'}</p>
-                  </div>
-
-                  {selectedItem.notes && (
-                    <div className="mt-4 p-3 bg-surface-container-low rounded-xl text-sm text-on-surface-variant">
-                      <p className="font-semibold text-xs text-outline uppercase">Ghi chú:</p>
-                      <p className="mt-0.5">{selectedItem.notes}</p>
-                    </div>
-                  )}
-
-                  {selectedItem.incident && (
-                    <div className="mt-4 p-4 rounded-xl border border-rose-200 bg-rose-50 text-sm text-rose-800">
-                      <p className="font-bold">Sự cố đã báo:</p>
-                      <p className="mt-1">{selectedItem.incident.description}</p>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="mt-6 pt-6 border-t border-outline-variant flex flex-wrap gap-3">
-                    {canStart(selectedItem.status) && (
-                      <button
-                        type="button"
-                        disabled={actionLoading}
-                        onClick={() => handleAction('start')}
-                        className="px-6 py-2.5 bg-primary text-white font-bold text-sm rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50"
-                      >
-                        <span className="material-symbols-outlined text-lg">play_arrow</span>
-                        Bắt đầu thu gom
-                      </button>
-                    )}
-                    {canComplete(selectedItem.status) && (
-                      <button
-                        type="button"
-                        disabled={actionLoading}
-                        onClick={() => { setShowCompleteModal(true); setEvidenceFiles([]); setError(''); }}
-                        className="px-6 py-2.5 bg-primary-container text-on-primary-container font-bold text-sm rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50"
-                      >
-                        <span className="material-symbols-outlined text-lg">check_circle</span>
-                        Hoàn thành
-                      </button>
-                    )}
-                    {!['completed', 'completed_pending_approval', 'delayed'].includes((selectedItem.status || '').toLowerCase()) && (
-                      <button
-                        type="button"
-                        disabled={actionLoading}
-                        onClick={() => {
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                          setShowIncidentModal(true);
-                          setEvidenceFiles([]);
-                          setIncidentForm({ incidentType: 'vehicle_breakdown', description: '' });
-                          setError('');
-                        }}
-                        className="px-6 py-2.5 bg-error-container/40 text-error font-bold text-sm rounded-lg hover:bg-error-container/60 transition-colors flex items-center gap-2 disabled:opacity-50"
-                      >
-                        <span className="material-symbols-outlined text-lg">report</span>
-                        Báo sự cố
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Map Container */}
-                {!modalOpen && (
-                  <div className="bg-white rounded-xl overflow-hidden shadow-md border border-outline-variant">
-                    <div className="p-6 border-b border-outline-variant">
-                      <div className="flex justify-between items-center mb-1">
-                        <p className="text-outline text-xs font-bold uppercase">Google Maps</p>
-                        <span className="material-symbols-outlined text-outline">open_in_full</span>
-                      </div>
-                      <h4 className="text-lg font-bold">{selectedItem.routeName}</h4>
-                      <p className="text-on-surface-variant text-sm">
-                        Nhân viên: {user.fullName} (DE190362)
-                      </p>
-                    </div>
-                    <div className="p-2">
-                      <CollectionRouteMap
-                        title={selectedItem.routeName}
-                        collectorName={user.fullName}
-                        routePoints={selectedItem.routePoints?.length ? selectedItem.routePoints : undefined}
-                        readOnly
-                      />
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="bg-white rounded-xl p-12 text-center text-on-surface-variant border border-outline-variant">
-                <span className="material-symbols-outlined text-5xl opacity-40">map</span>
-                <p className="mt-3 font-semibold text-base">Chọn một tuyến để xem chi tiết và cập nhật tiến độ.</p>
-              </div>
-            )}
-
-            {/* Resident Feedback Section (Consolidated View) */}
+            {/* Resident Feedback */}
             <div className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-outline-variant flex justify-between items-center">
-                <div>
-                  <p className="text-outline text-xs font-bold uppercase">Resident Feedback</p>
-                  <h3 className="text-xl font-bold font-headline">Phản ánh mới cần xử lý</h3>
-                </div>
-                <Link
-                  to="/collector/reports"
-                  className="px-4 py-2 text-primary border border-primary rounded-lg text-sm font-bold hover:bg-primary/5 transition-colors"
-                >
-                  Xem tất cả phản ánh
-                </Link>
+              <div className="p-4 border-b border-outline-variant flex justify-between items-center">
+                <h3 className="font-bold text-sm flex items-center gap-2">
+                  <span className="material-symbols-outlined text-error text-base">feedback</span>
+                  Phản ánh mới cần xử lý
+                </h3>
+                <Link to="/collector/reports" className="text-primary text-xs font-bold hover:underline">Xem tất cả</Link>
               </div>
-              <div className="p-6 space-y-4">
-                {assignedReports.length > 0 ? (
-                  assignedReports.slice(0, 2).map((rep) => (
-                    <div
-                      key={rep.id}
-                      onClick={() => navigate('/collector/reports')}
-                      className="flex items-start gap-4 p-4 border border-outline-variant rounded-lg bg-surface-container-lowest hover:border-primary transition-colors cursor-pointer"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-error-container/20 flex items-center justify-center text-error">
-                        <span className="material-symbols-outlined">report</span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-on-surface">{rep.title || rep.category}</h4>
-                          <span className="text-[10px] font-bold px-2 py-0.5 bg-error-container text-on-error-container rounded uppercase">
-                            {rep.severity || 'Khẩn cấp'}
-                          </span>
-                        </div>
-                        <p className="text-sm text-on-surface-variant mt-1">{rep.description}</p>
-                        <div className="flex items-center gap-4 mt-3">
-                          <span className="text-xs text-outline flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">location_on</span>
-                            {rep.ward || 'Phường An Hải Bắc'}
-                          </span>
-                        </div>
-                      </div>
+              <div className="p-4 space-y-3">
+                {assignedReports.length > 0 ? assignedReports.slice(0, 2).map((rep) => (
+                  <div key={rep.id} onClick={() => navigate('/collector/reports')}
+                    className="flex items-start gap-3 p-3 border border-outline-variant rounded-lg hover:border-primary transition-colors cursor-pointer">
+                    <div className="w-9 h-9 rounded-full bg-error-container/20 flex items-center justify-center text-error flex-shrink-0">
+                      <span className="material-symbols-outlined text-sm">report</span>
                     </div>
-                  ))
-                ) : (
-                  <div className="p-8 text-center text-on-surface-variant">
-                    <span className="material-symbols-outlined text-4xl opacity-30">assignment_turned_in</span>
-                    <p className="mt-2 text-sm font-semibold">Hiện chưa có phản ánh nào được giao</p>
-                    <p className="text-xs text-outline mt-1">Các phản ánh mới từ cư dân sẽ xuất hiện tại đây khi Manager phân công cho bạn.</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-on-surface text-sm truncate">{rep.title || rep.category}</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-2">{rep.description}</p>
+                      <p className="text-[10px] text-outline mt-1 flex items-center gap-1"><span className="material-symbols-outlined text-xs">location_on</span>{rep.ward || '—'}</p>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="py-8 text-center text-on-surface-variant">
+                    <span className="material-symbols-outlined text-3xl opacity-30">assignment_turned_in</span>
+                    <p className="mt-2 text-xs">Chưa có phản ánh nào được giao.</p>
                   </div>
                 )}
               </div>
             </div>
           </div>
         </div>
+
 
 
         {/* Modals */}
@@ -677,21 +667,8 @@ export default function CollectorDashboard() {
                 <p className="text-xs text-primary mt-2 font-semibold">Đã chọn {evidenceFiles.length} ảnh.</p>
               )}
               <div className="mt-6 flex gap-3 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowCompleteModal(false)}
-                  className="px-4 py-2 rounded-lg border border-outline-variant text-sm font-bold"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  disabled={actionLoading}
-                  onClick={handleCompleteSubmit}
-                  className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-bold disabled:opacity-50"
-                >
-                  Xác nhận hoàn thành
-                </button>
+                <button type="button" onClick={() => setShowCompleteModal(false)} className="px-4 py-2 rounded-lg border border-outline-variant text-sm font-bold">Hủy</button>
+                <button type="button" disabled={actionLoading} onClick={handleCompleteSubmit} className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-bold disabled:opacity-50">Xác nhận hoàn thành</button>
               </div>
             </div>
           </div>
@@ -701,54 +678,46 @@ export default function CollectorDashboard() {
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
             <div className="w-full max-w-lg bg-white rounded-2xl p-6 shadow-2xl relative">
               <h3 className="text-lg font-bold text-on-surface font-headline">Báo sự cố</h3>
-              <p className="text-sm text-on-surface-variant mt-2">
-                Mô tả sự cố từ 20–1000 ký tự. Lịch sẽ chuyển sang trạng thái bị hoãn.
-              </p>
-              <select
-                value={incidentForm.incidentType}
-                onChange={(e) => setIncidentForm((prev) => ({ ...prev, incidentType: e.target.value }))}
-                className="mt-4 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm"
-              >
-                {INCIDENT_TYPES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
+              <p className="text-sm text-on-surface-variant mt-2">Mô tả sự cố từ 20–1000 ký tự. Lịch sẽ chuyển sang trạng thái bị hoãn.</p>
+              <select value={incidentForm.incidentType} onChange={(e) => setIncidentForm((prev) => ({ ...prev, incidentType: e.target.value }))} className="mt-4 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm">
+                {INCIDENT_TYPES.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
               </select>
-              <textarea
-                value={incidentForm.description}
-                onChange={(e) => setIncidentForm((prev) => ({ ...prev, description: e.target.value }))}
-                rows={4}
-                placeholder="Mô tả chi tiết sự cố..."
-                className="mt-3 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm"
-              />
+              <textarea value={incidentForm.description} onChange={(e) => setIncidentForm((prev) => ({ ...prev, description: e.target.value }))} rows={4} placeholder="Mô tả chi tiết sự cố..." className="mt-3 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm" />
               <p className="text-xs text-outline mt-1">{incidentForm.description.length}/1000 ký tự</p>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                multiple
-                onChange={(e) => setEvidenceFiles(Array.from(e.target.files || []))}
-                className="mt-3 w-full text-sm border border-outline-variant rounded-lg p-2"
-              />
+              <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => setEvidenceFiles(Array.from(e.target.files || []))} className="mt-3 w-full text-sm border border-outline-variant rounded-lg p-2" />
               <div className="mt-6 flex gap-3 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowIncidentModal(false)}
-                  className="px-4 py-2 rounded-lg border border-outline-variant text-sm font-bold"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  disabled={actionLoading}
-                  onClick={handleIncidentSubmit}
-                  className="px-4 py-2 rounded-lg bg-error text-white text-sm font-bold disabled:opacity-50"
-                >
-                  Gửi báo cáo
-                </button>
+                <button type="button" onClick={() => setShowIncidentModal(false)} className="px-4 py-2 rounded-lg border border-outline-variant text-sm font-bold">Hủy</button>
+                <button type="button" disabled={actionLoading} onClick={handleIncidentSubmit} className="px-4 py-2 rounded-lg bg-error text-white text-sm font-bold disabled:opacity-50">Gửi báo cáo</button>
               </div>
             </div>
           </div>
         )}
 
+        {/* Deny Week Modal */}
+        {showDenyModal && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowDenyModal(false)}>
+            <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Từ chối lịch tuần</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                Tuần: <strong>{denyWeekLabel}</strong>. Tất cả lịch chưa hoàn thành trong tuần này sẽ bị đánh dấu từ chối và Manager sẽ được thông báo.
+              </p>
+              <textarea
+                rows={3}
+                placeholder="Lý do từ chối (bắt buộc)..."
+                value={denyReason}
+                onChange={e => setDenyReason(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm mb-4"
+              />
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => setShowDenyModal(false)} className="px-5 py-2.5 rounded-xl border text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50">Hủy</button>
+                <button disabled={denyLoading || !denyReason.trim()} onClick={handleDenyWeek}
+                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold disabled:opacity-60">
+                  {denyLoading ? 'Đang gửi...' : 'Xác nhận từ chối'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </CollectorLayout>
   );

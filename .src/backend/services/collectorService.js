@@ -3,7 +3,7 @@ const { ROLES } = require('../constants/roles');
 
 const ASSIGNMENTS_COLLECTION = 'route_assignments';
 const SCHEDULES_COLLECTION = 'collection_schedules';
-const ROUTES_COLLECTION = 'routes';
+const ROUTES_COLLECTION = 'collection_routes';
 const USERS_COLLECTION = 'users';
 const NOTIFICATIONS_COLLECTION = 'notifications';
 
@@ -67,6 +67,13 @@ function parseRoutePoints(route, schedule) {
       return p;
     });
   }
+  if (route?.route_points?.length) {
+    return route.route_points.map(p => {
+      if (Array.isArray(p)) return p;
+      if (p && p.lat !== undefined && p.lng !== undefined) return [p.lat, p.lng];
+      return p;
+    });
+  }
   if (route?.startPoint && route?.endPoint) {
     return [
       [route.startPoint.lat, route.startPoint.lng],
@@ -119,13 +126,13 @@ function mapAssignment(doc, routes, targetDate) {
     sourceType: 'assignment',
     assignmentId: data.assignmentId || doc.id,
     routeId: data.routeId,
-    routeName: route.routeName || data.routeId,
+    routeName: route.route_name || route.routeName || data.routeId,
     date: assignedKey,
     startTime: data.startTime || '',
     endTime: data.endTime || '',
     wasteType: data.wasteType || '',
-    ward: (route.wards || [])[0] || '',
-    neighborhood: (route.neighborhoods || [])[0] || '',
+    ward: route.ward || (route.wards || [])[0] || '',
+    neighborhood: route.neighborhood || (route.neighborhoods || [])[0] || '',
     vehicleCode: data.vehicleCode || '',
     status: normalizeStatus(data.status),
     routePoints: parseRoutePoints(route, null),
@@ -149,18 +156,28 @@ function mapSchedule(doc, routes, targetDate, collectorId, collectorName) {
   const route = routes[data.routeId] || {};
   const timeParts = (data.time_slot || '').split(' - ');
 
+  let defaultStartTime = '';
+  if (dateField) {
+    const d = dateField.toDate ? dateField.toDate() : new Date(dateField);
+    if (!Number.isNaN(d.getTime())) {
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      defaultStartTime = `${hours}:${minutes}`;
+    }
+  }
+
   return {
     id: doc.id,
     sourceType: 'schedule',
     scheduleId: data.scheduleId || doc.id,
     routeId: data.routeId,
-    routeName: data.route_name || route.routeName || 'Tuyến thu gom',
+    routeName: data.route_name || route.route_name || route.routeName || 'Tuyến thu gom',
     date: assignedKey,
-    startTime: data.startTime || timeParts[0] || '',
+    startTime: data.startTime || timeParts[0] || defaultStartTime,
     endTime: data.endTime || timeParts[1] || '',
     wasteType: data.trash_type || data.service_type || '',
-    ward: data.ward || '',
-    neighborhood: data.neighborhood || '',
+    ward: data.ward || route.ward || '',
+    neighborhood: data.neighborhood || route.neighborhood || '',
     vehicleCode: data.assigned_truck || '',
     status: normalizeStatus(data.status),
     routePoints: parseRoutePoints(route, data),

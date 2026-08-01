@@ -8,8 +8,8 @@ import './Header.css';
 // Ánh xạ loại thông báo sang icon và màu sắc
 const TYPE_ICON = {
   schedule: { icon: 'local_shipping', color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
-  payment:  { icon: 'payments',       color: 'text-amber-600',   bg: 'bg-amber-500/10'   },
-  system:   { icon: 'notifications_active', color: 'text-sky-600', bg: 'bg-sky-500/10'   },
+  payment: { icon: 'payments', color: 'text-amber-600', bg: 'bg-amber-500/10' },
+  system: { icon: 'notifications_active', color: 'text-sky-600', bg: 'bg-sky-500/10' },
 };
 
 function timeAgo(isoString) {
@@ -155,10 +155,9 @@ export default function Header() {
 
   const isActive = (path) => location.pathname === path;
   const navLinkClass = (path) =>
-    `font-label-md text-label-md transition-colors ${
-      isActive(path)
-        ? 'text-primary dark:text-primary-fixed border-b-2 border-primary dark:border-primary-fixed pb-1'
-        : 'text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed'
+    `font-label-md text-label-md transition-colors ${isActive(path)
+      ? 'text-primary dark:text-primary-fixed border-b-2 border-primary dark:border-primary-fixed pb-1'
+      : 'text-on-surface-variant dark:text-surface-variant hover:text-primary dark:hover:text-primary-fixed'
     }`;
 
   const previewNotifications = notifications.slice(0, 5);
@@ -279,11 +278,10 @@ export default function Header() {
                         <div
                           key={n.id}
                           onClick={() => { setShowDropdown(false); if (n.link) navigate(n.link); }}
-                          className={`notification-item flex items-start gap-3 px-5 py-4 cursor-pointer border-b border-slate-50 dark:border-slate-700/50 last:border-b-0 ${
-                            !n.is_read
+                          className={`notification-item flex items-start gap-3 px-5 py-4 cursor-pointer border-b border-slate-50 dark:border-slate-700/50 last:border-b-0 ${!n.is_read
                               ? 'bg-emerald-50/60 dark:bg-emerald-950/20 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
                               : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'
-                          }`}
+                            }`}
                         >
                           <div className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center ${conf.bg} ${conf.color}`}>
                             <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -423,6 +421,15 @@ export default function Header() {
                         Phản ánh của tôi
                       </button>
                     )}
+                    {userRole !== ROLES.ADMIN && !isCollector && (
+                      <button
+                        onClick={() => { setShowUserMenu(false); navigate('/ho-so'); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                      >
+                        <span className="material-symbols-outlined text-base text-slate-400">manage_accounts</span>
+                        Hồ sơ của tôi
+                      </button>
+                    )}
                   </div>
 
                   {/* Đăng xuất */}
@@ -545,6 +552,16 @@ export default function Header() {
                       <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">rate_review</span>
                       Gửi phản ánh
                     </Link>
+                    {user && (
+                      <Link
+                        to="/ho-so"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/ho-so') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                      >
+                        <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">manage_accounts</span>
+                        Hồ sơ của tôi
+                      </Link>
+                    )}
                   </>
                 )}
                 {userRole === ROLES.ADMIN && (

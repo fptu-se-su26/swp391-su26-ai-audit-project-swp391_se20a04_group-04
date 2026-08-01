@@ -3,6 +3,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const { getCorsMiddleware } = require('./config/cors');
 const mountRoutes = require('./routes');
+const { startPaymentReminderJob } = require('./services/paymentReminderJob');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -23,6 +24,7 @@ if (require.main === module) {
     console.log(`  EcoSchedule Secure Backend is running on ${HOST}:${PORT}`);
     console.log(`  API Base URL: http://${HOST}:${PORT}`);
     console.log(`==================================================`);
+    startPaymentReminderJob();
   });
 }
 

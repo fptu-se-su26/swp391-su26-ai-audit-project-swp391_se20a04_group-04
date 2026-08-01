@@ -29,6 +29,8 @@ export default function ResidentSchedules() {
   // User Profile: khởi tạo trực tiếp thay vì dùng useEffect để tránh setState-in-effect
   const currentUser = authService.getCurrentUser();
 
+
+
   // 1. Tải danh sách Tỉnh/Thành phố khi component mount
   useEffect(() => {
     const fetchProvinces = async () => {
@@ -304,6 +306,8 @@ export default function ResidentSchedules() {
             </div>
           </div>
         )}
+
+
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

@@ -17,6 +17,7 @@ import AssignedReports from './pages/Collector/AssignedReports';
 import ManagerInvoice from './pages/ManagerInvoice';
 import ResidentSchedules from './resident/ResidentSchedules';
 import Complaints from './pages/Complaints';
+import EditProfile from './pages/EditProfile';
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
             <Route path="/collector/reports" element={<AssignedReports />} />
             <Route path="/dashboard/invoices/new" element={<ManagerInvoice />} />
             <Route path="/phan-anh" element={<Complaints />} />
+            <Route path="/ho-so" element={<EditProfile />} />
           </Routes>
         </div>
         <Footer />

@@ -8,6 +8,8 @@ router.get('/dashboard/collector', verifyToken, ensureCollector, collectorContro
 router.get('/collector/schedules', verifyToken, ensureCollector, collectorController.getSchedules);
 router.patch('/collector/schedules/:sourceType/:id/status', verifyToken, ensureCollector, collectorController.updateScheduleStatus);
 router.post('/collector/confirm-route', verifyToken, ensureCollector, collectorController.confirmRoute);
+router.post('/collector/confirm-week', verifyToken, ensureCollector, collectorController.confirmWeek);
+router.post('/collector/deny-week', verifyToken, ensureCollector, collectorController.denyWeek);
 router.get('/collector/reports', verifyToken, ensureCollector, collectorController.getReports);
 router.get('/route-assignments/my', verifyToken, ensureCollector, collectorController.getMyAssignments);
 router.patch('/route-assignments/:assignmentId/status', verifyToken, ensureCollector, collectorController.updateAssignmentStatus);

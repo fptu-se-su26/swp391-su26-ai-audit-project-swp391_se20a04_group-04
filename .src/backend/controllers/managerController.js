@@ -618,6 +618,10 @@ module.exports = {
   createTeam,
   updateTeam,
   deleteTeam,
+  getDashboardStats,
+  getInvoiceTemplates,
+  createInvoiceTemplate,
+  deleteInvoiceTemplate,
 };
 
 /**
@@ -783,3 +787,161 @@ async function deleteTeam(req, res) {
     return res.status(500).json({ error: 'Không thể xóa đội.' });
   }
 }
+
+/**
+ * GET /api/manager/invoice-templates
+ */
+async function getInvoiceTemplates(req, res) {
+  try {
+    const snap = await db.collection('invoice_templates').orderBy('createdAt', 'desc').get();
+    const templates = [];
+    snap.forEach(d => templates.push({ id: d.id, ...d.data() }));
+    return res.status(200).json(templates);
+  } catch (error) {
+    return res.status(500).json({ error: 'Không thể tải danh sách mẫu hóa đơn.' });
+  }
+}
+
+/**
+ * POST /api/manager/invoice-templates
+ * Body: { name, feeType, amount, currency, dueOffsetDays, recurrence? }
+ */
+async function createInvoiceTemplate(req, res) {
+  const { name, feeType, amount, currency, dueOffsetDays, recurrence } = req.body;
+  if (!name || !feeType || !amount || !currency) {
+    return res.status(400).json({ error: 'name, feeType, amount, currency là bắt buộc.' });
+  }
+  try {
+    const data = {
+      name: String(name).trim(),
+      feeType,
+      amount: Number(amount),
+      currency: currency || 'VND',
+      dueOffsetDays: Number(dueOffsetDays || 30),
+      recurrence: recurrence || 'monthly',
+      createdBy: req.uid,
+      createdAt: new Date().toISOString(),
+    };
+    const docRef = await db.collection('invoice_templates').add(data);
+    return res.status(201).json({ id: docRef.id, ...data });
+  } catch (error) {
+    return res.status(500).json({ error: 'Không thể tạo mẫu hóa đơn.' });
+  }
+}
+
+/**
+ * DELETE /api/manager/invoice-templates/:templateId
+ */
+async function deleteInvoiceTemplate(req, res) {
+  try {
+    await db.collection('invoice_templates').doc(req.params.templateId).delete();
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'Không thể xóa mẫu hóa đơn.' });
+  }
+}
+
+/**
+ * GET /api/manager/dashboard/stats
+ * Returns aggregated KPI data for recharts:
+ *   revenueByMonth, complaintsByWeek, invoiceStatus, complaintStatus, completedByCollector
+ */
+async function getDashboardStats(req, res) {
+  try {
+    const [invoiceSnap, complaintSnap, scheduleSnap] = await Promise.all([
+      db.collection('invoices').get(),
+      db.collection('complaints').get(),
+      db.collection('collection_schedules').get(),
+    ]);
+
+    const invoices = [];
+    invoiceSnap.forEach(d => invoices.push({ id: d.id, ...d.data() }));
+
+    const complaints = [];
+    complaintSnap.forEach(d => complaints.push({ id: d.id, ...d.data() }));
+
+    const schedules = [];
+    scheduleSnap.forEach(d => schedules.push({ id: d.id, ...d.data() }));
+
+    // 1. Revenue by month (last 6 months) � sum of paid invoices
+    const revenueByMonth = {};
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      revenueByMonth[key] = 0;
+    }
+    invoices.forEach(inv => {
+      if (inv.status !== 'paid') return;
+      const yr = inv.billingYear || inv.year;
+      const mo = inv.billingMonth || inv.month;
+      if (!yr || !mo) return;
+      const key = `${yr}-${String(mo).padStart(2, '0')}`;
+      if (revenueByMonth[key] !== undefined) revenueByMonth[key] += Number(inv.amount || 0);
+    });
+    const revenueChart = Object.entries(revenueByMonth).map(([month, revenue]) => ({ month, revenue }));
+
+    // 2. Complaints received vs resolved per week (last 4 weeks)
+    const weekMap = {};
+    for (let i = 3; i >= 0; i--) {
+      const start = new Date(now);
+      start.setDate(now.getDate() - now.getDay() - i * 7);
+      const label = `W${4 - i} (${start.getDate()}/${start.getMonth() + 1})`;
+      weekMap[label] = { received: 0, resolved: 0, weekStart: start.getTime() };
+    }
+    const weekKeys = Object.keys(weekMap);
+    complaints.forEach(c => {
+      const ts = c.createdAt?.seconds ? c.createdAt.seconds * 1000 : (c.createdAt ? new Date(c.createdAt).getTime() : null);
+      if (!ts) return;
+      for (let i = weekKeys.length - 1; i >= 0; i--) {
+        if (ts >= weekMap[weekKeys[i]].weekStart) {
+          weekMap[weekKeys[i]].received++;
+          if ((c.status || '').toLowerCase() === 'resolved') weekMap[weekKeys[i]].resolved++;
+          break;
+        }
+      }
+    });
+    const complaintsChart = weekKeys.map(w => ({ week: w, received: weekMap[w].received, resolved: weekMap[w].resolved }));
+
+    // 3. Invoice status breakdown (current month)
+    const thisYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const invoiceStatus = { paid: 0, unpaid: 0, overdue: 0 };
+    invoices.forEach(inv => {
+      const yr = inv.billingYear || inv.year;
+      const mo = inv.billingMonth || inv.month;
+      const ym = yr && mo ? `${yr}-${String(mo).padStart(2, '0')}` : null;
+      if (ym !== thisYm) return;
+      const s = (inv.status || 'unpaid').toLowerCase();
+      if (invoiceStatus[s] !== undefined) invoiceStatus[s]++;
+    });
+    const invoiceStatusChart = Object.entries(invoiceStatus).map(([name, value]) => ({ name, value }));
+
+    // 4. Complaint status breakdown (all time)
+    const cStatus = {};
+    complaints.forEach(c => {
+      const s = c.status || 'open';
+      cStatus[s] = (cStatus[s] || 0) + 1;
+    });
+    const complaintStatusChart = Object.entries(cStatus).map(([name, value]) => ({ name, value }));
+
+    // 5. Completed schedules count by collector (this week)
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    const collectorPayload = {};
+    schedules.forEach(s => {
+      if (!['completed', 'completed_pending_approval'].includes((s.status || '').toLowerCase())) return;
+      const sDate = s.schedule_date ? new Date(s.schedule_date) : null;
+      if (!sDate || sDate < weekStart) return;
+      const col = s.assigned_collector || s.assignedCollector || 'Unknown';
+      collectorPayload[col] = (collectorPayload[col] || 0) + 1;
+    });
+    const collectorChart = Object.entries(collectorPayload).map(([collector, completed]) => ({ collector, completed }));
+
+    return res.status(200).json({ revenueChart, complaintsChart, invoiceStatusChart, complaintStatusChart, collectorChart });
+  } catch (error) {
+    console.error('[Dashboard] L?i t?ng h?p stats:', error.message);
+    return res.status(500).json({ error: 'Không thể tải thống kê.' });
+  }
+}
+

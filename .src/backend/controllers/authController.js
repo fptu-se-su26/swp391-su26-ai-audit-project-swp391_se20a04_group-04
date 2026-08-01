@@ -1,9 +1,37 @@
+const crypto = require('crypto');
 const { db, auth } = require('../config/firebase');
 const { ROLES } = require('../constants/roles');
 const { normalizeUser } = require('../helpers/normalizeUser');
+const emailService = require('../services/emailService');
 
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
 const USERS_COLLECTION = 'users';
+
+const CODE_TTL_MS = 15 * 60 * 1000; // 15 phút
+const RESEND_COOLDOWN_MS = 60 * 1000; // 60 giây giữa các lần gửi lại
+
+function hashCode(code) {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
+
+function generateCode() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
+
+/**
+ * Tạo mã xác nhận mới, lưu (hash) vào Firestore và gửi email cho user.
+ */
+async function issueVerificationCode(uid, email) {
+  const code = generateCode();
+  await db.collection(USERS_COLLECTION).doc(uid).update({
+    emailVerification: {
+      codeHash: hashCode(code),
+      expiresAt: Date.now() + CODE_TTL_MS,
+      lastSentAt: Date.now(),
+    },
+  });
+  await emailService.sendVerificationCodeEmail(email, code);
+}
 
 /**
  * POST /api/auth/register
@@ -48,23 +76,8 @@ async function register(req, res) {
     }
 
     const uid = signUpData.localId;
-    const idToken = signUpData.idToken;
 
-    // 2. Gửi email xác nhận bằng REST API (sử dụng OobCode của Firebase)
-    console.log(`[Register] Đang gửi email xác nhận cho: ${email}`);
-    const sendOobUrl = `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_API_KEY}`;
-    const sendOobResponse = await fetch(sendOobUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestType: 'VERIFY_EMAIL', idToken }),
-    });
-
-    if (!sendOobResponse.ok) {
-      const oobError = await sendOobResponse.json();
-      console.warn('[Register] Cảnh báo: Không gửi được email xác nhận:', oobError.error?.message);
-    }
-
-    // 3. Chuẩn bị dữ liệu để ghi vào Firestore bằng Admin SDK
+    // 2. Chuẩn bị dữ liệu để ghi vào Firestore bằng Admin SDK
     const userData = {
       uid,
       fullName,
@@ -81,12 +94,106 @@ async function register(req, res) {
     console.log(`[Register] Đang lưu thông tin tài khoản ${uid} vào Firestore database...`);
     await db.collection(USERS_COLLECTION).doc(uid).set(userData);
 
+    // 3. Gửi email chứa mã xác nhận (tự gửi qua SMTP, không phụ thuộc Firebase)
+    try {
+      console.log(`[Register] Đang gửi mã xác nhận cho: ${email}`);
+      await issueVerificationCode(uid, email);
+    } catch (emailError) {
+      console.error('[Register] Cảnh báo: Không gửi được email xác nhận:', emailError.message);
+      return res.status(201).json({
+        success: true,
+        warning: 'Tài khoản đã tạo nhưng gửi email xác nhận thất bại. Vui lòng dùng chức năng "Gửi lại mã".',
+      });
+    }
+
     console.log(`[Register] Đăng ký thành công cho user: ${email} (${uid})`);
     return res.status(201).json({ success: true });
 
   } catch (error) {
     console.error('[Register] Lỗi hệ thống khi đăng ký:', error);
     return res.status(500).json({ error: 'Đã xảy ra lỗi hệ thống khi đăng ký tài khoản. Vui lòng thử lại sau.' });
+  }
+}
+
+/**
+ * POST /api/auth/verify-email
+ * Body: { email, code }
+ */
+async function verifyEmail(req, res) {
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp Email và mã xác nhận.' });
+  }
+
+  try {
+    const userRecord = await auth.getUserByEmail(email).catch(() => null);
+    if (!userRecord) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản với email này.' });
+    }
+
+    const userDoc = await db.collection(USERS_COLLECTION).doc(userRecord.uid).get();
+    const verification = userDoc.data()?.emailVerification;
+
+    if (!verification) {
+      return res.status(400).json({ error: 'Không có mã xác nhận nào đang chờ. Vui lòng yêu cầu gửi lại mã.' });
+    }
+
+    if (Date.now() > verification.expiresAt) {
+      return res.status(400).json({ error: 'Mã xác nhận đã hết hạn. Vui lòng yêu cầu gửi lại mã.' });
+    }
+
+    if (hashCode(code) !== verification.codeHash) {
+      return res.status(400).json({ error: 'Mã xác nhận không đúng.' });
+    }
+
+    await auth.updateUser(userRecord.uid, { emailVerified: true });
+    await db.collection(USERS_COLLECTION).doc(userRecord.uid).update({
+      emailVerified: true,
+      emailVerification: null,
+    });
+
+    console.log(`[VerifyEmail] Xác nhận email thành công: ${email}`);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[VerifyEmail] Lỗi hệ thống khi xác nhận email:', error);
+    return res.status(500).json({ error: 'Đã xảy ra lỗi hệ thống khi xác nhận email. Vui lòng thử lại sau.' });
+  }
+}
+
+/**
+ * POST /api/auth/resend-code
+ * Body: { email }
+ */
+async function resendCode(req, res) {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp Email.' });
+  }
+
+  try {
+    const userRecord = await auth.getUserByEmail(email).catch(() => null);
+    if (!userRecord) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản với email này.' });
+    }
+
+    if (userRecord.emailVerified) {
+      return res.status(400).json({ error: 'Email này đã được xác nhận trước đó.' });
+    }
+
+    const userDoc = await db.collection(USERS_COLLECTION).doc(userRecord.uid).get();
+    const lastSentAt = userDoc.data()?.emailVerification?.lastSentAt || 0;
+    if (Date.now() - lastSentAt < RESEND_COOLDOWN_MS) {
+      return res.status(429).json({ error: 'Vui lòng đợi ít nhất 60 giây trước khi yêu cầu gửi lại mã.' });
+    }
+
+    await issueVerificationCode(userRecord.uid, email);
+    console.log(`[ResendCode] Đã gửi lại mã xác nhận cho: ${email}`);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[ResendCode] Lỗi hệ thống khi gửi lại mã:', error);
+    return res.status(500).json({ error: 'Đã xảy ra lỗi hệ thống khi gửi lại mã. Vui lòng thử lại sau.' });
   }
 }
 
@@ -249,4 +356,4 @@ async function googleLogin(req, res) {
   }
 }
 
-module.exports = { register, login, googleLogin };
+module.exports = { register, login, googleLogin, verifyEmail, resendCode };

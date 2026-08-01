@@ -36,10 +36,44 @@ const authService = {
         throw new Error(data.error || 'Đăng ký thất bại. Vui lòng thử lại.');
       }
 
-      return { success: true };
+      return { success: true, warning: data.warning };
     } catch (error) {
       throw new Error(error.message || 'Đăng ký thất bại. Vui lòng thử lại.', { cause: error });
     }
+  },
+
+  /**
+   * Xác nhận mã code (6 số) được gửi qua email sau khi đăng ký
+   */
+  async verifyEmailCode(email, code) {
+    const response = await fetch(`${BACKEND_URL}/verify-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Mã xác nhận không hợp lệ.');
+    }
+    return data;
+  },
+
+  /**
+   * Gửi lại mã xác nhận qua email
+   */
+  async resendVerificationCode(email) {
+    const response = await fetch(`${BACKEND_URL}/resend-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Không thể gửi lại mã xác nhận.');
+    }
+    return data;
   },
 
   /**
