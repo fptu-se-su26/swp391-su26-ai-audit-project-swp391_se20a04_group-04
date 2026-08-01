@@ -142,7 +142,6 @@ export default function Payment() {
     }
   };
 
-  const [autoChecking, setAutoChecking] = useState(false);
   const pollingRef = useRef(null);
 
   const handleVerifyPayment = async () => {
@@ -190,11 +189,8 @@ export default function Payment() {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
-      setAutoChecking(false);
       return;
     }
-
-    setAutoChecking(true);
 
     pollingRef.current = setInterval(async () => {
       try {
@@ -202,7 +198,6 @@ export default function Payment() {
         if (result.paid) {
           clearInterval(pollingRef.current);
           pollingRef.current = null;
-          setAutoChecking(false);
           setInvoice(result.invoice);
           setPaymentStatus('paid');
           setPaymentRequest(null);
@@ -228,7 +223,6 @@ export default function Payment() {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
-      setAutoChecking(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentRequest?.paymentUrl, invoice?.invoiceId, invoice?.status]);
@@ -499,7 +493,7 @@ export default function Payment() {
                   Mở trang thanh toán PayOS
                 </a>
 
-                {autoChecking && (
+                {paymentRequest?.paymentUrl && (
                   <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 border border-blue-200">
                     <span className="relative flex h-3 w-3">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>

@@ -104,9 +104,8 @@ export default function CollectorDashboard() {
     }
   }, [user, navigate]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const loadData = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       const [dashboardData, scheduleData, reportData, notifData, teamData, salaryData, salaryHistData] = await Promise.all([
         collectorService.getDashboard(todayISO()),
@@ -117,6 +116,7 @@ export default function CollectorDashboard() {
         collectorService.getMySalary().catch(() => null),
         collectorService.getSalaryHistory().catch(() => []),
       ]);
+      setError('');
       setSummary(dashboardData);
       const items = scheduleData.items || [];
       setSchedules(items);
@@ -239,6 +239,7 @@ export default function CollectorDashboard() {
 
   useEffect(() => {
     if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadData();
     }
   }, [user, loadData]);

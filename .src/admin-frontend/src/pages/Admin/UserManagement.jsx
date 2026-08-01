@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getUsers, createUser, updateUser, deleteUser } from '../../services/userService';
 import { ROLES, normalizeRole, REGISTER_ROLES } from '../../constants/roles';
@@ -32,11 +32,10 @@ export default function UserManagement({ hideHeader = false }) {
   });
   const [saving, setSaving] = useState(false);
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError('');
+  const fetchData = useCallback(async () => {
     try {
       const res = await getUsers(page, limit, debouncedSearch, roleFilter);
+      setError('');
       setUsers(res.data || []);
       setTotal(res.total || 0);
       setTotalPages(res.totalPages || 1);
@@ -45,7 +44,12 @@ export default function UserManagement({ hideHeader = false }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, limit, debouncedSearch, roleFilter]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  }, [fetchData]);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -53,10 +57,6 @@ export default function UserManagement({ hideHeader = false }) {
     }, 500);
     return () => clearTimeout(handler);
   }, [search]);
-
-  useEffect(() => {
-    fetchData();
-  }, [page, debouncedSearch, roleFilter]);
 
   const handleSearchChange = (e) => {
     setSearch(e.target.value);

@@ -72,7 +72,7 @@ const collectorService = {
       });
     } catch (networkError) {
       console.error('[CollectorService] Network error on updateStatus:', networkError);
-      throw new Error('Không thể kết nối đến máy chủ. Kiểm tra backend đang chạy và thử lại.');
+      throw new Error('Không thể kết nối đến máy chủ. Kiểm tra backend đang chạy và thử lại.', { cause: networkError });
     }
     const data = await parseJsonResponse(response);
     if (!response.ok) throw new Error(data.error || 'Không thể cập nhật trạng thái.');

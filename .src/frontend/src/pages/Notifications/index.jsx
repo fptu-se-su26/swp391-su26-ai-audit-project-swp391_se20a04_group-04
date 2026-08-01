@@ -6,7 +6,7 @@
  *   - NotificationSettings → sidebar cài đặt kênh nhận thông báo
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import notificationService from '../../services/notificationService';
 import authService from '../../services/authService';
@@ -35,35 +35,46 @@ export default function Notifications() {
   }, [navigate]);
 
   // ─── Tải dữ liệu ──────────────────────────────────────────────────────────
-  // Dùng useRef để giữ reference tới loadData mà không cần useCallback
-  const loadData = async () => {
+  const loadData = useCallback(() => {
     setLoading(true);
-    setError('');
-    try {
-      // Tải thông báo — lỗi ở đây mới hiện thông báo lỗi cho người dùng
-      const notifs = await notificationService.getNotifications();
+    notificationService.getNotifications().then((notifs) => {
       setNotifications(notifs);
-    } catch (err) {
+      setError('');
+    }).catch((err) => {
       setError(err.message || 'Không thể tải danh sách thông báo.');
-    } finally {
+    }).finally(() => {
       setLoading(false);
-    }
+    });
 
-    try {
-      // Tải cài đặt — lỗi ở đây chỉ giữ nguyên giá trị mặc định, không crash trang
-      const cfg = await notificationService.getNotificationSettings();
+    notificationService.getNotificationSettings().then((cfg) => {
       setSettings(cfg);
-    } catch {
-      // Im lặng: Dùng settings mặc định { email: true, sms: false, push: true }
-    }
-  };
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadData();
-    window.addEventListener('notificationsUpdated', loadData);
-    return () => window.removeEventListener('notificationsUpdated', loadData);
-  }, []);
+    let active = true;
+    notificationService.getNotifications().then((notifs) => {
+      if (active) {
+        setNotifications(notifs);
+        setError('');
+      }
+    }).catch((err) => {
+      if (active) setError(err.message || 'Không thể tải danh sách thông báo.');
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+
+    notificationService.getNotificationSettings().then((cfg) => {
+      if (active) setSettings(cfg);
+    }).catch(() => {});
+
+    const handleUpdate = () => loadData();
+    window.addEventListener('notificationsUpdated', handleUpdate);
+    return () => {
+      active = false;
+      window.removeEventListener('notificationsUpdated', handleUpdate);
+    };
+  }, [loadData]);
 
   // Removed Admin check for regular frontend
 

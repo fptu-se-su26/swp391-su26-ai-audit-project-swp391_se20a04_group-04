@@ -141,7 +141,6 @@ export default function Payment() {
     }
   };
 
-  const [autoChecking, setAutoChecking] = useState(false);
   const pollingRef = useRef(null);
 
   const handleVerifyPayment = async () => {
@@ -161,7 +160,6 @@ export default function Payment() {
       if (result.paid) {
         setPaymentRequest(null);
         setSuccess('Thanh toán đã hoàn tất. Hóa đơn đã được cập nhật.');
-        // Cập nhật lịch sử và scroll xuống
         try {
           const hist = await fetchInvoiceHistory();
           setHistory(hist);
@@ -185,31 +183,24 @@ export default function Payment() {
     const shouldPoll = paymentRequest?.paymentUrl && invoice?.status !== 'paid';
 
     if (!shouldPoll || !invoice?.invoiceId) {
-      // Clear any existing interval
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
-      setAutoChecking(false);
       return;
     }
-
-    setAutoChecking(true);
 
     pollingRef.current = setInterval(async () => {
       try {
         const result = await verifyPaymentStatus(invoice.invoiceId);
         if (result.paid) {
-          // Payment confirmed - stop polling and update state
           clearInterval(pollingRef.current);
           pollingRef.current = null;
-          setAutoChecking(false);
           setInvoice(result.invoice);
           setPaymentStatus('paid');
           setPaymentRequest(null);
           setSuccess('Thanh toán đã hoàn tất. Hóa đơn đã được cập nhật.');
           setError('');
-          // Refresh history
           try {
             const hist = await fetchInvoiceHistory();
             setHistory(hist);
@@ -221,7 +212,7 @@ export default function Payment() {
           }, 300);
         }
       } catch {
-        // Silently ignore errors during auto-polling to avoid spam
+        // Silent polling fail
       }
     }, 3000);
 
@@ -230,7 +221,6 @@ export default function Payment() {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
-      setAutoChecking(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentRequest?.paymentUrl, invoice?.invoiceId, invoice?.status]);
@@ -448,7 +438,7 @@ export default function Payment() {
                   Mở trang thanh toán PayOS
                 </a>
 
-                {autoChecking && (
+                {paymentRequest?.paymentUrl && (
                   <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 border border-blue-200">
                     <span className="relative flex h-3 w-3">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>

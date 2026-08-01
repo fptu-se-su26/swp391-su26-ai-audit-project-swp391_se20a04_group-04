@@ -267,7 +267,7 @@ export default function CollectionRouteMap({
     }
 
     if (points.length === 0) {
-      setRouteInfo(null);
+      Promise.resolve().then(() => setRouteInfo(null));
       return;
     }
 
@@ -429,7 +429,7 @@ export default function CollectionRouteMap({
         });
       }
     } else {
-      setRouteInfo(null);
+      Promise.resolve().then(() => setRouteInfo(null));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [points, mapReady, readOnly]);

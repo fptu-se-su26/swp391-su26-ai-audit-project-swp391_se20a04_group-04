@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import notificationService from '../../services/notificationService';
 import { ROLES } from '../../constants/roles';
 import { RefreshCw, Search, ListFilter, Filter, Eye, Pencil, Trash2 } from 'lucide-react';
@@ -35,11 +35,10 @@ export default function AdminNotifications() {
     targetRole: 'all',
   });
 
-  const fetchNotifications = async () => {
-    setLoading(true);
-    setError('');
+  const fetchNotifications = useCallback(async () => {
     try {
       const res = await notificationService.getAdminNotifications(currentPage, itemsPerPage, roleFilter);
+      setError('');
       setNotifications(res.data || res || []);
       setTotal(res.total || 0);
       setTotalPages(res.totalPages || 1);
@@ -48,11 +47,12 @@ export default function AdminNotifications() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, itemsPerPage, roleFilter]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNotifications();
-  }, [currentPage, roleFilter, typeFilter]);
+  }, [fetchNotifications]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
