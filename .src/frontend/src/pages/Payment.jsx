@@ -100,7 +100,7 @@ export default function Payment() {
         // Lọc hóa đơn chưa thanh toán / quá hạn
         const unpaidList = invoicesList.filter(inv => inv.status === 'unpaid' || inv.status === 'overdue');
         const activeInvoice = unpaidList.length > 0 ? unpaidList[unpaidList.length - 1] : (invoicesList.length > 0 ? invoicesList[0] : null);
-        
+
         setInvoice(activeInvoice);
         if (activeInvoice) {
           setPaymentStatus(activeInvoice.status || 'unpaid');
@@ -131,7 +131,7 @@ export default function Payment() {
     };
 
     load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.uid, currentUser?.role]);
 
   const handleRequestPayment = async () => {
@@ -232,7 +232,7 @@ export default function Payment() {
         pollingRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentRequest?.paymentUrl, invoice?.invoiceId, invoice?.status]);
 
   // Removed Admin check for regular frontend
@@ -314,7 +314,7 @@ export default function Payment() {
 
   return (
     <main className="max-w-6xl mx-auto px-4 md:px-8 py-8 animate-fade-in">
-      
+
       {/* Navigation Breadcrumbs */}
       <section className="mb-8">
         <nav className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs mb-2">
@@ -374,14 +374,14 @@ export default function Payment() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
+
         {/* Left Area: Unpaid invoices and PayOS Payment Details (8 cols) */}
         <div className="lg:col-span-8 space-y-6">
-          
+
           {/* Unpaid Invoices list */}
           <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Hóa đơn cần thanh toán</h2>
-            
+
             {unpaidInvoices.length === 0 ? (
               <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
                 <span className="material-symbols-outlined text-emerald-600 text-5xl mb-2">celebrate</span>
@@ -393,19 +393,17 @@ export default function Payment() {
                 {unpaidInvoices.map((inv) => {
                   const isActive = invoice?.invoiceId === inv.invoiceId;
                   return (
-                    <div 
+                    <div
                       key={inv.invoiceId}
-                      className={`p-5 rounded-2xl border transition-all ${
-                        isActive 
-                          ? 'border-emerald-500 bg-emerald-50/10 dark:bg-emerald-950/10' 
-                          : 'border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/30'
-                      }`}
+                      className={`p-5 rounded-2xl border transition-all ${isActive
+                        ? 'border-emerald-500 bg-emerald-50/10 dark:bg-emerald-950/10'
+                        : 'border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/30'
+                        }`}
                     >
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                         <div className="space-y-1">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                            inv.status === 'overdue' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
-                          }`}>
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${inv.status === 'overdue' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                            }`}>
                             {inv.status === 'overdue' ? 'Quá hạn đóng' : 'Chưa thanh toán'}
                           </span>
                           <h4 className="font-bold text-slate-900 dark:text-white text-sm">
@@ -571,8 +569,8 @@ export default function Payment() {
             ) : (
               <div className="space-y-4 max-h-[480px] overflow-y-auto pr-1">
                 {history.map((inv) => (
-                  <div 
-                    key={inv.invoiceId} 
+                  <div
+                    key={inv.invoiceId}
                     className="p-3.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/80 rounded-xl space-y-2 hover:shadow-sm transition-all"
                   >
                     <div className="flex justify-between items-start">
@@ -601,4 +599,4 @@ export default function Payment() {
     </main>
   );
 }
-}
+

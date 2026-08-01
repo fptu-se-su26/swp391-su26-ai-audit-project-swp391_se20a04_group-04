@@ -20,14 +20,14 @@ const authService = {
   /**
    * Đăng ký tài khoản mới và gửi email xác nhận thông qua Backend
    */
-  async register({ fullName, email, phone, password, address, role }) {
+  async register({ fullName, email, phone, password, address, area, role }) {
     try {
       const response = await fetch(`${BACKEND_URL}/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ fullName, email, phone, password, address, role }),
+        body: JSON.stringify({ fullName, email, phone, password, address, area, role }),
       });
 
       const data = await response.json();
