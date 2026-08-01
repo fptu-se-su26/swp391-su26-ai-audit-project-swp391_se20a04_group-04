@@ -76,6 +76,13 @@ export async function fetchInvoiceHistory() {
   return parseJsonResponse(response);
 }
 
+export async function fetchMyInvoices() {
+  const response = await fetch(`${API_BASE}/api/invoices`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(response);
+}
+
 export async function getAdminTransactions(roleFilter = '') {
   let url = `${API_BASE}/api/admin/transactions`;
   if (roleFilter) {

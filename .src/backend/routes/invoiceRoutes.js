@@ -7,6 +7,7 @@ const invoiceController = require('../controllers/invoiceController');
 router.use(verifyToken, ensureResident);
 
 router.post('/', invoiceController.createInvoice);
+router.get('/', invoiceController.getMyInvoices);
 router.get('/current', invoiceController.getCurrentInvoice);
 router.get('/history', invoiceController.getInvoiceHistory);
 router.get('/:invoiceId', invoiceController.getInvoiceById);

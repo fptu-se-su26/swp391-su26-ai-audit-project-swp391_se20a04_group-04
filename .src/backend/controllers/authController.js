@@ -40,7 +40,7 @@ async function register(req, res) {
   // Lưu ý: trường `role` từ client bị bỏ qua hoàn toàn vì lý do bảo mật.
   // Mọi tài khoản đăng ký mới luôn được gán vai trò RESIDENT.
   // Admin mới có quyền thay đổi vai trò qua trang Quản lý người dùng.
-  const { fullName, email, phone, password, address } = req.body;
+  const { fullName, email, phone, password, address, area } = req.body;
 
   if (!email || !password || !fullName) {
     return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin (Họ và tên, Email, Mật khẩu)' });
@@ -87,7 +87,7 @@ async function register(req, res) {
       role: ROLES.RESIDENT,
       emailVerified: false,
       createdAt: new Date().toISOString(),
-      area: 'Quận Sơn Trà, Đà Nẵng',
+      area: area || 'Quận Sơn Trà, Đà Nẵng',
     };
 
     // Ghi nhận vào collection 'users' bằng Firebase Admin SDK
@@ -332,7 +332,7 @@ async function googleLogin(req, res) {
         phone: userRecord.phoneNumber || '',
         address: '',
         role: ROLES.RESIDENT,
-        area: 'Quận Sơn Trà, Đà Nẵng',
+        area: '',
         emailVerified,
         createdAt: new Date().toISOString(),
       };
@@ -356,4 +356,58 @@ async function googleLogin(req, res) {
   }
 }
 
-module.exports = { register, login, googleLogin, verifyEmail, resendCode };
+/**
+ * POST /api/auth/forgot-password
+ * Body: { email }
+ */
+async function forgotPassword(req, res) {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp Email.' });
+  }
+
+  try {
+    const userRecord = await auth.getUserByEmail(email).catch(() => null);
+    if (!userRecord) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản với email này.' });
+    }
+
+    // Lấy client origin từ request header để động trỏ link về frontend của client
+    const clientOrigin = req.headers.origin || 'http://localhost:5173';
+
+    // Tạo action link khôi phục mật khẩu thông qua Firebase Admin SDK
+    const actionCodeSettings = {
+      url: `${clientOrigin}/reset-password`,
+      handleCodeInApp: false,
+    };
+    
+    const resetLink = await auth.generatePasswordResetLink(email, actionCodeSettings);
+
+    // Gửi email qua SMTP
+    const subject = '[EcoSchedule] Khôi phục mật khẩu tài khoản';
+    const html = `
+      <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
+        <h2 style="color: #059669; text-align: center; margin-bottom: 24px;">EcoSchedule Đà Nẵng</h2>
+        <p>Xin chào,</p>
+        <p>Hệ thống nhận được yêu cầu đặt lại mật khẩu cho tài khoản EcoSchedule của bạn.</p>
+        <p>Vui lòng click vào nút bên dưới để tiến hành đổi mật khẩu mới:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" style="background-color: #059669; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Đặt lại mật khẩu</a>
+        </div>
+        <p style="font-size: 13px; color: #4b5563;">Liên kết này có hiệu lực trong 1 giờ. Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email này an toàn.</p>
+        <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+        <p style="font-size: 11px; color: #9ca3af; text-align: center;">EcoSchedule — Hệ thống quản lý thu gom rác thải thông minh</p>
+      </div>
+    `;
+
+    await emailService.sendMail({ to: email, subject, html });
+
+    console.log(`[ForgotPassword] Đã gửi link reset password cho: ${email}`);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[ForgotPassword] Lỗi khi xử lý quên mật khẩu:', error);
+    return res.status(500).json({ error: error.message || 'Lỗi hệ thống khi gửi email khôi phục.' });
+  }
+}
+
+module.exports = { register, login, googleLogin, verifyEmail, resendCode, forgotPassword };

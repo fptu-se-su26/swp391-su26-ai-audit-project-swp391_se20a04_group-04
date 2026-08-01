@@ -8,6 +8,7 @@ import {
   fetchCurrentInvoice,
   fetchInvoiceHistory,
   verifyPaymentStatus,
+  fetchMyInvoices,
 } from '../services/paymentService';
 
 // Removed AdminPaymentHistory for frontend
@@ -56,6 +57,7 @@ export default function Payment() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [history, setHistory] = useState([]);
+  const [myInvoices, setMyInvoices] = useState([]);
   const historyRef = useRef(null);
 
   // Khai báo trước useEffect để tránh Temporal Dead Zone
@@ -69,6 +71,7 @@ export default function Payment() {
       const invoiceData = SAMPLE_INVOICE_TEMPLATE(currentUser.uid);
       const created = await createInvoice(invoiceData);
       setInvoice(created);
+      setMyInvoices([created]);
       setPaymentStatus(created.status || 'unpaid');
       setSuccess('Hóa đơn mẫu đã được tạo. Bạn có thể tiếp tục thanh toán.');
     } catch (err) {
@@ -91,23 +94,30 @@ export default function Payment() {
       setLoading(true);
       setError('');
       try {
-        const existingInvoice = await fetchCurrentInvoice();
-        setInvoice(existingInvoice);
-        setPaymentStatus(existingInvoice.status || 'unpaid');
-        // Chỉ restore paymentRequest nếu hóa đơn chưa thanh toán
-        if (existingInvoice?.paymentUrl && existingInvoice.status !== 'paid') {
-          setPaymentRequest({
-            paymentUrl: existingInvoice.paymentUrl,
-            qrCode: existingInvoice.qrCode || null,
-          });
+        const invoicesList = await fetchMyInvoices();
+        setMyInvoices(invoicesList);
+
+        // Lọc hóa đơn chưa thanh toán / quá hạn
+        const unpaidList = invoicesList.filter(inv => inv.status === 'unpaid' || inv.status === 'overdue');
+        const activeInvoice = unpaidList.length > 0 ? unpaidList[unpaidList.length - 1] : (invoicesList.length > 0 ? invoicesList[0] : null);
+        
+        setInvoice(activeInvoice);
+        if (activeInvoice) {
+          setPaymentStatus(activeInvoice.status || 'unpaid');
+          if (activeInvoice.paymentUrl && activeInvoice.status !== 'paid') {
+            setPaymentRequest({
+              paymentUrl: activeInvoice.paymentUrl,
+              qrCode: activeInvoice.qrCode || null,
+            });
+          }
+        } else {
+          setPaymentRequest(null);
         }
-        // Tải lịch sử giao dịch
-        try {
-          const hist = await fetchInvoiceHistory();
-          setHistory(hist);
-        } catch {
-          // lịch sử không tải được không chặn trang chính
-        }
+
+        // Lịch sử giao dịch (hóa đơn đã thanh toán)
+        const paidList = invoicesList.filter(inv => inv.status === 'paid');
+        setHistory(paidList);
+
       } catch (err) {
         const message = buildErrorMessage(err);
         if (message.includes('Không tìm thấy')) {
@@ -271,229 +281,324 @@ export default function Payment() {
     );
   }
 
+  const unpaidInvoices = myInvoices.filter(inv => inv.status === 'unpaid' || inv.status === 'overdue');
+  const totalOutstanding = unpaidInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+
+  const getNextDueDate = () => {
+    if (unpaidInvoices.length > 0) {
+      const dates = unpaidInvoices.map(inv => new Date(inv.dueDate)).filter(d => !isNaN(d.getTime()));
+      if (dates.length > 0) {
+        return new Date(Math.min(...dates));
+      }
+    }
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    nextMonth.setDate(25);
+    return nextMonth;
+  };
+  const nextDueDate = getNextDueDate();
+
+  const getFeeTypeLabel = (feeType, month, year) => {
+    if (feeType === 'monthly_sanitation_fee') {
+      return `Phí vệ sinh môi trường & thu gom rác thải sinh hoạt (Tháng ${month}/${year})`;
+    }
+    return feeType || 'Phí vệ sinh môi trường';
+  };
+
+  const getInvoiceDescriptionDetails = (feeType) => {
+    if (feeType === 'monthly_sanitation_fee') {
+      return 'Dịch vụ thu gom, vận chuyển và xử lý chất thải sinh hoạt định kỳ hộ gia đình; duy trì vệ sinh ngõ hẻm sạch đẹp và bảo vệ cảnh quan môi trường tại địa bàn Quận.';
+    }
+    return 'Phí dịch vụ vệ sinh và xử lý chất thải sinh hoạt định kỳ.';
+  };
+
   return (
-    <main className="max-w-container-max-width mx-auto px-margin-desktop py-8">
+    <main className="max-w-6xl mx-auto px-4 md:px-8 py-8 animate-fade-in">
+      
+      {/* Navigation Breadcrumbs */}
       <section className="mb-8">
-        <nav className="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm mb-2">
-          <Link to="/">Trang chủ</Link>
-          <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-          <span className="text-primary font-semibold">Thanh toán</span>
+        <nav className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs mb-2">
+          <Link to="/" className="hover:text-emerald-600 transition-colors">Trang chủ</Link>
+          <span className="material-symbols-outlined text-xs">chevron_right</span>
+          <span className="text-emerald-600 font-semibold">Thanh toán</span>
         </nav>
-        <h1 className="font-headline-lg text-headline-lg text-on-surface">Thanh toán phí vệ sinh môi trường</h1>
+        <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">Thanh toán phí vệ sinh</h1>
       </section>
 
+      {/* API Success & Error Messages */}
       {error && (
-        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+        <div className="mb-6 p-4 rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-300 text-sm">
           {error}
         </div>
       )}
       {success && (
-        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700">
+        <div className="mb-6 p-4 rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 text-sm">
           {success}
         </div>
       )}
 
-      <div className="grid grid-cols-12 gap-gutter">
-        <div className="col-span-12 lg:col-span-8 space-y-6">
-          <div className="bg-surface-container-lowest rounded-xl p-8 card-shadow border border-surface-container">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
-              <div>
-                <h2 className="font-headline-md text-headline-md mb-1 text-on-surface">Hóa đơn hiện tại</h2>
-                <p className="text-on-surface-variant">
-                  Kỳ thanh toán: <span className="font-semibold text-on-surface">Tháng {invoice?.billingMonth}/{invoice?.billingYear}</span>
-                </p>
-              </div>
-              <span
-                className={`px-4 py-1 rounded-full font-label-md text-label-md ${invoice?.status === 'paid' ? 'bg-emerald-200 text-emerald-800' : 'bg-error-container text-on-error-container'}`}
-              >
-                {invoice?.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
-              </span>
-            </div>
+      {/* Bill Overview KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+          <p className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Tổng dư nợ chưa đóng</p>
+          <p className="text-3xl font-bold text-slate-900 dark:text-white">
+            {totalOutstanding.toLocaleString('vi-VN')}đ
+          </p>
+          <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+            <span className="material-symbols-outlined text-xs text-amber-500">info</span>
+            {unpaidInvoices.length} hóa đơn chưa thanh toán
+          </p>
+        </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8 border-t border-b border-surface-container py-6 mb-6">
-              <div className="md:col-span-2">
-                <p className="text-label-sm font-label-sm text-on-surface-variant mb-1 uppercase tracking-wider">Mã hóa đơn</p>
-                <p className="font-body-md font-semibold text-on-surface break-all">{invoice?.invoiceId}</p>
-              </div>
-              <div>
-                <p className="text-label-sm font-label-sm text-on-surface-variant mb-1 uppercase tracking-wider">Người tạo</p>
-                <p className="font-body-md font-semibold text-on-surface">{invoice?.createdBy}</p>
-              </div>
-              <div>
-                <p className="text-label-sm font-label-sm text-on-surface-variant mb-1 uppercase tracking-wider">Hạn thanh toán</p>
-                <p className="font-body-md text-on-surface">{formatDate(invoice?.dueDate)}</p>
-              </div>
-              <div>
-                <p className="text-label-sm font-label-sm text-on-surface-variant mb-1 uppercase tracking-wider">Loại phí</p>
-                <p className="font-body-md text-on-surface">{invoice?.feeType}</p>
-              </div>
-            </div>
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+          <p className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Hạn thanh toán kế tiếp</p>
+          <p className="text-lg font-bold text-slate-950 dark:text-white mt-1">
+            {nextDueDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+          </p>
+          <p className="text-xs text-slate-500 mt-3 flex items-center gap-1">
+            <span className="material-symbols-outlined text-xs">calendar_today</span>
+            Định kỳ ngày 25 hàng tháng
+          </p>
+        </div>
 
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-label-sm text-on-surface-variant">Tổng tiền</p>
-                <p className="font-headline-md text-headline-md text-primary">{invoice?.amount?.toLocaleString('vi-VN')} {invoice?.currency}</p>
-              </div>
-              <div>
-                <p className="text-label-sm text-on-surface-variant">Ngày tạo</p>
-                <p className="font-body-md text-on-surface">{formatDate(invoice?.createdAt)}</p>
-              </div>
-            </div>
-          </div>
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+          <p className="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Tình trạng tài khoản</p>
+          <p className={`text-lg font-extrabold mt-1 inline-flex items-center gap-1 ${totalOutstanding > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+            <span className="material-symbols-outlined text-xl">
+              {totalOutstanding > 0 ? 'warning' : 'check_circle'}
+            </span>
+            {totalOutstanding > 0 ? 'Cần đóng phí' : 'Đã đóng đủ phí'}
+          </p>
+          <p className="text-xs text-slate-500 mt-3">Tài khoản Cư dân của {currentUser.fullName}</p>
+        </div>
+      </div>
 
-          <div className="bg-surface-container-lowest rounded-xl p-8 card-shadow border border-surface-container">
-            <h3 className="font-headline-md text-headline-md mb-6 text-on-surface">Phương thức thanh toán</h3>
-            <div className="mb-4">
-              <div className="flex items-center p-4 rounded-lg border border-primary bg-surface-container-low">
-                <span className="material-symbols-outlined mr-4 text-primary">qr_code_2</span>
-                <div className="flex-1">
-                  <p className="font-label-md text-label-md text-on-surface">Thanh toán qua PayOS (Quét mã VietQR)</p>
-                  <p className="text-sm text-on-surface-variant mt-1">Hỗ trợ MoMo, VNPay, ZaloPay và các ứng dụng ngân hàng</p>
-                </div>
-                <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  check_circle
-                </span>
-              </div>
-            </div>
-
-            {!paymentRequest?.paymentUrl && invoice?.status !== 'paid' && (
-              <button
-                type="button"
-                onClick={handleRequestPayment}
-                className="mt-4 w-full md:w-auto px-10 py-4 bg-primary text-on-primary rounded-full font-headline-md text-headline-md active:scale-95 transition-transform flex items-center justify-center gap-2"
-              >
-                <span>Tạo mã QR thanh toán</span>
-                <span className="material-symbols-outlined">qr_code_scanner</span>
-              </button>
-            )}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Left Area: Unpaid invoices and PayOS Payment Details (8 cols) */}
+        <div className="lg:col-span-8 space-y-6">
+          
+          {/* Unpaid Invoices list */}
+          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Hóa đơn cần thanh toán</h2>
             
-            {invoice?.status === 'paid' && (
-              <div className="mt-4 flex items-center gap-2 text-emerald-700 bg-emerald-50 p-4 rounded-lg">
-                <span className="material-symbols-outlined">check_circle</span>
-                <span className="font-semibold">Hóa đơn này đã được thanh toán hoàn tất.</span>
+            {unpaidInvoices.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <span className="material-symbols-outlined text-emerald-600 text-5xl mb-2">celebrate</span>
+                <p className="font-semibold text-slate-850 dark:text-white text-base">Tuyệt vời! Bạn không có hóa đơn nào chưa thanh toán.</p>
+                <p className="text-xs text-slate-500 mt-1">Cảm ơn bạn đã đồng hành giữ gìn vệ sinh thành phố sạch đẹp.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {unpaidInvoices.map((inv) => {
+                  const isActive = invoice?.invoiceId === inv.invoiceId;
+                  return (
+                    <div 
+                      key={inv.invoiceId}
+                      className={`p-5 rounded-2xl border transition-all ${
+                        isActive 
+                          ? 'border-emerald-500 bg-emerald-50/10 dark:bg-emerald-950/10' 
+                          : 'border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/30'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div className="space-y-1">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                            inv.status === 'overdue' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {inv.status === 'overdue' ? 'Quá hạn đóng' : 'Chưa thanh toán'}
+                          </span>
+                          <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                            {getFeeTypeLabel(inv.feeType, inv.billingMonth, inv.billingYear)}
+                          </h4>
+                          <p className="text-xs text-slate-500">
+                            Hạn thanh toán: <span className="font-semibold">{formatDate(inv.dueDate)}</span>
+                          </p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 italic max-w-[450px]">
+                            Nội dung hóa đơn: {getInvoiceDescriptionDetails(inv.feeType)}
+                          </p>
+                        </div>
+                        <div className="text-right flex sm:flex-col items-center sm:items-end justify-between sm:justify-start w-full sm:w-auto mt-2 sm:mt-0 gap-3 border-t sm:border-0 pt-3 sm:pt-0">
+                          <div>
+                            <p className="text-[10px] text-slate-400">Số tiền</p>
+                            <p className="font-bold text-emerald-600 text-base">{inv.amount?.toLocaleString('vi-VN')}đ</p>
+                          </div>
+                          {!isActive && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInvoice(inv);
+                                setPaymentStatus(inv.status);
+                                if (inv.paymentUrl) {
+                                  setPaymentRequest({
+                                    paymentUrl: inv.paymentUrl,
+                                    qrCode: inv.qrCode || null,
+                                  });
+                                } else {
+                                  setPaymentRequest(null);
+                                }
+                              }}
+                              className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-xs font-bold text-slate-700 dark:text-slate-200 rounded-xl transition-all"
+                            >
+                              Chọn thanh toán
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {paymentRequest?.paymentUrl && invoice?.status !== 'paid' && (
-            <div className="bg-surface-container-lowest rounded-xl p-8 card-shadow border border-surface-container">
-              <h3 className="font-headline-md text-headline-md mb-6 text-on-surface">Quét mã QR để thanh toán</h3>
-              <div className="flex flex-col items-center gap-6">
+          {/* Payment Method & QR code section (only shown if a bill is selected) */}
+          {invoice && invoice.status !== 'paid' && (
+            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-emerald-600">payments</span>
+                  Thanh toán hóa đơn đang chọn
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">Đang chọn: <strong>{getFeeTypeLabel(invoice.feeType, invoice.billingMonth, invoice.billingYear)}</strong></p>
+              </div>
 
-                {/* Thông tin thanh toán */}
-                <div className="w-full rounded-xl bg-surface-container-low border border-surface-container p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                      <span className="material-symbols-outlined text-on-primary text-[20px]">receipt_long</span>
-                    </div>
-                    <div>
-                      <p className="text-label-sm text-on-surface-variant">Nội dung chuyển khoản</p>
-                      <p className="font-semibold text-on-surface text-sm">Thanh toan phi ve sinh</p>
-                      <p className="text-xs text-on-surface-variant break-all">{invoice?.invoiceId}</p>
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-label-sm text-on-surface-variant">Số tiền</p>
-                    <p className="font-headline-md text-headline-md text-primary">{invoice?.amount?.toLocaleString('vi-VN')} <span className="text-base">{invoice?.currency}</span></p>
-                  </div>
+              {/* PayOS configuration info */}
+              <div className="flex items-center p-4 rounded-xl border border-emerald-200/60 bg-emerald-50/20 dark:bg-emerald-950/20">
+                <span className="material-symbols-outlined mr-4 text-emerald-600 text-3xl">qr_code_2</span>
+                <div className="flex-1">
+                  <p className="font-bold text-slate-800 dark:text-slate-250 text-sm">Thanh toán qua PayOS (Quét mã VietQR)</p>
+                  <p className="text-xs text-slate-500 mt-1">Hỗ trợ các app ngân hàng (MB Bank, VCB, BIDV, MoMo, VNPay...)</p>
                 </div>
+              </div>
 
-                {/* Ưu tiên dùng qrCode VietQR Pro (MoMo/MB Bank quét được) */}
-                {paymentRequest.qrCode ? (
-                  <>
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(paymentRequest.qrCode)}`}
-                      alt="QR VietQR Pro"
-                      className="w-72 h-72 rounded-2xl bg-white p-4"
-                    />
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
-                      <span className="material-symbols-outlined text-emerald-600 text-[18px]">verified</span>
-                      <p className="text-sm font-semibold text-emerald-700">VietQR Pro – Quét được bằng MoMo, MB Bank, VCB...</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(paymentRequest.paymentUrl)}`}
-                      alt="QR PayOS"
-                      className="w-72 h-72 rounded-2xl bg-white p-4"
-                    />
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200">
-                      <span className="material-symbols-outlined text-amber-600 text-[18px]">info</span>
-                      <p className="text-sm text-amber-700">Mã này chỉ dùng mở trên browser. Dùng nút bên dưới để thanh toán.</p>
-                    </div>
-                  </>
-                )}
-
-                <p className="text-center text-on-surface-variant text-sm">
-                  Hoặc mở link thanh toán trực tiếp:
-                </p>
-                <a
-                  href={paymentRequest.paymentUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-semibold text-sm"
-                >
-                  <span className="material-symbols-outlined text-[18px]">open_in_new</span>
-                  Mở trang thanh toán PayOS
-                </a>
-
-                {paymentRequest?.paymentUrl && (
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 border border-blue-200">
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
-                    </span>
-                    <span className="text-sm font-medium text-blue-700">Đang tự động kiểm tra thanh toán mỗi 3 giây...</span>
-                  </div>
-                )}
-
+              {!paymentRequest?.paymentUrl && (
                 <button
                   type="button"
-                  onClick={handleVerifyPayment}
-                  className="mt-2 inline-flex px-6 py-2 rounded-full bg-secondary/80 text-on-secondary font-medium text-sm hover:bg-secondary transition-colors"
+                  onClick={handleRequestPayment}
+                  className="w-full md:w-auto px-8 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-600/10 active:scale-95"
                 >
-                  Kiểm tra thủ công
+                  <span>Tạo mã QR thanh toán</span>
+                  <span className="material-symbols-outlined text-base">qr_code_scanner</span>
                 </button>
-                {paymentStatus === 'checking' && <p className="text-on-surface-variant">Đang kiểm tra thanh toán...</p>}
-                {invoice?.status === 'paid' && <p className="text-emerald-700">Hóa đơn đã được thanh toán vào {formatDate(invoice.paidAt)}</p>}
-              </div>
+              )}
+
+              {paymentRequest?.paymentUrl && (
+                <div className="flex flex-col items-center gap-6 pt-4 border-t border-slate-100 dark:border-slate-700">
+                  <div className="w-full rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 text-emerald-600">
+                        <span className="material-symbols-outlined text-[20px]">receipt_long</span>
+                      </div>
+                      <div>
+                        <p className="text-slate-400">Nội dung chuyển khoản</p>
+                        <p className="font-bold text-slate-800 dark:text-white">Thanh toan phi ve sinh</p>
+                        <p className="text-[10px] text-slate-400 break-all">{invoice.invoiceId}</p>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-slate-400">Số tiền cần đóng</p>
+                      <p className="font-extrabold text-emerald-600 text-base">{invoice.amount?.toLocaleString('vi-VN')}đ</p>
+                    </div>
+                  </div>
+
+                  {paymentRequest.qrCode ? (
+                    <>
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(paymentRequest.qrCode)}`}
+                        alt="QR VietQR Pro"
+                        className="w-60 h-60 rounded-2xl bg-white p-4 border border-slate-100"
+                      />
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900">
+                        <span className="material-symbols-outlined text-emerald-600 text-base">verified</span>
+                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Quét được bằng mọi ứng dụng Ngân hàng & MoMo</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(paymentRequest.paymentUrl)}`}
+                        alt="QR PayOS Link"
+                        className="w-60 h-60 rounded-2xl bg-white p-4 border border-slate-100"
+                      />
+                    </>
+                  )}
+
+                  <div className="flex flex-col items-center gap-3">
+                    <p className="text-center text-slate-500 text-xs">Hoặc mở liên kết thanh toán an toàn:</p>
+                    <a
+                      href={paymentRequest.paymentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
+                    >
+                      <span className="material-symbols-outlined text-sm">open_in_new</span>
+                      Mở trang thanh toán PayOS
+                    </a>
+
+                    <div className="mt-2 flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                      </span>
+                      <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Hệ thống đang tự động kiểm tra trạng thái mỗi 3 giây...</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleVerifyPayment}
+                      className="mt-2 inline-flex px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors"
+                    >
+                      Kiểm tra thủ công
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        <div className="col-span-12 lg:col-span-4" ref={historyRef}>
-          <div className="bg-surface-container-lowest rounded-xl p-8 card-shadow border border-surface-container sticky top-24">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-headline-md text-headline-md text-on-surface">Lịch sử giao dịch</h3>
-              <span className="material-symbols-outlined text-primary">history</span>
+        {/* Right Area: Transaction History grouped by month (4 cols) */}
+        <div className="lg:col-span-4" ref={historyRef}>
+          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm sticky top-24 space-y-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Lịch sử thanh toán</h3>
+              <span className="material-symbols-outlined text-emerald-600">history</span>
             </div>
+
             {history.length === 0 ? (
-              <p className="text-on-surface-variant text-sm text-center py-4">Chưa có giao dịch nào.</p>
+              <p className="text-slate-500 text-xs text-center py-6">Chưa có giao dịch thanh toán thành công nào.</p>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4 max-h-[480px] overflow-y-auto pr-1">
                 {history.map((inv) => (
-                  <div key={inv.invoiceId || inv.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary flex-shrink-0">
-                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 700" }}>check</span>
-                      </div>
+                  <div 
+                    key={inv.invoiceId} 
+                    className="p-3.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/80 rounded-xl space-y-2 hover:shadow-sm transition-all"
+                  >
+                    <div className="flex justify-between items-start">
                       <div>
-                        <p className="font-label-md text-label-md text-on-surface">Tháng {inv.billingMonth}/{inv.billingYear}</p>
-                        <p className="text-label-sm text-on-surface-variant">{inv.amount?.toLocaleString('vi-VN')} {inv.currency}</p>
-                        {inv.paidAt && (
-                          <p className="text-label-sm text-on-surface-variant">{formatDate(inv.paidAt)}</p>
-                        )}
+                        <p className="font-bold text-slate-850 dark:text-white text-xs">Thanh toán Tháng {inv.billingMonth}/{inv.billingYear}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 break-all">Mã: {inv.invoiceId}</p>
                       </div>
+                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full flex items-center gap-0.5 flex-shrink-0">
+                        <span className="material-symbols-outlined text-[10px] font-extrabold">check</span>
+                        Thành công
+                      </span>
                     </div>
-                    <span className="text-primary font-label-sm font-semibold flex-shrink-0">Thành công</span>
+
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-100 dark:border-slate-800/80 pt-2">
+                      <span>{inv.paidAt ? new Date(inv.paidAt).toLocaleDateString('vi-VN') : 'Đã thanh toán'}</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">{inv.amount?.toLocaleString('vi-VN')}đ</span>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
         </div>
+
       </div>
     </main>
   );
+}
 }

@@ -150,27 +150,24 @@ const authService = {
   },
 
   /**
-   * Gửi email khôi phục mật khẩu
+   * Gửi email khôi phục mật khẩu thông qua Backend API
    */
   async resetPassword(email) {
     try {
-      const actionCodeSettings = {
-        // Đường dẫn sẽ được mở khi người dùng click vào link trong email
-        url: window.location.origin + '/reset-password', 
-        handleCodeInApp: false,
-      };
-      await sendPasswordResetEmail(auth, email, actionCodeSettings);
+      const response = await fetch(`${BACKEND_URL}/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Gửi yêu cầu khôi phục mật khẩu thất bại.');
+      }
       return { success: true };
     } catch (error) {
-      let message = 'Gửi yêu cầu thất bại. Vui lòng thử lại sau.';
-      if (error.code === 'auth/user-not-found') {
-        message = 'Email không tồn tại trong hệ thống.';
-      } else if (error.code === 'auth/invalid-email') {
-        message = 'Email không hợp lệ.';
-      } else if (error.code === 'auth/too-many-requests') {
-        message = 'Quá nhiều yêu cầu. Vui lòng thử lại sau.';
-      }
-      throw new Error(message, { cause: error });
+      throw new Error(error.message || 'Gửi yêu cầu thất bại. Vui lòng thử lại sau.', { cause: error });
     }
   },
 

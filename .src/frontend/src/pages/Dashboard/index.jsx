@@ -102,6 +102,19 @@ export default function Dashboard() {
   const [viewingCompletion, setViewingCompletion] = useState(null);
   const [rejectCompletionNote, setRejectCompletionNote] = useState('');
 
+  // Salary management states
+  const [teamPerformance, setTeamPerformance] = useState([]);
+  const [salariesList, setSalariesList] = useState([]);
+  const [salaryMonth, setSalaryMonth] = useState(() => new Date().getMonth() + 1);
+  const [salaryYear, setSalaryYear] = useState(() => new Date().getFullYear());
+  const [selectedCollectorSalary, setSelectedCollectorSalary] = useState(null);
+  const [showSalaryForm, setShowSalaryForm] = useState(false);
+  const [salaryForm, setSalaryForm] = useState({
+    baseSalary: 8000000,
+    bonus: 0,
+    bonusReason: '',
+  });
+
   // Complaint management state
   const [viewingComplaint, setViewingComplaint] = useState(null);
   const [complaintFilter, setComplaintFilter] = useState('all');
@@ -402,6 +415,69 @@ export default function Dashboard() {
     setTeams(data);
   };
 
+  const fetchTeamPerformance = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/manager/team-performance`, {
+        headers: await getAuthHeaders(),
+      });
+      const data = await safeJson(response);
+      if (response.ok && data.success) {
+        setTeamPerformance(data.data || []);
+      }
+    } catch (err) {
+      console.error('Lỗi tải hiệu suất đội:', err);
+    }
+  };
+
+  const fetchCollectorSalaries = async (m, y) => {
+    try {
+      const queryMonth = m || salaryMonth;
+      const queryYear = y || salaryYear;
+      const response = await fetch(`${API_BASE}/api/manager/collector-salaries?month=${queryMonth}&year=${queryYear}`, {
+        headers: await getAuthHeaders(),
+      });
+      const data = await safeJson(response);
+      if (response.ok && data.success) {
+        setSalariesList(data.data || []);
+      }
+    } catch (err) {
+      console.error('Lỗi tải bảng lương:', err);
+    }
+  };
+
+  const handleSetSalary = async (e) => {
+    e.preventDefault();
+    if (!selectedCollectorSalary) return;
+    setManagerLoading(true);
+    setApiMessage('');
+    setManagerError('');
+    try {
+      const response = await fetch(`${API_BASE}/api/manager/collector-salaries`, {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({
+          collectorId: selectedCollectorSalary.uid,
+          collectorName: selectedCollectorSalary.fullName,
+          month: Number(salaryMonth),
+          year: Number(salaryYear),
+          baseSalary: Number(salaryForm.baseSalary),
+          bonus: Number(salaryForm.bonus),
+          bonusReason: salaryForm.bonusReason,
+        }),
+      });
+      const data = await safeJson(response);
+      if (!response.ok) throw new Error(data.error || 'Không thể thiết lập lương.');
+      setApiMessage('Cập nhật lương/thưởng thành công.');
+      setShowSalaryForm(false);
+      setSelectedCollectorSalary(null);
+      await fetchCollectorSalaries(salaryMonth, salaryYear);
+    } catch (error) {
+      setManagerError(error.message || 'Lỗi khi cập nhật lương.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
   const loadManagerData = async () => {
     setManagerLoading(true);
     setManagerError('');
@@ -415,6 +491,8 @@ export default function Dashboard() {
         fetchCompletionPending(),
         fetchRoutes(),
         fetchTeams(),
+        fetchTeamPerformance(),
+        fetchCollectorSalaries(salaryMonth, salaryYear),
       ]);
     } catch (error) {
       setManagerError(error.message || 'Không thể tải dữ liệu quản lý.');
@@ -431,6 +509,12 @@ export default function Dashboard() {
       setLoadingStats(false);
     }
   };
+
+  useEffect(() => {
+    if (user && (normalizeRole(user.role) === ROLES.MANAGER || normalizeRole(user.role) === ROLES.ADMIN)) {
+      fetchCollectorSalaries(salaryMonth, salaryYear);
+    }
+  }, [salaryMonth, salaryYear]);
 
   useEffect(() => {
     if (user === null) {
@@ -955,6 +1039,7 @@ export default function Dashboard() {
               { id: 'work', label: 'Quản lý lịch', icon: 'event_note' },
               { id: 'complaints', label: 'Phản ánh', icon: 'feedback' },
               { id: 'reports', label: 'Báo cáo', icon: 'assignment' },
+              { id: 'salaries', label: 'Lương & Hiệu suất', icon: 'payments' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1074,6 +1159,251 @@ export default function Dashboard() {
             ) : (
               <p className="text-sm text-slate-400 text-center py-16">Không thể tải thống kê. Vui lòng thử lại.</p>
             )}
+          </div>
+        )}
+
+        {/* Salaries & Performance Tab */}
+        {activeTab === 'salaries' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Left Column: Salaries Management (2 cols) */}
+              <div className="lg:col-span-2 space-y-6">
+                <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Quản lý lương thưởng</p>
+                      <h2 className="text-xl font-bold text-slate-900 dark:text-white">Lương & Thưởng Nhân Viên</h2>
+                    </div>
+                    
+                    {/* Month/Year selectors */}
+                    <div className="flex gap-2">
+                      <select 
+                        value={salaryMonth} 
+                        onChange={(e) => setSalaryMonth(Number(e.target.value))}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-805 dark:border-slate-700 dark:bg-slate-900 dark:text-white outline-none"
+                      >
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                          <option key={m} value={m}>Tháng {m}</option>
+                        ))}
+                      </select>
+                      <select 
+                        value={salaryYear} 
+                        onChange={(e) => setSalaryYear(Number(e.target.value))}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-805 dark:border-slate-700 dark:bg-slate-900 dark:text-white outline-none"
+                      >
+                        {[2025, 2026, 2027].map(y => (
+                          <option key={y} value={y}>Năm {y}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm text-slate-600 dark:text-slate-300 font-medium">
+                      <thead className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                        <tr>
+                          <th className="px-4 py-3">Nhân viên</th>
+                          <th className="px-4 py-3">Lương cơ bản</th>
+                          <th className="px-4 py-3">Thưởng</th>
+                          <th className="px-4 py-3">Lý do thưởng</th>
+                          <th className="px-4 py-3 text-right">Tổng nhận</th>
+                          <th className="px-4 py-3 text-right">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {collectors.length === 0 ? (
+                          <tr>
+                            <td colSpan="6" className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">Không có nhân viên thu gom nào.</td>
+                          </tr>
+                        ) : (
+                          collectors.map((collector) => {
+                            const salaryRecord = salariesList.find(s => s.collectorId === collector.uid);
+                            const baseSalary = salaryRecord ? salaryRecord.baseSalary : 8000000;
+                            const bonus = salaryRecord ? salaryRecord.bonus : 0;
+                            const reason = salaryRecord ? salaryRecord.bonusReason : '';
+                            const total = baseSalary + bonus;
+
+                            return (
+                              <tr key={collector.uid} className="hover:bg-slate-50 dark:hover:bg-slate-900/70 transition-colors">
+                                <td className="px-4 py-4 font-semibold text-slate-905 dark:text-white">
+                                  {collector.fullName}
+                                  {!salaryRecord && (
+                                    <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-500">
+                                      Mặc định
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-4 text-slate-700 dark:text-slate-300">{baseSalary.toLocaleString('vi-VN')}đ</td>
+                                <td className="px-4 py-4 text-emerald-600 font-semibold">
+                                  {bonus > 0 ? `+${bonus.toLocaleString('vi-VN')}đ` : '0đ'}
+                                </td>
+                                <td className="px-4 py-4 text-xs text-slate-500 dark:text-slate-400 max-w-[150px] truncate" title={reason}>
+                                  {reason || '—'}
+                                </td>
+                                <td className="px-4 py-4 text-right font-bold text-slate-905 dark:text-white">
+                                  {total.toLocaleString('vi-VN')}đ
+                                </td>
+                                <td className="px-4 py-4 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedCollectorSalary(collector);
+                                      setSalaryForm({
+                                        baseSalary,
+                                        bonus,
+                                        bonusReason: reason,
+                                      });
+                                      setShowSalaryForm(true);
+                                    }}
+                                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                  >
+                                    Cập nhật
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+
+              {/* Right Column: Team Performance (1 col) */}
+              <div className="space-y-6">
+                <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                  <div className="mb-6">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Hiệu suất</p>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Bảng Xếp Hạng Đội Nhóm</h2>
+                    <p className="text-xs text-slate-400 mt-1">Dựa trên số tuyến hoàn thành trong tháng {salaryMonth}/{salaryYear}</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {teamPerformance.length === 0 ? (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Chưa có dữ liệu hiệu suất đội nhóm.</p>
+                    ) : (
+                      teamPerformance.map((perf, index) => (
+                        <div key={perf.teamId} className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                index === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'
+                              }`}>
+                                {index + 1}
+                              </span>
+                              <span className="font-bold text-slate-800 dark:text-slate-100 text-sm">{perf.teamName}</span>
+                            </div>
+                            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
+                              {perf.completionRate}%
+                            </span>
+                          </div>
+                          
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mb-2">
+                            <div 
+                              className="bg-emerald-500 h-full rounded-full transition-all duration-300"
+                              style={{ width: `${perf.completionRate}%` }}
+                            />
+                          </div>
+                          
+                          <div className="flex justify-between text-[10px] text-slate-450">
+                            <span>{perf.members.length} thành viên</span>
+                            <span>{perf.completedRoutes}/{perf.totalRoutes} tuyến hoàn thành</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </div>
+
+            </div>
+
+            {/* Set Salary Modal */}
+            {showSalaryForm && selectedCollectorSalary && (
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowSalaryForm(false)}>
+                <div 
+                  className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-fade-in"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <form onSubmit={handleSetSalary}>
+                    <div className="border-b border-slate-100 dark:border-slate-700 p-6 flex items-start justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Thiết lập Lương & Thưởng</h3>
+                        <p className="text-xs text-slate-500 mt-1">Cập nhật thông tin cho {selectedCollectorSalary.fullName}</p>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setShowSalaryForm(false)}
+                        className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+                      >
+                        <span className="material-symbols-outlined">close</span>
+                      </button>
+                    </div>
+
+                    <div className="p-6 space-y-4">
+                      <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl text-xs space-y-1">
+                        <p className="text-slate-400">Nhân viên: <span className="font-bold text-slate-800 dark:text-white">{selectedCollectorSalary.fullName}</span></p>
+                        <p className="text-slate-400">Áp dụng: <span className="font-bold text-slate-800 dark:text-white">Tháng {salaryMonth}/{salaryYear}</span></p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Lương cơ bản (VND)</label>
+                        <input
+                          type="number"
+                          required
+                          value={salaryForm.baseSalary}
+                          onChange={(e) => setSalaryForm(prev => ({ ...prev, baseSalary: e.target.value }))}
+                          className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm"
+                          placeholder="8000000"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Thưởng thêm (VND)</label>
+                        <input
+                          type="number"
+                          value={salaryForm.bonus}
+                          onChange={(e) => setSalaryForm(prev => ({ ...prev, bonus: e.target.value }))}
+                          className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Lý do thưởng</label>
+                        <textarea
+                          rows={3}
+                          value={salaryForm.bonusReason}
+                          onChange={(e) => setSalaryForm(prev => ({ ...prev, bonusReason: e.target.value }))}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm resize-none"
+                          placeholder="VD: Đi nhiều tuyến nhất tuần, hoàn thành xuất sắc..."
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 dark:border-slate-700 p-4 flex gap-3 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowSalaryForm(false)}
+                        className="rounded-xl border border-slate-200 dark:border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={managerLoading}
+                        className="rounded-xl bg-emerald-600 hover:bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                      >
+                        {managerLoading ? 'Đang lưu...' : 'Lưu lại'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 

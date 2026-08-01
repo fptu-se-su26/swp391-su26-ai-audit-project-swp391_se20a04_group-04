@@ -25,6 +25,7 @@ export default function ResidentSchedules() {
   // Auto-schedule state for logged-in residents
   const [upcomingSchedules, setUpcomingSchedules] = useState([]);
   const [loadingUpcoming, setLoadingUpcoming] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState(null);
 
   // User Profile: khởi tạo trực tiếp thay vì dùng useEffect để tránh setState-in-effect
   const currentUser = authService.getCurrentUser();
@@ -269,7 +270,8 @@ export default function ResidentSchedules() {
                     return (
                       <div
                         key={schedule.id}
-                        className="bg-gradient-to-br from-emerald-50 to-slate-50 dark:from-emerald-950/20 dark:to-slate-900/50 rounded-xl border border-emerald-100 dark:border-emerald-900/30 p-5 hover:shadow-md transition-all duration-300 group"
+                        onClick={() => setSelectedSchedule(schedule)}
+                        className="bg-gradient-to-br from-emerald-50 to-slate-50 dark:from-emerald-950/20 dark:to-slate-900/50 rounded-xl border border-emerald-100 dark:border-emerald-900/30 p-5 hover:shadow-md transition-all duration-300 group cursor-pointer"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded uppercase tracking-wider">
@@ -536,7 +538,8 @@ export default function ResidentSchedules() {
                     {schedules.map((schedule) => (
                       <div 
                         key={schedule.id}
-                        className="bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 p-5 flex flex-col justify-between space-y-4 hover:border-emerald-500/40 hover:bg-white dark:hover:bg-slate-800 transition-all duration-300 group shadow-sm hover:shadow-md"
+                        onClick={() => setSelectedSchedule(schedule)}
+                        className="bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 p-5 flex flex-col justify-between space-y-4 hover:border-emerald-500/40 hover:bg-white dark:hover:bg-slate-800 transition-all duration-300 group shadow-sm hover:shadow-md cursor-pointer"
                       >
                         <div className="space-y-3">
                           <div className="flex justify-between items-start">
@@ -599,6 +602,145 @@ export default function ResidentSchedules() {
           </div>
 
         </div>
+
+        {/* Detail Modal */}
+        {selectedSchedule && (() => {
+          const schedDate = new Date(selectedSchedule.schedule_date);
+          const dayStr = !isNaN(schedDate.getTime()) ? schedDate.toLocaleDateString('vi-VN', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          }) : 'Chưa xác định';
+          const timeStr = !isNaN(schedDate.getTime()) ? schedDate.toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }) : 'Chưa xác định';
+
+          const serviceType = selectedSchedule.service_type || 'General';
+          const trashTypeLabel = {
+            'Recycling': 'Rác tái chế (Nhựa, kim loại, giấy)',
+            'Organic': 'Rác hữu cơ (Thực phẩm dư thừa, lá cây)',
+            'General': 'Rác thải sinh hoạt (Vô cơ, rác khác)',
+          }[serviceType] || selectedSchedule.trash_type || 'Thu gom rác';
+
+          const getTrashGuidelines = (type) => {
+            if (type === 'Recycling') {
+              return 'Bao gồm chai nhựa, lon nhôm, giấy bìa carton, túi bóng sạch... Vui lòng làm sạch thức ăn thừa/nước bên trong trước khi bỏ vào bao chứa rác tái chế.';
+            } else if (type === 'Organic') {
+              return 'Bao gồm thức ăn thừa, rau củ quả hỏng, bã trà/cà phê, lá cây... Vui lòng phân loại kỹ và sử dụng túi tự hủy sinh học để đựng nếu có thể.';
+            } else {
+              return 'Bao gồm các loại rác thải không thể tái chế hay phân hủy sinh học (xỉ than, tã lót giấy, xương động vật to...). Vui lòng gói chặt miệng túi.';
+            }
+          };
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 animate-scale-up">
+                
+                {/* Header Banner */}
+                <div className={`p-6 text-white flex justify-between items-center ${
+                  serviceType === 'Recycling' 
+                    ? 'bg-blue-600' 
+                    : serviceType === 'Organic' 
+                    ? 'bg-emerald-600' 
+                    : 'bg-slate-700'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-2xl">delete_sweep</span>
+                    <h3 className="font-bold text-lg">Chi tiết lịch thu gom</h3>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedSchedule(null)}
+                    className="text-white hover:bg-white/20 p-1.5 rounded-full transition-colors flex items-center justify-center focus:outline-none"
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
+
+                {/* Content Area */}
+                <div className="p-6 space-y-6">
+                  
+                  {/* Service Type Label */}
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Phân loại rác thu gom</p>
+                    <p className="text-base font-bold text-slate-800 dark:text-white">{trashTypeLabel}</p>
+                    <p className="text-xs text-slate-500 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800 leading-relaxed mt-1">
+                      {getTrashGuidelines(serviceType)}
+                    </p>
+                  </div>
+
+                  {/* Date and Time Slot */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Ngày hoạt động</p>
+                      <div className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                        <span className="material-symbols-outlined text-emerald-600 text-base">calendar_today</span>
+                        <span className="capitalize">{dayStr}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Thời gian (Time Slot)</p>
+                      <div className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                        <span className="material-symbols-outlined text-emerald-600 text-base">schedule</span>
+                        <span>{selectedSchedule.time_slot || timeStr || '17:00 - 19:00'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Area Details */}
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Khu vực áp dụng</p>
+                    <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <span className="material-symbols-outlined text-emerald-600 text-lg flex-shrink-0">location_on</span>
+                      <span>
+                        {selectedSchedule.neighborhood ? `${selectedSchedule.neighborhood}, ` : ''}
+                        {selectedSchedule.ward ? `${selectedSchedule.ward}, ` : ''}
+                        {selectedSchedule.city || 'Chưa rõ khu vực'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Assigned Crew / Truck details */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Đội ngũ thu gom</p>
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        {selectedSchedule.assigned_team || 'Đội thu gom Quận Sơn Trà'}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Phương tiện vận chuyển</p>
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        {selectedSchedule.vehicle_plate || 'Xe tải chuyên dụng 2.5 Tấn'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Alert reminder */}
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
+                    <span className="material-symbols-outlined text-base flex-shrink-0 mt-0.5">info</span>
+                    <p className="leading-relaxed">
+                      <strong>Lưu ý quan trọng:</strong> Vui lòng chuẩn bị rác và mang ra lề đường/điểm tập kết trước giờ chạy ít nhất 15-30 phút. Buộc chặt miệng túi để tránh mùi hôi và phát tán rác ra đường phố.
+                    </p>
+                  </div>
+
+                </div>
+
+                {/* Footer Action */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 text-right">
+                  <button
+                    onClick={() => setSelectedSchedule(null)}
+                    className="px-5 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all focus:outline-none"
+                  >
+                    Đóng lại
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          );
+        })()}
 
       </div>
     </div>

@@ -175,6 +175,25 @@ async function verifyPayment(req, res) {
   }
 }
 
+async function getMyInvoices(req, res) {
+  try {
+    const snapshot = await db.collection('invoices')
+      .where('userId', '==', req.uid)
+      .get();
+    const invoices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const getTimestampMillis = (value) => {
+      if (!value) return 0;
+      if (value.toDate) return value.toDate().getTime();
+      return new Date(value).getTime();
+    };
+    invoices.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+    return res.status(200).json(invoices.map(inv => serializeInvoice(inv)));
+  } catch (error) {
+    console.error('[API] Lỗi lấy danh sách hóa đơn cá nhân:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
 module.exports = {
   createInvoice,
   getCurrentInvoice,
@@ -182,4 +201,5 @@ module.exports = {
   getInvoiceById,
   createPaymentRequest,
   verifyPayment,
+  getMyInvoices,
 };

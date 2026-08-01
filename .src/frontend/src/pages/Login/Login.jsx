@@ -123,8 +123,13 @@ export default function Login() {
       // Redirect dựa theo role
       const role = normalizeRole(user?.role);
       let redirectPath = '/';
-      if (role === ROLES.MANAGER || role === ROLES.ADMIN) redirectPath = '/dashboard';
-      else if (role === ROLES.COLLECTOR) redirectPath = '/collector';
+      if (role === ROLES.RESIDENT && (!user?.area || user?.area === '')) {
+        redirectPath = '/ho-so';
+      } else if (role === ROLES.MANAGER || role === ROLES.ADMIN) {
+        redirectPath = '/dashboard';
+      } else if (role === ROLES.COLLECTOR) {
+        redirectPath = '/collector';
+      }
 
       setTimeout(() => {
         window.dispatchEvent(new Event('authChange'));

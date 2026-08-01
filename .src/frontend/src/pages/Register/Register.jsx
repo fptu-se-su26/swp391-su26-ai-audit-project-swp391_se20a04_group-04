@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import authService from '../../services/authService';
 import { ROLES } from '../../constants/roles';
 import './Register.css';
+
+const API_BASE = import.meta.env.VITE_API_URL 
+  ? (import.meta.env.VITE_API_URL.endsWith('/api') ? import.meta.env.VITE_API_URL : `${import.meta.env.VITE_API_URL}/api`)
+  : 'http://localhost:5001/api';
 
 export default function Register() {
 
@@ -31,6 +35,57 @@ export default function Register() {
   const [verifyError, setVerifyError] = useState('');
   const [verified, setVerified] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Address selection states
+  const [provinces, setProvinces] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [selectedProvince, setSelectedProvince] = useState('');
+  const [selectedWard, setSelectedWard] = useState('');
+  const [addressDetails, setAddressDetails] = useState('');
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [loadingWards, setLoadingWards] = useState(false);
+
+  // Load provinces on mount
+  useEffect(() => {
+    const fetchProvinces = async () => {
+      setLoadingProvinces(true);
+      try {
+        const res = await fetch(`${API_BASE}/address/provinces`);
+        if (res.ok) {
+          const data = await res.json();
+          setProvinces(data);
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải tỉnh thành:', err);
+      } finally {
+        setLoadingProvinces(false);
+      }
+    };
+    fetchProvinces();
+  }, []);
+
+  const handleProvinceChange = async (e) => {
+    const newProvince = e.target.value;
+    setSelectedProvince(newProvince);
+    setSelectedWard('');
+    setWards([]);
+    if (errors.province) setErrors(prev => ({ ...prev, province: '' }));
+
+    if (!newProvince) return;
+
+    setLoadingWards(true);
+    try {
+      const res = await fetch(`${API_BASE}/address/wards?provinceCode=${newProvince}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWards(data);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải phường xã:', err);
+    } finally {
+      setLoadingWards(false);
+    }
+  };
 
   // Handle Input Changes
   const handleChange = (e) => {
@@ -82,8 +137,14 @@ export default function Register() {
       newErrors.confirmPassword = 'Mật khẩu xác nhận không trùng khớp';
     }
 
-    if (!formData.address.trim()) {
-      newErrors.address = 'Địa chỉ không được bỏ trống';
+    if (!selectedProvince) {
+      newErrors.province = 'Vui lòng chọn Tỉnh/Thành phố';
+    }
+    if (!selectedWard) {
+      newErrors.ward = 'Vui lòng chọn Phường/Xã';
+    }
+    if (!addressDetails.trim()) {
+      newErrors.addressDetails = 'Địa chỉ chi tiết không được bỏ trống';
     }
 
     if (!formData.agreeTerms) {
@@ -105,12 +166,18 @@ export default function Register() {
     setIsLoading(true);
 
     try {
+      const provinceObj = provinces.find(p => p.code.toString() === selectedProvince.toString());
+      const wardObj = wards.find(w => w.code.toString() === selectedWard.toString());
+      const fullAddress = `${addressDetails.trim()}, ${wardObj ? wardObj.name : ''}, ${provinceObj ? provinceObj.name : ''}`;
+      const area = wardObj && provinceObj ? `${wardObj.name}, ${provinceObj.name}` : '';
+
       const result = await authService.register({
         fullName: formData.fullName.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim().replace(/\s/g, ''),
         password: formData.password,
-        address: formData.address.trim(),
+        address: fullAddress,
+        area: area,
         role: ROLES.RESIDENT, // Luôn đăng ký với vai trò Cư dân
       });
 
@@ -482,30 +549,101 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* Địa chỉ nhà */}
+              {/* Tỉnh/Thành phố Dropdown */}
               <div className="group">
                 <label className="block text-sm font-bold text-on-surface dark:text-slate-300 uppercase tracking-wider mb-2">
-                  Địa chỉ nhà * <span className="normal-case font-medium text-primary dark:text-primary-fixed ml-2">(Quận Sơn Trà, Đà Nẵng)</span>
+                  Tỉnh / Thành phố *
                 </label>
                 <div className="relative">
-                  <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200 ${errors.address ? 'text-error' : 'text-outline'}`}>
+                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">
+                    map
+                  </span>
+                  <select
+                    value={selectedProvince}
+                    onChange={handleProvinceChange}
+                    disabled={isLoading || loadingProvinces}
+                    className={`w-full h-14 pl-12 pr-10 bg-white dark:bg-slate-900 border ${
+                      errors.province ? 'border-error focus:ring-error' : 'border-outline-variant dark:border-slate-700 focus:ring-primary focus:border-primary'
+                    } rounded-lg focus:ring-2 transition-all text-on-background dark:text-white outline-none appearance-none`}
+                  >
+                    <option value="">-- Chọn Tỉnh/Thành phố --</option>
+                    {provinces.map(p => (
+                      <option key={p.code} value={p.code}>{p.name}</option>
+                    ))}
+                  </select>
+                  {loadingProvinces ? (
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                  ) : (
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none">
+                      expand_more
+                    </span>
+                  )}
+                </div>
+                {errors.province && <p className="text-xs text-error mt-1.5 pl-1">{errors.province}</p>}
+              </div>
+
+              {/* Phường/Xã Dropdown */}
+              <div className="group">
+                <label className="block text-sm font-bold text-on-surface dark:text-slate-300 uppercase tracking-wider mb-2">
+                  Phường / Xã *
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">
+                    distance
+                  </span>
+                  <select
+                    value={selectedWard}
+                    onChange={(e) => {
+                      setSelectedWard(e.target.value);
+                      if (errors.ward) setErrors(prev => ({ ...prev, ward: '' }));
+                    }}
+                    disabled={isLoading || loadingWards || !selectedProvince}
+                    className={`w-full h-14 pl-12 pr-10 bg-white dark:bg-slate-900 border ${
+                      errors.ward ? 'border-error focus:ring-error' : 'border-outline-variant dark:border-slate-700 focus:ring-primary focus:border-primary'
+                    } rounded-lg focus:ring-2 transition-all text-on-background dark:text-white outline-none appearance-none`}
+                  >
+                    <option value="">
+                      {!selectedProvince ? 'Vui lòng chọn Tỉnh/Thành trước' : '-- Chọn Phường/Xã --'}
+                    </option>
+                    {wards.map(w => (
+                      <option key={w.code} value={w.code}>{w.name}</option>
+                    ))}
+                  </select>
+                  {loadingWards ? (
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                  ) : (
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-outline pointer-events-none">
+                      expand_more
+                    </span>
+                  )}
+                </div>
+                {errors.ward && <p className="text-xs text-error mt-1.5 pl-1">{errors.ward}</p>}
+              </div>
+
+              {/* Chi tiết địa chỉ */}
+              <div className="group">
+                <label className="block text-sm font-bold text-on-surface dark:text-slate-300 uppercase tracking-wider mb-2">
+                  Địa chỉ chi tiết (Số nhà, tổ dân phố, tên đường...) *
+                </label>
+                <div className="relative">
+                  <span className={`material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200 ${errors.addressDetails ? 'text-error' : 'text-outline'}`}>
                     home
                   </span>
                   <input
                     type="text"
-                    id="address"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
+                    value={addressDetails}
+                    onChange={(e) => {
+                      setAddressDetails(e.target.value);
+                      if (errors.addressDetails) setErrors(prev => ({ ...prev, addressDetails: '' }));
+                    }}
                     disabled={isLoading}
-                    autoComplete="street-address"
                     className={`w-full h-14 pl-12 pr-4 bg-white dark:bg-slate-900 border ${
-                      errors.address ? 'border-error focus:ring-error' : 'border-outline-variant dark:border-slate-700 focus:ring-primary focus:border-primary'
+                      errors.addressDetails ? 'border-error focus:ring-error' : 'border-outline-variant dark:border-slate-700 focus:ring-primary focus:border-primary'
                     } rounded-lg focus:ring-2 transition-all placeholder:text-outline/60 text-on-background dark:text-white`}
-                    placeholder="VD: 123 Nguyễn Thị Định, Phường Mân Thái"
+                    placeholder="VD: Tổ 15, số nhà 123 Nguyễn Chí Thanh"
                   />
                 </div>
-                {errors.address && <p className="text-xs text-error mt-1.5 pl-1">{errors.address}</p>}
+                {errors.addressDetails && <p className="text-xs text-error mt-1.5 pl-1">{errors.addressDetails}</p>}
               </div>
 
               {/* Đồng ý điều khoản */}

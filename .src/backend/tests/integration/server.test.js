@@ -628,7 +628,7 @@ describe('TC_INT_049-050 — Resident Complaint Routes', () => {
     const res = await request(app)
       .post('/api/complaints')
       .set(bearer())
-      .send({ title: 'Rác không được thu gom', description: 'Khu vực tôi bị bỏ qua.' });
+      .send({ title: 'Rác không được thu gom', description: 'Khu vực tôi bị bỏ qua.', type: 'Rác thải sinh hoạt' });
     expect(res.status).toBe(201);
   });
 
@@ -763,7 +763,7 @@ describe('TC_INT_059-063 — Notification Routes', () => {
 
   test('TC_INT_060: POST /api/notifications/:id/read → 200', async () => {
     docRef.get
-      .mockResolvedValueOnce({ exists: true, data: () => ({ userId: 'test-uid', read: false }) });
+      .mockResolvedValueOnce({ exists: true, data: () => ({ user_id: 'test-uid', read: false }) });
     const res = await request(app)
       .post('/api/notifications/notif-001/read')
       .set(bearer());
