@@ -11,30 +11,30 @@ export default function ResetPassword() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isValidating, setIsValidating] = useState(true);
-  const [error, setError] = useState('');
+  const [isValidating, setIsValidating] = useState(() => Boolean(oobCode));
+  const [error, setError] = useState(() => oobCode ? '' : 'Đường dẫn không hợp lệ hoặc đã hết hạn.');
   const [email, setEmail] = useState('');
 
   // Validate the reset code when component mounts
   useEffect(() => {
-    if (!oobCode) {
-      setError('Đường dẫn không hợp lệ hoặc đã hết hạn.');
-      setIsValidating(false);
-      return;
-    }
+    if (!oobCode) return;
 
+    let isMounted = true;
     const verifyCode = async () => {
       try {
         const verifiedEmail = await authService.verifyResetCode(oobCode);
-        setEmail(verifiedEmail);
+        if (isMounted) setEmail(verifiedEmail);
       } catch (err) {
-        setError(err.message || 'Mã khôi phục không hợp lệ hoặc đã hết hạn.');
+        if (isMounted) setError(err.message || 'Mã khôi phục không hợp lệ hoặc đã hết hạn.');
       } finally {
-        setIsValidating(false);
+        if (isMounted) setIsValidating(false);
       }
     };
 
     verifyCode();
+    return () => {
+      isMounted = false;
+    };
   }, [oobCode]);
 
   const handleSubmit = async (e) => {

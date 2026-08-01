@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getAdminTransactions } from '../../services/paymentService';
 import { RefreshCw, Search, Eye } from 'lucide-react';
@@ -21,11 +21,10 @@ export default function AdminPaymentHistory() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError('');
+  const fetchData = useCallback(async () => {
     try {
       const res = await getAdminTransactions(currentPage, itemsPerPage, roleFilter);
+      setError('');
       setTransactions(res.data || res || []);
       setTotal(res.total || 0);
       setTotalPages(res.totalPages || 1);
@@ -34,11 +33,12 @@ export default function AdminPaymentHistory() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, itemsPerPage, roleFilter]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
-  }, [currentPage, roleFilter]);
+  }, [fetchData]);
 
   const handleOpenDetail = (tx) => {
     setSelectedItem(tx);

@@ -15,12 +15,15 @@ const FIELDS = [
 
 export default function EditProfile() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(authService.getCurrentUser());
-  const [form, setForm] = useState({
-    fullName: '',
-    phone: '',
-    address: '',
-    area: '',
+  const [user, setUser] = useState(() => authService.getCurrentUser());
+  const [form, setForm] = useState(() => {
+    const current = authService.getCurrentUser();
+    return {
+      fullName: current?.fullName || '',
+      phone: current?.phone || '',
+      address: current?.address || '',
+      area: current?.area || '',
+    };
   });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
@@ -28,17 +31,6 @@ export default function EditProfile() {
   useEffect(() => {
     if (!authService.isAuthenticated()) {
       navigate('/login');
-      return;
-    }
-    const current = authService.getCurrentUser();
-    setUser(current);
-    if (current) {
-      setForm({
-        fullName: current.fullName || '',
-        phone: current.phone || '',
-        address: current.address || '',
-        area: current.area || '',
-      });
     }
   }, [navigate]);
 

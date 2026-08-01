@@ -80,20 +80,19 @@ export default function AssignedReports() {
 
   useEffect(() => {
     if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadReports();
     }
   }, [user, loadReports]);
 
   useEffect(() => {
-    if (!selectedReport) {
-      setComments([]);
-      return;
+    let active = true;
+    if (selectedReport?.id) {
+      collectorService.getReportComments(selectedReport.id)
+        .then((data) => { if (active) setComments(data || []); })
+        .catch(() => { if (active) setComments([]); });
     }
-    collectorService.getReportComments(selectedReport.id)
-      .then(setComments)
-      .catch(() => {
-        setComments([]);
-      });
+    return () => { active = false; };
   }, [selectedReport]);
 
   const filteredReports = reports.filter((r) => {

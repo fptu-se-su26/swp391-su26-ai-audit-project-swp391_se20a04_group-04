@@ -49,7 +49,7 @@ export default function Header() {
 
   // Tự động đóng mobile menu khi chuyển route
   useEffect(() => {
-    setIsMobileMenuOpen(false);
+    Promise.resolve().then(() => setIsMobileMenuOpen(false));
   }, [location.pathname]);
 
   // Lấy thông báo từ API

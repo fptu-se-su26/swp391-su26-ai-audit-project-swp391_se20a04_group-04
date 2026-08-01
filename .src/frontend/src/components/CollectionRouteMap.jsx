@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -104,7 +104,10 @@ export default function CollectionRouteMap({
   }, [setRoutePoints]);
 
   useEffect(() => {
-    if (points.length < 2) { setRoutePolyline([]); setRouteInfo(null); return; }
+    if (points.length < 2) {
+      Promise.resolve().then(() => { setRoutePolyline([]); setRouteInfo(null); });
+      return;
+    }
     let cancelled = false;
     fetchOSRMRoute(points).then((result) => {
       if (cancelled) return;
