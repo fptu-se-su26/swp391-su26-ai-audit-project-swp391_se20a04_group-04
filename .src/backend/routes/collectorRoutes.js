@@ -11,6 +11,9 @@ router.post('/collector/confirm-route', verifyToken, ensureCollector, collectorC
 router.post('/collector/confirm-week', verifyToken, ensureCollector, collectorController.confirmWeek);
 router.post('/collector/deny-week', verifyToken, ensureCollector, collectorController.denyWeek);
 router.get('/collector/reports', verifyToken, ensureCollector, collectorController.getReports);
+router.get('/collector/my-team', verifyToken, ensureCollector, collectorController.getMyTeam);
+router.get('/collector/salary', verifyToken, ensureCollector, collectorController.getMySalary);
+router.get('/collector/salary/history', verifyToken, ensureCollector, collectorController.getSalaryHistory);
 router.get('/route-assignments/my', verifyToken, ensureCollector, collectorController.getMyAssignments);
 router.patch('/route-assignments/:assignmentId/status', verifyToken, ensureCollector, collectorController.updateAssignmentStatus);
 router.get('/reports/:reportId/comments', verifyToken, ensureCollector, collectorController.getReportComments);

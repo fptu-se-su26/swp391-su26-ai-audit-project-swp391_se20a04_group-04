@@ -622,6 +622,9 @@ module.exports = {
   getInvoiceTemplates,
   createInvoiceTemplate,
   deleteInvoiceTemplate,
+  getTeamPerformance,
+  getCollectorSalaries,
+  setCollectorSalary,
 };
 
 /**
@@ -945,3 +948,136 @@ async function getDashboardStats(req, res) {
   }
 }
 
+/**
+ * GET /api/manager/team-performance
+ * Returns team completion stats for the current month
+ */
+async function getTeamPerformance(req, res) {
+  try {
+    const [teamSnap, schedSnap] = await Promise.all([
+      db.collection('collection_teams').get(),
+      db.collection('collection_schedules').get(),
+    ]);
+
+    const teams = [];
+    teamSnap.forEach(doc => teams.push({ id: doc.id, ...doc.data() }));
+
+    const schedules = [];
+    schedSnap.forEach(doc => schedules.push({ id: doc.id, ...doc.data() }));
+
+    // Current month filter
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    const performance = teams.map(team => {
+      const teamSchedules = schedules.filter(s => s.team_id === team.id);
+      const monthSchedules = teamSchedules.filter(s => {
+        if (!s.schedule_date) return false;
+        const d = new Date(s.schedule_date);
+        return d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear;
+      });
+
+      const completed = monthSchedules.filter(s => {
+        const status = (s.status || '').toLowerCase();
+        return status === 'completed' || status === 'completed_pending_approval';
+      }).length;
+
+      return {
+        teamId: team.id,
+        teamName: team.team_name || '',
+        members: team.members || [],
+        totalRoutes: monthSchedules.length,
+        completedRoutes: completed,
+        completionRate: monthSchedules.length > 0 ? Math.round((completed / monthSchedules.length) * 100) : 0,
+      };
+    });
+
+    // Sort by completed routes descending
+    performance.sort((a, b) => b.completedRoutes - a.completedRoutes);
+
+    return res.status(200).json({ success: true, data: performance, month: currentMonth, year: currentYear });
+  } catch (error) {
+    console.error('[Manager] Lỗi lấy hiệu suất đội:', error.message);
+    return res.status(500).json({ error: 'Không thể tải dữ liệu hiệu suất đội.' });
+  }
+}
+
+/**
+ * GET /api/manager/collector-salaries?month=8&year=2026
+ */
+async function getCollectorSalaries(req, res) {
+  try {
+    const month = parseInt(req.query.month, 10) || new Date().getMonth() + 1;
+    const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+
+    const snap = await db.collection('collector_salaries')
+      .where('month', '==', month)
+      .where('year', '==', year)
+      .get();
+
+    const salaries = [];
+    snap.forEach(doc => {
+      const data = doc.data();
+      salaries.push({
+        id: doc.id,
+        ...data,
+        totalSalary: (data.baseSalary || 0) + (data.bonus || 0),
+      });
+    });
+
+    return res.status(200).json({ success: true, data: salaries });
+  } catch (error) {
+    console.error('[Manager] Lỗi lấy lương collectors:', error.message);
+    return res.status(500).json({ error: 'Không thể tải dữ liệu lương.' });
+  }
+}
+
+/**
+ * POST /api/manager/collector-salaries
+ * Body: { collectorId, collectorName, month, year, baseSalary, bonus, bonusReason }
+ */
+async function setCollectorSalary(req, res) {
+  const { collectorId, collectorName, month, year, baseSalary, bonus, bonusReason } = req.body;
+
+  if (!collectorId || !month || !year) {
+    return res.status(400).json({ error: 'collectorId, month và year là bắt buộc.' });
+  }
+
+  try {
+    // Check if salary record already exists for this collector/month/year
+    const existing = await db.collection('collector_salaries')
+      .where('collectorId', '==', collectorId)
+      .where('month', '==', Number(month))
+      .where('year', '==', Number(year))
+      .get();
+
+    const now = new Date().toISOString();
+    const salaryData = {
+      collectorId,
+      collectorName: collectorName || '',
+      month: Number(month),
+      year: Number(year),
+      baseSalary: Number(baseSalary) || 0,
+      bonus: Number(bonus) || 0,
+      bonusReason: bonusReason || '',
+      assignedBy: req.userProfile?.fullName || req.uid,
+      updatedAt: now,
+    };
+
+    if (!existing.empty) {
+      // Update existing record
+      const docId = existing.docs[0].id;
+      await db.collection('collector_salaries').doc(docId).update(salaryData);
+      return res.status(200).json({ success: true, message: 'Đã cập nhật lương thành công.', id: docId });
+    } else {
+      // Create new record
+      salaryData.createdAt = now;
+      const docRef = await db.collection('collector_salaries').add(salaryData);
+      return res.status(201).json({ success: true, message: 'Đã tạo bảng lương thành công.', id: docRef.id });
+    }
+  } catch (error) {
+    console.error('[Manager] Lỗi cập nhật lương collector:', error.message);
+    return res.status(500).json({ error: 'Không thể cập nhật lương.' });
+  }
+}

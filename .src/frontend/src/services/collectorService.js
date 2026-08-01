@@ -107,6 +107,36 @@ const collectorService = {
     if (!response.ok) throw new Error(data.error || 'Không thể cập nhật phản ánh.');
     return data;
   },
+
+  async getMyTeam() {
+    const response = await fetch(`${API_BASE}/collector/my-team`, {
+      headers: await getAuthHeaders(),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || 'Không thể tải thông tin đội nhóm.');
+    return data.data;
+  },
+
+  async getMySalary(month, year) {
+    const params = new URLSearchParams();
+    if (month) params.set('month', month);
+    if (year) params.set('year', year);
+    const response = await fetch(`${API_BASE}/collector/salary?${params}`, {
+      headers: await getAuthHeaders(),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || 'Không thể tải thông tin lương.');
+    return data.data;
+  },
+
+  async getSalaryHistory() {
+    const response = await fetch(`${API_BASE}/collector/salary/history`, {
+      headers: await getAuthHeaders(),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || 'Không thể tải lịch sử lương.');
+    return data.data;
+  },
 };
 
 export default collectorService;

@@ -42,4 +42,9 @@ router.get('/residents/search', managerController.searchResidents);
 router.get('/residents/:userId/invoices', managerController.getResidentInvoices);
 router.post('/invoices', managerController.createInvoice);
 
+// Salary management
+router.get('/team-performance', managerController.getTeamPerformance);
+router.get('/collector-salaries', managerController.getCollectorSalaries);
+router.post('/collector-salaries', managerController.setCollectorSalary);
+
 module.exports = router;

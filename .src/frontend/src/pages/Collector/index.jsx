@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay } from 'date-fns';
+import { format, parse, startOfWeek, getDay, addHours } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -88,6 +88,11 @@ export default function CollectorDashboard() {
     description: '',
   });
 
+  // Team & Salary state
+  const [myTeams, setMyTeams] = useState([]);
+  const [currentSalary, setCurrentSalary] = useState(null);
+  const [salaryHistory, setSalaryHistory] = useState([]);
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -103,17 +108,23 @@ export default function CollectorDashboard() {
     setLoading(true);
     setError('');
     try {
-      const [dashboardData, scheduleData, reportData, notifData] = await Promise.all([
+      const [dashboardData, scheduleData, reportData, notifData, teamData, salaryData, salaryHistData] = await Promise.all([
         collectorService.getDashboard(todayISO()),
         collectorService.getAllSchedules(),
         collectorService.getAssignedReports().catch(() => []),
         notificationService.getNotifications().catch(() => []),
+        collectorService.getMyTeam().catch(() => []),
+        collectorService.getMySalary().catch(() => null),
+        collectorService.getSalaryHistory().catch(() => []),
       ]);
       setSummary(dashboardData);
       const items = scheduleData.items || [];
       setSchedules(items);
       setAssignedReports(Array.isArray(reportData) ? reportData : reportData?.data || []);
       setRecentNotifications(Array.isArray(notifData) ? notifData : []);
+      setMyTeams(Array.isArray(teamData) ? teamData : []);
+      setCurrentSalary(salaryData);
+      setSalaryHistory(Array.isArray(salaryHistData) ? salaryHistData : []);
       setSelectedItem((prev) => {
         if (!prev) return items[0] || null;
         return items.find((i) => i.id === prev.id && i.sourceType === prev.sourceType) || items[0] || null;
@@ -161,13 +172,35 @@ export default function CollectorDashboard() {
   }, [schedules]);
 
   // Calendar events
-  const calendarEvents = useMemo(() => schedules.map(s => ({
-    id: s.id,
-    title: s.routeName || s.route_name || 'Tuyến thu gom',
-    start: s.date ? new Date(`${s.date}T${s.time || '07:00'}:00`) : new Date(),
-    end: s.date ? new Date(`${s.date}T${s.time || '07:00'}:00`) : new Date(),
-    resource: s,
-  })), [schedules]);
+  const calendarEvents = useMemo(() => schedules.map(s => {
+    const startDate = s.date ? new Date(`${s.date}T${s.time || s.startTime || '07:00'}:00`) : new Date();
+    // If no endTime or same as startTime, show a 1-hour block
+    const hasDistinctEnd = s.endTime && s.endTime !== s.startTime && s.endTime !== (s.time || s.startTime || '07:00');
+    const endDate = hasDistinctEnd
+      ? new Date(`${s.date}T${s.endTime}:00`)
+      : addHours(startDate, 1);
+    return {
+      id: s.id,
+      title: s.routeName || s.route_name || 'Tuyến thu gom',
+      start: startDate,
+      end: endDate,
+      resource: s,
+      _hasDistinctEnd: hasDistinctEnd,
+    };
+  }), [schedules]);
+
+  // Custom format to show only start time when no distinct end
+  const calendarFormats = useMemo(() => ({
+    eventTimeRangeFormat: ({ start, end }, culture, localizer) => {
+      const startStr = localizer.format(start, 'HH:mm', culture);
+      const endStr = localizer.format(end, 'HH:mm', culture);
+      if (startStr === endStr) return startStr;
+      // Check if it's auto-generated 1-hour block
+      const diff = end.getTime() - start.getTime();
+      if (diff === 3600000) return startStr; // 1 hour = auto block
+      return `${startStr} – ${endStr}`;
+    },
+  }), []);
 
   // ISO week helper
   function getISOWeekLabel(date = new Date()) {
@@ -475,10 +508,22 @@ export default function CollectorDashboard() {
                   selected={selectedItem ? calendarEvents.find(e => e.id === selectedItem.id) : null}
                   eventPropGetter={ev => {
                     const s = (ev.resource?.status || '').toLowerCase();
-                    const bg = s.includes('completed') ? '#10b981' : s === 'in_progress' ? '#3b82f6' : s === 'denied_by_collector' ? '#ef4444' : '#6366f1';
+                    let bg = '#6366f1'; // default: assigned (purple)
+                    if (s === 'completed' && ev.resource?.managerConfirmed) {
+                      bg = '#10b981'; // green — manager confirmed
+                    } else if (s === 'completed_pending_approval' || (s === 'completed' && !ev.resource?.managerConfirmed)) {
+                      bg = '#f59e0b'; // amber — waiting for manager
+                    } else if (s === 'in_progress') {
+                      bg = '#3b82f6'; // blue — in progress
+                    } else if (s === 'denied_by_collector') {
+                      bg = '#ef4444'; // red — denied
+                    } else if (s === 'delayed') {
+                      bg = '#f97316'; // orange — delayed
+                    }
                     const isSelected = selectedItem?.id === ev.resource?.id;
                     return { style: { backgroundColor: bg, borderRadius: '6px', border: isSelected ? '2px solid #fff' : 'none', fontSize: '12px', fontWeight: '600', outline: isSelected ? '2px solid ' + bg : 'none', outlineOffset: '1px' } };
                   }}
+                  formats={calendarFormats}
                 />
               </div>
             )}
@@ -508,11 +553,9 @@ export default function CollectorDashboard() {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-5 text-sm mb-5">
                   <div>
-                    <p className="text-outline text-xs font-bold uppercase mb-1">Giờ dự kiến</p>
+                    <p className="text-outline text-xs font-bold uppercase mb-1">Giờ bắt đầu</p>
                     <p className="font-bold text-on-surface">
-                      {selectedItem.startTime
-                        ? (selectedItem.endTime ? `${selectedItem.startTime} – ${selectedItem.endTime}` : selectedItem.startTime)
-                        : '—'}
+                      {selectedItem.startTime || '—'}
                     </p>
                   </div>
                   <div>
@@ -521,13 +564,43 @@ export default function CollectorDashboard() {
                   </div>
                   <div>
                     <p className="text-outline text-xs font-bold uppercase mb-1">Phân công</p>
-                    <p className="font-bold text-secondary">{selectedItem.teamId ? 'Đi theo Đội' : 'Đi 1 mình'}</p>
+                    <p className="font-bold text-secondary">
+                      {selectedItem.teamName
+                        ? `Đội: ${selectedItem.teamName}`
+                        : (selectedItem.teamId ? 'Đi theo Đội' : 'Đi 1 mình')}
+                    </p>
                   </div>
                   <div>
                     <p className="text-outline text-xs font-bold uppercase mb-1">Khu vực</p>
-                    <p className="font-bold text-on-surface">{selectedItem.neighborhood ? `${selectedItem.neighborhood}, ${selectedItem.ward}` : (selectedItem.ward || '—')}</p>
+                    <p className="font-bold text-on-surface">
+                      {selectedItem.neighborhood
+                        ? `${selectedItem.neighborhood}, ${selectedItem.ward}`
+                        : (selectedItem.ward
+                          ? selectedItem.ward
+                          : (selectedItem.city || '—'))}
+                    </p>
                   </div>
                 </div>
+
+                {/* Team members display */}
+                {selectedItem.teamMembers && selectedItem.teamMembers.length > 0 && (
+                  <div className="mb-5 p-4 bg-primary-container/10 rounded-xl border border-primary/20">
+                    <p className="text-xs font-bold uppercase text-primary mb-2 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-sm">group</span>
+                      Thành viên đội {selectedItem.teamName || ''}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedItem.teamMembers.map((member, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full border border-primary/20 text-sm font-medium">
+                          <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center">
+                            {(member.name || 'C')[0].toUpperCase()}
+                          </span>
+                          {member.name || member.id}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {selectedItem.notes && (
                   <div className="mb-5 p-3 bg-surface-container-low rounded-xl text-sm text-on-surface-variant">
@@ -641,6 +714,109 @@ export default function CollectorDashboard() {
                   <div className="py-8 text-center text-on-surface-variant">
                     <span className="material-symbols-outlined text-3xl opacity-30">assignment_turned_in</span>
                     <p className="mt-2 text-xs">Chưa có phản ánh nào được giao.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Team & Salary Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* My Team Section */}
+            <div className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-outline-variant bg-primary-container/5 flex justify-between items-center">
+                <h3 className="font-bold text-sm flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-base">group</span>
+                  Đội của tôi
+                </h3>
+              </div>
+              <div className="p-4">
+                {myTeams.length > 0 ? myTeams.map((team) => (
+                  <div key={team.id} className="mb-4 last:mb-0">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-sm">
+                        <span className="material-symbols-outlined">groups</span>
+                      </div>
+                      <div>
+                        <p className="font-bold text-on-surface">{team.teamName}</p>
+                        <p className="text-xs text-on-surface-variant">{team.members.length} thành viên</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {team.members.map((member, idx) => (
+                        <div key={idx} className="flex items-center gap-3 p-2.5 bg-surface-container-low rounded-lg">
+                          <div className="w-8 h-8 rounded-full bg-secondary text-white text-xs font-bold flex items-center justify-center">
+                            {(member.name || 'C')[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-on-surface">{member.name || member.id}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )) : (
+                  <div className="py-8 text-center text-on-surface-variant">
+                    <span className="material-symbols-outlined text-3xl opacity-30">group_off</span>
+                    <p className="mt-2 text-xs">Bạn chưa được phân vào đội nào.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Salary Section */}
+            <div className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-outline-variant bg-emerald-50/50 flex justify-between items-center">
+                <h3 className="font-bold text-sm flex items-center gap-2">
+                  <span className="material-symbols-outlined text-emerald-600 text-base">payments</span>
+                  Lương & Thưởng
+                </h3>
+                <span className="text-xs text-on-surface-variant font-medium">
+                  Tháng {new Date().getMonth() + 1}/{new Date().getFullYear()}
+                </span>
+              </div>
+              <div className="p-4">
+                {currentSalary ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="p-3 bg-surface-container-low rounded-xl text-center">
+                        <p className="text-xs text-outline font-bold uppercase mb-1">Lương cơ bản</p>
+                        <p className="text-lg font-bold text-on-surface">{(currentSalary.baseSalary || 0).toLocaleString('vi-VN')}đ</p>
+                      </div>
+                      <div className="p-3 bg-emerald-50 rounded-xl text-center border border-emerald-200">
+                        <p className="text-xs text-emerald-700 font-bold uppercase mb-1">Thưởng</p>
+                        <p className="text-lg font-bold text-emerald-600">+{(currentSalary.bonus || 0).toLocaleString('vi-VN')}đ</p>
+                      </div>
+                      <div className="p-3 bg-primary-container/20 rounded-xl text-center border border-primary/20">
+                        <p className="text-xs text-primary font-bold uppercase mb-1">Tổng</p>
+                        <p className="text-lg font-bold text-primary">{(currentSalary.totalSalary || 0).toLocaleString('vi-VN')}đ</p>
+                      </div>
+                    </div>
+                    {currentSalary.bonusReason && (
+                      <div className="p-3 bg-emerald-50 rounded-lg text-sm text-emerald-800 border border-emerald-100">
+                        <span className="font-semibold">Lý do thưởng: </span>{currentSalary.bonusReason}
+                      </div>
+                    )}
+                    {/* Salary History */}
+                    {salaryHistory.length > 1 && (
+                      <div>
+                        <p className="text-xs font-bold text-outline uppercase mb-2">Lịch sử lương</p>
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                          {salaryHistory.slice(0, 6).map((record) => (
+                            <div key={record.id} className="flex justify-between items-center px-3 py-2 bg-surface-container-lowest rounded-lg text-sm">
+                              <span className="text-on-surface-variant font-medium">T{record.month}/{record.year}</span>
+                              <span className="font-bold text-on-surface">{(record.totalSalary || 0).toLocaleString('vi-VN')}đ</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-on-surface-variant">
+                    <span className="material-symbols-outlined text-3xl opacity-30">money_off</span>
+                    <p className="mt-2 text-xs">Chưa có thông tin lương tháng này.</p>
+                    <p className="text-[10px] text-outline mt-1">Liên hệ Manager để cập nhật.</p>
                   </div>
                 )}
               </div>

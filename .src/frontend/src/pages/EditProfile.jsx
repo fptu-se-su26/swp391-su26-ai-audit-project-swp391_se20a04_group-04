@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../services/authService';
+import { ROLES, normalizeRole } from '../constants/roles';
 
 const API_BASE = import.meta.env.VITE_API_URL
   ? (import.meta.env.VITE_API_URL.endsWith('/api') ? import.meta.env.VITE_API_URL : `${import.meta.env.VITE_API_URL}/api`)
@@ -10,8 +11,29 @@ const FIELDS = [
   { name: 'fullName', label: 'Họ và tên', icon: 'person', placeholder: 'Nguyễn Văn A' },
   { name: 'phone', label: 'Số điện thoại', icon: 'phone', placeholder: '0912 345 678' },
   { name: 'address', label: 'Địa chỉ nhà', icon: 'home', placeholder: '123 Đường ABC, Quận 1', full: true },
-  { name: 'area', label: 'Khu vực (để hiển thị lịch thu gom tự động)', icon: 'location_on', placeholder: 'Phường Bến Nghé, Quận 1, TP.HCM', full: true },
+  { name: 'area', label: 'Khu vực (để hiển thị lịch thu gom tự động)', icon: 'location_on', placeholder: 'Phường Bến Nghé, Quận 1, TP.HCM', full: true, rolesOnly: [ROLES.RESIDENT] },
 ];
+
+const ROLE_LABELS = {
+  [ROLES.RESIDENT]: 'Cư dân',
+  [ROLES.COLLECTOR]: 'Nhân viên thu gom',
+  [ROLES.MANAGER]: 'Quản lý',
+  [ROLES.ADMIN]: 'Quản trị viên',
+};
+
+const ROLE_COLORS = {
+  [ROLES.RESIDENT]: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400',
+  [ROLES.COLLECTOR]: 'bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400',
+  [ROLES.MANAGER]: 'bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400',
+  [ROLES.ADMIN]: 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400',
+};
+
+const ROLE_DESCRIPTIONS = {
+  [ROLES.RESIDENT]: 'Cập nhật thông tin cá nhân và khu vực thu gom rác của bạn',
+  [ROLES.COLLECTOR]: 'Cập nhật thông tin cá nhân của nhân viên thu gom',
+  [ROLES.MANAGER]: 'Cập nhật thông tin cá nhân của quản lý',
+  [ROLES.ADMIN]: 'Cập nhật thông tin cá nhân của quản trị viên',
+};
 
 export default function EditProfile() {
   const navigate = useNavigate();
@@ -74,6 +96,12 @@ export default function EditProfile() {
     }
   };
 
+  const userRole = normalizeRole(user?.role);
+  const roleLabel = ROLE_LABELS[userRole] || 'Cư dân';
+  const roleColor = ROLE_COLORS[userRole] || ROLE_COLORS[ROLES.RESIDENT];
+  const roleDescription = ROLE_DESCRIPTIONS[userRole] || ROLE_DESCRIPTIONS[ROLES.RESIDENT];
+  const visibleFields = FIELDS.filter(f => !f.rolesOnly || f.rolesOnly.includes(userRole));
+
   if (!user) return null;
 
   return (
@@ -95,7 +123,7 @@ export default function EditProfile() {
             </div>
             <div>
               <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">Chỉnh sửa hồ sơ</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Cập nhật thông tin cá nhân và khu vực thu gom rác của bạn</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{roleDescription}</p>
             </div>
           </div>
         </div>
@@ -110,8 +138,8 @@ export default function EditProfile() {
               <p className="text-lg font-bold text-slate-800 dark:text-white truncate">{user.fullName || 'Chưa cập nhật'}</p>
               <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
               <div className="flex items-center gap-2 mt-1">
-                <span className="inline-block px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold rounded-full uppercase tracking-wide">
-                  Cư dân
+                <span className={`inline-block px-2 py-0.5 ${roleColor} text-[10px] font-bold rounded-full uppercase tracking-wide`}>
+                  {roleLabel}
                 </span>
                 {user.area && (
                   <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500">
@@ -146,7 +174,7 @@ export default function EditProfile() {
           </div>
 
           <form onSubmit={handleSave} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {FIELDS.map(({ name, label, icon, placeholder, full }) => (
+            {visibleFields.map(({ name, label, icon, placeholder, full }) => (
               <div key={name} className={full ? 'sm:col-span-2' : ''}>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                   {label}
@@ -162,9 +190,11 @@ export default function EditProfile() {
                   />
                 </div>
               </div>
-            ))}
+            ))
+            }
 
-            {/* Area Helper Note */}
+            {/* Area Helper Note — only for residents */}
+            {userRole === ROLES.RESIDENT && (
             <div className="sm:col-span-2">
               <div className="p-3.5 bg-sky-50 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900/30 rounded-xl flex gap-2.5 text-xs text-sky-700 dark:text-sky-300">
                 <span className="material-symbols-outlined text-sm flex-shrink-0 mt-0.5">info</span>
@@ -174,6 +204,7 @@ export default function EditProfile() {
                 </p>
               </div>
             </div>
+            )}
 
             {/* Actions */}
             <div className="sm:col-span-2 flex gap-3 pt-2">

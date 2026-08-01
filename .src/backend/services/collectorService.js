@@ -4,6 +4,8 @@ const { ROLES } = require('../constants/roles');
 const ASSIGNMENTS_COLLECTION = 'route_assignments';
 const SCHEDULES_COLLECTION = 'collection_schedules';
 const ROUTES_COLLECTION = 'collection_routes';
+const TEAMS_COLLECTION = 'collection_teams';
+const SALARIES_COLLECTION = 'collector_salaries';
 const USERS_COLLECTION = 'users';
 const NOTIFICATIONS_COLLECTION = 'notifications';
 
@@ -92,6 +94,15 @@ async function getRouteMap() {
   return map;
 }
 
+async function getTeamMap() {
+  const snap = await db.collection(TEAMS_COLLECTION).get();
+  const map = {};
+  snap.forEach((doc) => {
+    map[doc.id] = { id: doc.id, ...doc.data() };
+  });
+  return map;
+}
+
 function matchesCollector(data, collectorId, collectorName) {
   // Check all fields where a collector could be referenced
   const candidates = [
@@ -144,7 +155,18 @@ function mapAssignment(doc, routes, targetDate) {
   };
 }
 
-function mapSchedule(doc, routes, targetDate, collectorId, collectorName) {
+function parseTimeFromISO(dateField) {
+  if (!dateField) return '';
+  // If it's a Firestore Timestamp, convert to ISO string first
+  const isoStr = dateField.toDate
+    ? dateField.toDate().toISOString()
+    : (typeof dateField === 'string' ? dateField : new Date(dateField).toISOString());
+  // Extract HH:MM directly from the ISO string (always UTC-safe)
+  const match = isoStr.match(/T(\d{2}):(\d{2})/);
+  return match ? `${match[1]}:${match[2]}` : '';
+}
+
+function mapSchedule(doc, routes, targetDate, collectorId, collectorName, teamMap) {
   const data = doc.data();
   if (!matchesCollector(data, collectorId, collectorName)) return null;
 
@@ -156,15 +178,12 @@ function mapSchedule(doc, routes, targetDate, collectorId, collectorName) {
   const route = routes[data.routeId] || {};
   const timeParts = (data.time_slot || '').split(' - ');
 
-  let defaultStartTime = '';
-  if (dateField) {
-    const d = dateField.toDate ? dateField.toDate() : new Date(dateField);
-    if (!Number.isNaN(d.getTime())) {
-      const hours = String(d.getHours()).padStart(2, '0');
-      const minutes = String(d.getMinutes()).padStart(2, '0');
-      defaultStartTime = `${hours}:${minutes}`;
-    }
-  }
+  // Parse time directly from ISO string to avoid timezone issues
+  const defaultStartTime = parseTimeFromISO(dateField);
+
+  // Resolve team info
+  const teamId = data.team_id || null;
+  const team = teamId && teamMap ? teamMap[teamId] : null;
 
   return {
     id: doc.id,
@@ -176,8 +195,9 @@ function mapSchedule(doc, routes, targetDate, collectorId, collectorName) {
     startTime: data.startTime || timeParts[0] || defaultStartTime,
     endTime: data.endTime || timeParts[1] || '',
     wasteType: data.trash_type || data.service_type || '',
-    ward: data.ward || route.ward || '',
-    neighborhood: data.neighborhood || route.neighborhood || '',
+    city: data.city || route.city || '',
+    ward: data.ward || route.ward || (route.wards || [])[0] || '',
+    neighborhood: data.neighborhood || route.neighborhood || (route.neighborhoods || [])[0] || '',
     vehicleCode: data.assigned_truck || '',
     status: normalizeStatus(data.status),
     routePoints: parseRoutePoints(route, data),
@@ -187,14 +207,16 @@ function mapSchedule(doc, routes, targetDate, collectorId, collectorName) {
     startedAt: data.started_at || null,
     completedAt: data.completed_at || null,
     managerConfirmed: Boolean(data.manager_confirmed),
-    teamId: data.team_id || null,
+    teamId,
+    teamName: team ? team.team_name : null,
+    teamMembers: team ? (team.members || []) : [],
     assignedCollectors: data.assigned_collectors || [],
   };
 }
 
 async function getDailySchedules(collectorId, collectorName, dateStr) {
   const targetDate = dateStr || new Date().toISOString().slice(0, 10);
-  const routes = await getRouteMap();
+  const [routes, teamMap] = await Promise.all([getRouteMap(), getTeamMap()]);
   const items = [];
   const seen = new Set();
 
@@ -214,7 +236,7 @@ async function getDailySchedules(collectorId, collectorName, dateStr) {
   const schedSnap = await db.collection(SCHEDULES_COLLECTION).get();
   schedSnap.forEach((doc) => {
     if (seen.has(`schedule:${doc.id}`)) return;
-    const item = mapSchedule(doc, routes, targetDate, collectorId, collectorName);
+    const item = mapSchedule(doc, routes, targetDate, collectorId, collectorName, teamMap);
     if (item) {
       items.push(item);
       seen.add(`schedule:${doc.id}`);
@@ -226,7 +248,7 @@ async function getDailySchedules(collectorId, collectorName, dateStr) {
 }
 
 async function getAllSchedules(collectorId, collectorName) {
-  const routes = await getRouteMap();
+  const [routes, teamMap] = await Promise.all([getRouteMap(), getTeamMap()]);
   const items = [];
   const seen = new Set();
 
@@ -246,7 +268,7 @@ async function getAllSchedules(collectorId, collectorName) {
   const schedSnap = await db.collection(SCHEDULES_COLLECTION).get();
   schedSnap.forEach((doc) => {
     if (seen.has(`schedule:${doc.id}`)) return;
-    const item = mapSchedule(doc, routes, null, collectorId, collectorName);
+    const item = mapSchedule(doc, routes, null, collectorId, collectorName, teamMap);
     if (item) {
       items.push(item);
       seen.add(`schedule:${doc.id}`);
@@ -612,6 +634,83 @@ async function updateItemStatus(collectorId, collectorName, payload) {
   };
 }
 
+async function getMyTeam(collectorId) {
+  const snap = await db.collection(TEAMS_COLLECTION).get();
+  const teams = [];
+  snap.forEach((doc) => {
+    const data = doc.data();
+    const members = data.members || [];
+    const isMember = members.some((m) => m.id === collectorId || m.name === collectorId);
+    if (isMember) {
+      teams.push({
+        id: doc.id,
+        teamName: data.team_name || '',
+        members,
+        createdBy: data.created_by || '',
+      });
+    }
+  });
+  return teams;
+}
+
+async function getCollectorSalary(collectorId, month, year) {
+  const snap = await db.collection(SALARIES_COLLECTION)
+    .where('collectorId', '==', collectorId)
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .get();
+
+  if (snap.empty) return null;
+
+  const doc = snap.docs[0];
+  const data = doc.data();
+  return {
+    id: doc.id,
+    collectorId: data.collectorId,
+    month: data.month,
+    year: data.year,
+    baseSalary: data.baseSalary || 0,
+    bonus: data.bonus || 0,
+    bonusReason: data.bonusReason || '',
+    totalSalary: (data.baseSalary || 0) + (data.bonus || 0),
+    assignedBy: data.assignedBy || '',
+    createdAt: toIsoString(data.createdAt),
+    updatedAt: toIsoString(data.updatedAt),
+  };
+}
+
+async function getCollectorSalaryHistory(collectorId) {
+  const snap = await db.collection(SALARIES_COLLECTION)
+    .where('collectorId', '==', collectorId)
+    .get();
+
+  const records = [];
+  snap.forEach((doc) => {
+    const data = doc.data();
+    records.push({
+      id: doc.id,
+      collectorId: data.collectorId,
+      month: data.month,
+      year: data.year,
+      baseSalary: data.baseSalary || 0,
+      bonus: data.bonus || 0,
+      bonusReason: data.bonusReason || '',
+      totalSalary: (data.baseSalary || 0) + (data.bonus || 0),
+      assignedBy: data.assignedBy || '',
+      createdAt: toIsoString(data.createdAt),
+      updatedAt: toIsoString(data.updatedAt),
+    });
+  });
+
+  records.sort((a, b) => {
+    const byYear = b.year - a.year;
+    if (byYear !== 0) return byYear;
+    return b.month - a.month;
+  });
+
+  return records;
+}
+
 module.exports = {
   getDailySchedules,
   getAllSchedules,
@@ -623,4 +722,7 @@ module.exports = {
   getReportComments,
   updateReportStatus,
   normalizeStatus,
+  getMyTeam,
+  getCollectorSalary,
+  getCollectorSalaryHistory,
 };

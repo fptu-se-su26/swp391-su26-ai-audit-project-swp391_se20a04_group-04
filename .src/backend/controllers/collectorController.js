@@ -225,7 +225,51 @@ module.exports = {
   confirmRoute,
   confirmWeek,
   denyWeek,
+  getMyTeam,
+  getMySalary,
+  getSalaryHistory,
 };
+
+/**
+ * GET /api/collector/my-team
+ */
+async function getMyTeam(req, res) {
+  try {
+    const teams = await collectorService.getMyTeam(req.uid);
+    return res.status(200).json({ success: true, data: teams });
+  } catch (error) {
+    console.error('[API] Lỗi lấy thông tin đội:', error.message);
+    return res.status(500).json({ error: 'Không thể tải thông tin đội nhóm.' });
+  }
+}
+
+/**
+ * GET /api/collector/salary?month=8&year=2026
+ */
+async function getMySalary(req, res) {
+  try {
+    const month = parseInt(req.query.month, 10) || new Date().getMonth() + 1;
+    const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+    const salary = await collectorService.getCollectorSalary(req.uid, month, year);
+    return res.status(200).json({ success: true, data: salary });
+  } catch (error) {
+    console.error('[API] Lỗi lấy lương collector:', error.message);
+    return res.status(500).json({ error: 'Không thể tải thông tin lương.' });
+  }
+}
+
+/**
+ * GET /api/collector/salary/history
+ */
+async function getSalaryHistory(req, res) {
+  try {
+    const history = await collectorService.getCollectorSalaryHistory(req.uid);
+    return res.status(200).json({ success: true, data: history });
+  } catch (error) {
+    console.error('[API] Lỗi lấy lịch sử lương collector:', error.message);
+    return res.status(500).json({ error: 'Không thể tải lịch sử lương.' });
+  }
+}
 
 /**
  * POST /api/collector/confirm-week
