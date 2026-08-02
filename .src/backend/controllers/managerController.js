@@ -877,7 +877,7 @@ async function getDashboardStats(req, res) {
     const schedules = [];
     scheduleSnap.forEach(d => schedules.push({ id: d.id, ...d.data() }));
 
-    // 1. Revenue by month (last 6 months) � sum of paid invoices
+    // 1. Revenue by month (last 6 months) — sum of paid invoices
     const revenueByMonth = {};
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
@@ -899,13 +899,19 @@ async function getDashboardStats(req, res) {
     const weekMap = {};
     for (let i = 3; i >= 0; i--) {
       const start = new Date(now);
-      start.setDate(now.getDate() - now.getDay() - i * 7);
+      const day = start.getDay();
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1) - i * 7;
+      start.setDate(diff);
+      start.setHours(0, 0, 0, 0);
       const label = `W${4 - i} (${start.getDate()}/${start.getMonth() + 1})`;
       weekMap[label] = { received: 0, resolved: 0, weekStart: start.getTime() };
     }
     const weekKeys = Object.keys(weekMap);
     complaints.forEach(c => {
-      const ts = c.createdAt?.seconds ? c.createdAt.seconds * 1000 : (c.createdAt ? new Date(c.createdAt).getTime() : null);
+      const dateVal = c.createdAt || c.created_at;
+      const ts = dateVal?.seconds 
+        ? dateVal.seconds * 1000 
+        : (dateVal ? new Date(dateVal).getTime() : null);
       if (!ts) return;
       for (let i = weekKeys.length - 1; i >= 0; i--) {
         if (ts >= weekMap[weekKeys[i]].weekStart) {
@@ -928,7 +934,16 @@ async function getDashboardStats(req, res) {
       const s = (inv.status || 'unpaid').toLowerCase();
       if (invoiceStatus[s] !== undefined) invoiceStatus[s]++;
     });
-    const invoiceStatusChart = Object.entries(invoiceStatus).map(([name, value]) => ({ name, value }));
+
+    const statusLabels = {
+      paid: 'Đã thanh toán',
+      unpaid: 'Chưa thanh toán',
+      overdue: 'Quá hạn'
+    };
+    const invoiceStatusChart = Object.entries(invoiceStatus).map(([name, value]) => ({ 
+      name: statusLabels[name] || name, 
+      value 
+    }));
 
     // 4. Complaint status breakdown (all time)
     const cStatus = {};
@@ -938,23 +953,60 @@ async function getDashboardStats(req, res) {
     });
     const complaintStatusChart = Object.entries(cStatus).map(([name, value]) => ({ name, value }));
 
-    // 5. Completed schedules count by collector (this week)
+    // 5. Completed schedules count by collector (this week - starts on Monday)
     const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - now.getDay());
+    const day = weekStart.getDay();
+    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+    weekStart.setDate(diff);
     weekStart.setHours(0, 0, 0, 0);
+
     const collectorPayload = {};
     schedules.forEach(s => {
       if (!['completed', 'completed_pending_approval'].includes((s.status || '').toLowerCase())) return;
       const sDate = s.schedule_date ? new Date(s.schedule_date) : null;
       if (!sDate || sDate < weekStart) return;
-      const col = s.assigned_collector || s.assignedCollector || 'Unknown';
-      collectorPayload[col] = (collectorPayload[col] || 0) + 1;
+
+      // Đếm cho từng collector (đơn lẻ hoặc mảng assigned_collectors)
+      let cols = [];
+      if (Array.isArray(s.assigned_collectors) && s.assigned_collectors.length > 0) {
+        cols = s.assigned_collectors.map(c => c.name || 'Unknown');
+      } else {
+        const singleCol = s.assigned_collector || s.assignedCollector;
+        if (singleCol) {
+          cols = [singleCol];
+        }
+      }
+
+      cols.forEach(col => {
+        collectorPayload[col] = (collectorPayload[col] || 0) + 1;
+      });
     });
     const collectorChart = Object.entries(collectorPayload).map(([collector, completed]) => ({ collector, completed }));
 
-    return res.status(200).json({ revenueChart, complaintsChart, invoiceStatusChart, complaintStatusChart, collectorChart });
+    // 6. KPI Summary Calculation
+    const totalSchedules = schedules.length;
+    const assignedRoutes = schedules.filter(s => s.assigned_collector || s.assignedCollector || s.team_id || s.teamId || s.assigned_driver).length;
+    const openComplaints = complaints.filter(c => (c.status || 'open').toLowerCase() === 'open').length;
+
+    let totalCompleted = 0;
+    let onTimeCompleted = 0;
+    schedules.forEach(s => {
+      const status = (s.status || '').toLowerCase();
+      if (['completed', 'completed_pending_approval'].includes(status)) {
+        totalCompleted++;
+        if (!s.incident) {
+          onTimeCompleted++;
+        }
+      }
+    });
+    const onTimeRate = totalCompleted > 0 ? Math.round((onTimeCompleted / totalCompleted) * 100) : 100;
+
+    return res.status(200).json({ 
+      revenueChart, complaintsChart, invoiceStatusChart, complaintStatusChart, collectorChart,
+      totalSchedules, assignedRoutes, openComplaints, onTimeRate
+    });
   } catch (error) {
-    console.error('[Dashboard] L?i t?ng h?p stats:', error.message);
+    console.error('[Dashboard] Lỗi tổng hợp stats:', error.message);
     return res.status(500).json({ error: 'Không thể tải thống kê.' });
   }
 }

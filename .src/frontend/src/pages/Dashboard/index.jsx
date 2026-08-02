@@ -1038,6 +1038,7 @@ export default function Dashboard() {
             {[
               { id: 'overview', label: 'Tổng quan', icon: 'dashboard' },
               { id: 'work', label: 'Quản lý lịch', icon: 'event_note' },
+              { id: 'collectors', label: 'Nhân sự', icon: 'groups' },
               { id: 'complaints', label: 'Phản ánh', icon: 'feedback' },
               { id: 'reports', label: 'Báo cáo', icon: 'assignment' },
               { id: 'salaries', label: 'Lương & Hiệu suất', icon: 'payments' },
@@ -1076,7 +1077,7 @@ export default function Dashboard() {
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Phản ánh chưa xử lý</p>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Hiệu suất</p>
+            <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Lương hiệu suất</p>
             <p className="text-3xl font-bold text-slate-900 dark:text-white">{summary.onTimeRate}%</p>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Tuyến gán đúng hạn</p>
           </div>
@@ -1670,14 +1671,6 @@ export default function Dashboard() {
               setManagerError={setManagerError}
             />
 
-            <TeamManager
-              teams={teams}
-              collectors={collectors}
-              refreshTeams={fetchTeams}
-              managerLoading={managerLoading}
-              setManagerLoading={setManagerLoading}
-              setManagerError={setManagerError}
-            />
           </div>
           )}
 
@@ -2052,6 +2045,103 @@ export default function Dashboard() {
           </div>
         </section>
         </div>
+        )}
+
+        {/* Quản lý Collector Tab */}
+        {activeTab === 'collectors' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* 1. Thống kê theo khu vực */}
+            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-2">Thống kê khu vực</p>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Nhân sự theo Địa bàn</h2>
+              <div className="flex flex-wrap gap-3">
+                {Object.entries(
+                  collectors.reduce((acc, c) => {
+                    const area = c.ward || c.district || c.area || 'Chưa thiết lập';
+                    acc[area] = (acc[area] || 0) + 1;
+                    return acc;
+                  }, {})
+                ).map(([area, count]) => (
+                  <div key={area} className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 px-4 py-2 rounded-2xl border border-emerald-100/50 dark:border-emerald-900/30">
+                    <span className="material-symbols-outlined text-base">location_on</span>
+                    <span className="text-sm font-semibold">{area}:</span>
+                    <span className="text-sm font-bold bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Danh sách & Quản lý Nhóm */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Cột trái: Danh sách chi tiết */}
+              <div className="lg:col-span-2 space-y-6">
+                <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                  <div className="mb-6">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Chi tiết nhân sự</p>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Danh sách Nhân viên thu gom</h2>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm text-slate-600 dark:text-slate-300 font-medium">
+                      <thead className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                        <tr>
+                          <th className="px-4 py-3">Họ tên</th>
+                          <th className="px-4 py-3">Email / SĐT</th>
+                          <th className="px-4 py-3">Khu vực phụ trách</th>
+                          <th className="px-4 py-3">Đội nhóm (Team)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {collectors.length === 0 ? (
+                          <tr>
+                            <td colSpan="4" className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">Không có nhân viên thu gom nào.</td>
+                          </tr>
+                        ) : (
+                          collectors.map((col) => {
+                            const area = col.ward || col.district || col.area || 'Chưa thiết lập';
+                            const team = teams.find(t => (t.members || []).some(m => m.id === col.uid));
+                            const teamName = team ? team.team_name : 'Chưa tham gia nhóm';
+
+                            return (
+                              <tr key={col.uid} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                                <td className="px-4 py-4 font-semibold text-slate-900 dark:text-white">
+                                  {col.fullName}
+                                </td>
+                                <td className="px-4 py-4 text-xs">
+                                  <div className="text-slate-900 dark:text-white">{col.email}</div>
+                                  <div className="text-slate-400">{col.phone || '—'}</div>
+                                </td>
+                                <td className="px-4 py-4 text-slate-600 dark:text-slate-300 text-xs">
+                                  {area}
+                                </td>
+                                <td className="px-4 py-4 text-xs">
+                                  <span className={`px-2.5 py-1 rounded-full font-bold ${team ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/50 dark:text-slate-400'}`}>
+                                    {teamName}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+
+              {/* Cột phải: Quản lý nhóm */}
+              <div>
+                <TeamManager
+                  teams={teams}
+                  collectors={collectors}
+                  refreshTeams={fetchTeams}
+                  managerLoading={managerLoading}
+                  setManagerLoading={setManagerLoading}
+                  setManagerError={setManagerError}
+                />
+              </div>
+            </div>
+          </div>
         )}
 
         {viewingIncident && viewingIncident.incident && (
