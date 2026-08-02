@@ -122,6 +122,7 @@ async function getPaidInvoicesForUser(userId) {
 }
 
 module.exports = {
+  serializeInvoice,
   getLatestInvoiceForUser,
   getInvoiceById,
   createOrUpdateInvoice,

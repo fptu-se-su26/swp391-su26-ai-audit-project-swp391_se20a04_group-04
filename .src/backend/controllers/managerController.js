@@ -499,6 +499,17 @@ async function createInvoice(req, res) {
       updatedAt: new Date().toISOString(),
     });
 
+    // Gửi thông báo cho cư dân về hóa đơn mới
+    const dueDateFormatted = new Date(dueDate).toLocaleDateString('vi-VN');
+    await db.collection('notifications').add({
+      user_id: userId,
+      title: 'Hóa đơn mới',
+      content: `Hóa đơn phí vệ sinh môi trường tháng ${billingMonth}/${billingYear} đã được phát hành. Số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫. Hạn thanh toán: ${dueDateFormatted}. Vui lòng thanh toán đúng hạn.`,
+      type: 'invoice_created',
+      is_read: false,
+      sent_at: new Date(),
+    });
+
     return res.status(201).json(invoice);
   } catch (error) {
     console.error('[API] Lỗi tạo hóa đơn bởi manager:', error.message);

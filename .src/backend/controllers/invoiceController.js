@@ -1,5 +1,6 @@
 const { db } = require('../config/firebase');
 const invoiceService = require('../services/invoiceService');
+const { serializeInvoice } = require('../services/invoiceService');
 const { createPayOSPaymentSession, verifyPayOSPayment } = require('../helpers/payosHelper');
 
 /**
@@ -154,6 +155,7 @@ async function verifyPayment(req, res) {
 
     // Tạo bản ghi giao dịch trong collection 'payments'
     const paymentId = `payment_${Date.now()}`;
+    const transactionCode = `PAYOS_${invoice.invoiceId}`;
     await db.collection('payments').doc(paymentId).set({
       paymentId,
       invoiceId: invoice.invoiceId,
@@ -161,11 +163,21 @@ async function verifyPayment(req, res) {
       amount: invoice.amount,
       currency: invoice.currency || 'VND',
       method: 'PayOS',
-      transactionCode: `PAYOS_${invoice.invoiceId}`,
+      transactionCode,
       status: 'success',
       gatewayResponse: { code: '00', message: 'Success' },
       createdAt: new Date().toISOString(),
       paidAt: new Date().toISOString(),
+    });
+
+    // Gửi thông báo thanh toán thành công cho cư dân
+    await db.collection('notifications').add({
+      user_id: req.uid,
+      title: 'Thanh toán thành công',
+      content: `Bạn đã thanh toán thành công hóa đơn phí vệ sinh môi trường tháng ${invoice.billingMonth || ''}/${invoice.billingYear || ''}. Số tiền: ${Number(invoice.amount || 0).toLocaleString('vi-VN')} ₫. Mã giao dịch: ${transactionCode}.`,
+      type: 'payment_success',
+      is_read: false,
+      sent_at: new Date(),
     });
 
     return res.status(200).json({ invoice: updatedInvoice, paid: true });

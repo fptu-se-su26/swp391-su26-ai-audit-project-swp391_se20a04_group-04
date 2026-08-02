@@ -73,6 +73,8 @@ export default function CollectorDashboard() {
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [calendarDate, setCalendarDate] = useState(new Date());
+  const [calendarView, setCalendarView] = useState('week');
 
   // Deny-week state
   const [showDenyModal, setShowDenyModal] = useState(false);
@@ -498,7 +500,10 @@ export default function CollectorDashboard() {
                   startAccessor="start"
                   endAccessor="end"
                   style={{ height: 560 }}
-                  defaultView="week"
+                  date={calendarDate}
+                  onNavigate={(newDate) => setCalendarDate(newDate)}
+                  view={calendarView}
+                  onView={(newView) => setCalendarView(newView)}
                   views={['week', 'month']}
                   culture="vi"
                   messages={{ week: 'Tuần', month: 'Tháng', today: 'Hôm nay', previous: '‹', next: '›', noEventsInRange: 'Không có lịch trong khoảng này.' }}
