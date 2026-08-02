@@ -60,24 +60,7 @@ export default function Payment() {
   const [myInvoices, setMyInvoices] = useState([]);
   const historyRef = useRef(null);
 
-  // Khai báo trước useEffect để tránh Temporal Dead Zone
-  const createDefaultInvoice = async () => {
-    if (!currentUser) {
-      setError('Vui lòng đăng nhập trước khi thanh toán.');
-      return;
-    }
-
-    try {
-      const invoiceData = SAMPLE_INVOICE_TEMPLATE(currentUser.uid);
-      const created = await createInvoice(invoiceData);
-      setInvoice(created);
-      setMyInvoices([created]);
-      setPaymentStatus(created.status || 'unpaid');
-      setSuccess('Hóa đơn mẫu đã được tạo. Bạn có thể tiếp tục thanh toán.');
-    } catch (err) {
-      setError(buildErrorMessage(err));
-    }
-  };
+// Mock invoice generation removed
 
   useEffect(() => {
     if (!currentUser) {
@@ -120,11 +103,7 @@ export default function Payment() {
 
       } catch (err) {
         const message = buildErrorMessage(err);
-        if (message.includes('Không tìm thấy')) {
-          await createDefaultInvoice();
-        } else {
-          setError(message);
-        }
+        setError(message);
       } finally {
         setLoading(false);
       }
