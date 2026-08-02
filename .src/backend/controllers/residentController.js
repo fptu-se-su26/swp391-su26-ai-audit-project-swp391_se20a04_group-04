@@ -49,17 +49,36 @@ async function getUpcomingSchedules(req, res) {
       });
     });
 
-    // Lọc lịch theo khu vực user (fuzzy match với city hoặc ward)
+    // Lọc lịch theo khu vực user
+    // user.area format: "Phường Thọ Quang, Thành phố Đà Nẵng" hoặc "Quận Sơn Trà, Đà Nẵng"
     const normalizedArea = normalizeStr(userArea);
 
+    // Tách ward và city từ user.area (format: "ward, city")
+    const areaParts = userArea.split(',').map(p => p.trim());
+    const userWardPart = areaParts.length >= 2 ? areaParts[0] : ''; // "Phường An Khê"
+    const userCityPart = areaParts.length >= 2 ? areaParts[areaParts.length - 1] : areaParts[0]; // "Thành phố Đà Nẵng"
+
+    const normalizedUserWard = normalizeStr(userWardPart);
+    const normalizedUserCity = normalizeStr(userCityPart);
+
     schedules = schedules.filter(s => {
-      const normalizedCity = normalizeStr(s.city);
-      const normalizedWard = normalizeStr(s.ward);
-      
-      const matchCity = normalizedCity && (normalizedArea.includes(normalizedCity) || normalizedCity.includes(normalizedArea));
-      const matchWard = normalizedWard && (normalizedArea.includes(normalizedWard) || normalizedWard.includes(normalizedArea));
-      
-      return matchCity || matchWard;
+      const normalizedScheduleCity = normalizeStr(s.city);
+      const normalizedScheduleWard = normalizeStr(s.ward);
+
+      // Phải khớp city trước
+      const matchCity = normalizedScheduleCity &&
+        (normalizedUserCity.includes(normalizedScheduleCity) || normalizedScheduleCity.includes(normalizedUserCity) ||
+         normalizedArea.includes(normalizedScheduleCity) || normalizedScheduleCity.includes(normalizedArea));
+
+      if (!matchCity) return false;
+
+      // Nếu user có ward trong area → chỉ hiển thị schedule có ward khớp
+      if (normalizedUserWard && normalizedScheduleWard) {
+        return normalizedUserWard.includes(normalizedScheduleWard) || normalizedScheduleWard.includes(normalizedUserWard);
+      }
+
+      // Nếu user không có ward (area chỉ có city) → hiển thị tất cả schedule trong city
+      return !normalizedUserWard;
     });
 
     // Chỉ lấy lịch sắp tới (ngày >= hôm nay)

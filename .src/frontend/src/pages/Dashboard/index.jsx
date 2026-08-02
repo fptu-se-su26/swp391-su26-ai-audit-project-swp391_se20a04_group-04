@@ -572,9 +572,10 @@ export default function Dashboard() {
         const selectedRoute = routes.find(r => r.id === newSchedule.routeId);
         if (selectedRoute) {
           routeName = selectedRoute.route_name;
-          city = selectedRoute.city;
-          ward = selectedRoute.ward;
-          neighborhood = selectedRoute.neighborhood;
+          // Ưu tiên lựa chọn trên form (newSchedule), nếu trống mới dùng mặc định của Tuyến mẫu
+          city = newSchedule.city || selectedRoute.city;
+          ward = newSchedule.ward || selectedRoute.ward;
+          neighborhood = newSchedule.neighborhood || selectedRoute.neighborhood;
           rtPoints = sanitizeRoutePoints(selectedRoute.route_points || []);
         }
       }

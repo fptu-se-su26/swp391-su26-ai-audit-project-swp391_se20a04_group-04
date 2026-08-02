@@ -92,8 +92,9 @@ async function getSchedules({ city, ward, neighborhood }) {
     console.log(`[scheduleService] Sau khi lọc theo city "${city}": ${schedules.length} lịch`);
 
     // Bước 2: Lọc theo Phường/Xã nếu người dùng chọn
+    // Dùng non-strict match vì API địa chính trả "Phường Thọ Quang" nhưng DB lưu "Thọ Quang"
     if (ward) {
-      schedules = schedules.filter(s => locationMatch(s.ward, ward, true));
+      schedules = schedules.filter(s => locationMatch(s.ward, ward, false));
       console.log(`[scheduleService] Sau khi lọc theo ward "${ward}": ${schedules.length} lịch`);
     } else {
       console.log(`[scheduleService] Không có ward trong truy vấn → hiển thị toàn bộ lịch cho city "${city}" (${schedules.length} lịch).`);
