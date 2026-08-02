@@ -43,7 +43,7 @@ export default function RouteManager({ routes, refreshRoutes, managerLoading, se
     <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
       <div className="mb-6">
         <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Quản lý</p>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Tuyến Mẫu (Routes)</h2>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Tuyến thu gom (Routes)</h2>
       </div>
 
       <form onSubmit={handleCreate} className="mb-6 space-y-4">

@@ -169,12 +169,15 @@ export default function Header() {
         {/* Nav links */}
         <nav className="hidden md:flex items-center gap-8">
           <Link className={navLinkClass('/thong-bao')} to="/thong-bao">Thông báo</Link>
-          <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
-          {userRole !== ROLES.ADMIN && (
+          {userRole !== ROLES.ADMIN && userRole !== ROLES.MANAGER && (
             <>
+              <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
               <Link className={navLinkClass('/huong-dan')} to="/huong-dan">Hướng dẫn phân loại</Link>
               <Link className={navLinkClass('/phan-anh')} to="/phan-anh">Gửi phản ánh</Link>
             </>
+          )}
+          {userRole === ROLES.MANAGER && (
+            <Link className={navLinkClass('/quan-ly')} to="/quan-ly">Quản lý</Link>
           )}
           {userRole === ROLES.ADMIN && (
             <Link className={navLinkClass('/quan-ly')} to="/quan-ly">Quản lý</Link>
@@ -365,7 +368,7 @@ export default function Header() {
                         </span>
                       )}
                     </button>
-                    {userRole !== ROLES.ADMIN && !isCollector && (
+                    {userRole !== ROLES.ADMIN && userRole !== ROLES.MANAGER && !isCollector && (
                       <button
                         onClick={() => { setShowUserMenu(false); navigate('/phan-anh'); }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"

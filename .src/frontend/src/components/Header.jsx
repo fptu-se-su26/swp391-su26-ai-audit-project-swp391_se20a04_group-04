@@ -197,12 +197,15 @@ export default function Header() {
             <>
               <Link className={navLinkClass('/tra-cuu')} to="/tra-cuu">Tra cứu lịch</Link>
               <Link className={navLinkClass('/thong-bao')} to="/thong-bao">Thông báo</Link>
-              <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
-              {userRole !== ROLES.ADMIN && (
+              {userRole !== ROLES.ADMIN && userRole !== ROLES.MANAGER && (
                 <>
+                  <Link className={navLinkClass('/thanh-toan')} to="/thanh-toan">Thanh toán</Link>
                   <Link className={navLinkClass('/huong-dan')} to="/huong-dan">Hướng dẫn phân loại</Link>
                   <Link className={navLinkClass('/phan-anh')} to="/phan-anh">Gửi phản ánh</Link>
                 </>
+              )}
+              {userRole === ROLES.MANAGER && (
+                <Link className={navLinkClass('/dashboard')} to="/dashboard">Bảng điều khiển</Link>
               )}
               {userRole === ROLES.ADMIN && (
                 <Link className={navLinkClass('/quan-ly')} to="/quan-ly">Quản lý</Link>
@@ -412,7 +415,7 @@ export default function Header() {
                         </span>
                       )}
                     </button>
-                    {userRole !== ROLES.ADMIN && !isCollector && (
+                    {userRole !== ROLES.ADMIN && userRole !== ROLES.MANAGER && !isCollector && (
                       <button
                         onClick={() => { setShowUserMenu(false); navigate('/phan-anh'); }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
@@ -526,16 +529,16 @@ export default function Header() {
                   <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">notifications</span>
                   Thông báo
                 </Link>
-                <Link
-                  to="/thanh-toan"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/thanh-toan') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
-                >
-                  <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">payments</span>
-                  Thanh toán
-                </Link>
-                {userRole !== ROLES.ADMIN && (
+                {userRole !== ROLES.ADMIN && userRole !== ROLES.MANAGER && (
                   <>
+                    <Link
+                      to="/thanh-toan"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isActive('/thanh-toan') ? 'bg-emerald-50 dark:bg-emerald-950/40 text-primary dark:text-primary-fixed font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                    >
+                      <span className="material-symbols-outlined text-xl text-emerald-600 dark:text-emerald-400">payments</span>
+                      Thanh toán
+                    </Link>
                     <Link
                       to="/huong-dan"
                       onClick={() => setIsMobileMenuOpen(false)}

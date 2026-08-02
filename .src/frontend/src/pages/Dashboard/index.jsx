@@ -137,22 +137,42 @@ export default function Dashboard() {
     notes: '',
   });
 
+  // Helper xử lý ngày tháng chuẩn múi giờ địa phương (tránh lệch UTC)
+  function toLocalDateString(dateObj) {
+    if (!dateObj || Number.isNaN(dateObj.getTime())) return '';
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  function parseLocalDate(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') return new Date();
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return new Date();
+    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  }
+
+  function getMondayOfWeek(dateStr) {
+    const d = parseLocalDate(dateStr);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    return toLocalDateString(d);
+  }
+
+  function getDateForDayOffset(weekMonday, dayIndex) {
+    const d = parseLocalDate(weekMonday);
+    d.setDate(d.getDate() + dayIndex);
+    return toLocalDateString(d);
+  }
+
   // Week-mode: create one schedule per selected day for a whole week
   const [scheduleMode, setScheduleMode] = useState('week'); // 'single' | 'week'
-  const [weekStartDate, setWeekStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - d.getDay() + 1); // Monday of current week
-    return d.toISOString().slice(0, 10);
-  });
+  const [weekStartDate, setWeekStartDate] = useState(() => getMondayOfWeek(toLocalDateString(new Date())));
   const [selectedDays, setSelectedDays] = useState([1, 2, 3, 4, 5]); // Mon-Fri
 
   const DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
-
-  function getDateForDayOffset(weekMonday, dayIndex) {
-    const d = new Date(weekMonday);
-    d.setDate(d.getDate() + dayIndex);
-    return d.toISOString().slice(0, 10);
-  }
 
   const [assignment, setAssignment] = useState({
     scheduleId: '',
@@ -595,7 +615,7 @@ export default function Dashboard() {
       const basePayload = { ...newSchedule, routeName, city, ward, neighborhood, assignedCollectors, teamId, routePoints: rtPoints };
 
       if (!routeName) {
-        throw new Error('Vui lòng chọn Tuyến Mẫu trước khi tạo lịch.');
+        throw new Error('Vui lòng chọn Tuyến thu gom trước khi tạo lịch.');
       }
       if (newSchedule.assignedType === 'team' && !teamId) {
         throw new Error('Vui lòng chọn Đội nhóm.');
@@ -1039,8 +1059,7 @@ export default function Dashboard() {
               { id: 'overview', label: 'Tổng quan', icon: 'dashboard' },
               { id: 'work', label: 'Quản lý lịch', icon: 'event_note' },
               { id: 'collectors', label: 'Nhân sự', icon: 'groups' },
-              { id: 'complaints', label: 'Phản ánh', icon: 'feedback' },
-              { id: 'reports', label: 'Báo cáo', icon: 'assignment' },
+              { id: 'complaints', label: 'Phản ánh & Sự cố', icon: 'feedback' },
               { id: 'salaries', label: 'Lương & Hiệu suất', icon: 'payments' },
             ].map(tab => (
               <button
@@ -1437,7 +1456,7 @@ export default function Dashboard() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="block">
-                    <span className="text-sm text-slate-600 dark:text-slate-300">Tuyến Mẫu <span className="text-rose-500">*</span></span>
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Tuyến thu gom <span className="text-rose-500">*</span></span>
                     <select
                       name="routeId"
                       value={newSchedule.routeId}
@@ -1476,17 +1495,19 @@ export default function Dashboard() {
                 {scheduleMode === 'week' ? (
                   <div className="space-y-3">
                     <label className="block">
-                      <span className="text-sm text-slate-600 dark:text-slate-300">Tuần bắt đầu (Thứ 2)</span>
-                      <input type="date" value={weekStartDate}
+                      <span className="text-sm text-slate-600 dark:text-slate-300">Chọn ngày (Tự động áp dụng tuần)</span>
+                      <input
+                        type="date"
+                        value={newSchedule.date || weekStartDate}
                         onChange={(e) => {
-                          const d = new Date(e.target.value);
-                          // Snap to Monday
-                          const day = d.getDay();
-                          const diff = day === 0 ? -6 : 1 - day;
-                          d.setDate(d.getDate() + diff);
-                          setWeekStartDate(d.toISOString().slice(0, 10));
+                          const val = e.target.value;
+                          if (!val) return;
+                          setNewSchedule(prev => ({ ...prev, date: val }));
+                          const monday = getMondayOfWeek(val);
+                          setWeekStartDate(monday);
                         }}
-                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
+                        className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
                     </label>
                     <div>
                       <span className="text-sm text-slate-600 dark:text-slate-300 block mb-2">Ngày trong tuần <span className="text-rose-500">*</span></span>
@@ -1495,11 +1516,20 @@ export default function Dashboard() {
                           const dayNum = i + 1;
                           const checked = selectedDays.includes(dayNum);
                           const dateStr = getDateForDayOffset(weekStartDate, i);
+                          const formattedDate = dateStr ? `${dateStr.slice(8)}/${dateStr.slice(5, 7)}` : '';
                           return (
-                            <button key={dayNum} type="button"
+                            <button
+                              key={dayNum}
+                              type="button"
                               onClick={() => setSelectedDays(prev => checked ? prev.filter(d => d !== dayNum) : [...prev, dayNum].sort())}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${checked ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-emerald-400'}`}>
-                              {label}<br /><span className="font-normal opacity-75">{dateStr.slice(5)}</span>
+                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all text-center ${
+                                checked
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
+                              }`}
+                            >
+                              {label}<br />
+                              <span className="font-normal opacity-90 text-[11px]">{formattedDate}</span>
                             </button>
                           );
                         })}
@@ -1826,8 +1856,8 @@ export default function Dashboard() {
             <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Quản lý phản ánh</p>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Phản ánh cư dân</h2>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Quản lý Phản ánh & Sự cố</p>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Phản ánh & Sự cố môi trường</h2>
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">{complaints.length} phản ánh</span>
               </div>

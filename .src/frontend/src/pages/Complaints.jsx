@@ -265,7 +265,10 @@ export default function Complaints() {
     });
   };
 
-  // Render luồng Admin
+  // Render luồng Manager / Admin
+  if (user && normalizeRole(user.role) === ROLES.MANAGER) {
+    return <Navigate to="/dashboard" replace />;
+  }
   if (user && normalizeRole(user.role) === ROLES.ADMIN) {
     return <Navigate to="/quan-ly?tab=complaints" replace />;
   }
