@@ -27,16 +27,28 @@ function toIsoString(value) {
 
 function mapScheduleItem(doc) {
   const data = doc.data();
+
+  let collectorName = data.assigned_collector || data.assignedCollector || data.collector_name || data.collectorName || '';
+  if (!collectorName && (data.assigned_collectors || data.assignedCollectors)) {
+    const cols = data.assigned_collectors || data.assignedCollectors;
+    if (Array.isArray(cols) && cols.length > 0) {
+      collectorName = cols.map(c => (typeof c === 'string' ? c : c.name || c.fullName || c.id)).join(', ');
+    }
+  }
+  if (!collectorName && (data.team_name || data.teamName || data.team_id || data.teamId)) {
+    collectorName = data.team_name || data.teamName || `Đội nhóm (${data.team_id || data.teamId})`;
+  }
+
   return {
     id: doc.id,
     sourceType: 'schedule',
-    route_name: data.route_name || '',
-    schedule_date: data.schedule_date,
-    date: toDateKey(data.schedule_date),
+    route_name: data.route_name || data.routeName || '',
+    schedule_date: data.schedule_date || data.date,
+    date: toDateKey(data.schedule_date || data.date),
     status: normalizeStatus(data.status),
-    assigned_collector: data.assigned_collector || '',
-    assigned_driver: data.assigned_driver || '',
-    assigned_truck: data.assigned_truck || '',
+    assigned_collector: collectorName || 'Chưa gán',
+    assigned_driver: data.assigned_driver || data.assignedDriver || '',
+    assigned_truck: data.assigned_truck || data.assignedTruck || '',
     ward: data.ward || '',
     neighborhood: data.neighborhood || '',
     evidence_urls: data.evidence_urls || data.evidenceUrls || [],

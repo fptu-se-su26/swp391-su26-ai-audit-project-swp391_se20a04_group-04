@@ -923,17 +923,33 @@ async function getDashboardStats(req, res) {
     });
     const complaintsChart = weekKeys.map(w => ({ week: w, received: weekMap[w].received, resolved: weekMap[w].resolved }));
 
-    // 3. Invoice status breakdown (current month)
+    // 3. Invoice status breakdown (current month or fallback to all active invoices)
     const thisYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const invoiceStatus = { paid: 0, unpaid: 0, overdue: 0 };
+    let invoiceStatus = { paid: 0, unpaid: 0, overdue: 0 };
+    let monthInvoicesCount = 0;
+
     invoices.forEach(inv => {
-      const yr = inv.billingYear || inv.year;
-      const mo = inv.billingMonth || inv.month;
+      const yr = inv.billingYear || inv.year || (inv.createdAt ? new Date(inv.createdAt).getFullYear() : null);
+      const mo = inv.billingMonth || inv.month || (inv.createdAt ? new Date(inv.createdAt).getMonth() + 1 : null);
       const ym = yr && mo ? `${yr}-${String(mo).padStart(2, '0')}` : null;
-      if (ym !== thisYm) return;
-      const s = (inv.status || 'unpaid').toLowerCase();
-      if (invoiceStatus[s] !== undefined) invoiceStatus[s]++;
+      if (ym === thisYm) {
+        monthInvoicesCount++;
+        const s = (inv.status || 'unpaid').toLowerCase();
+        if (s === 'paid' || s === 'completed' || s === 'success') invoiceStatus.paid++;
+        else if (s === 'overdue') invoiceStatus.overdue++;
+        else invoiceStatus.unpaid++;
+      }
     });
+
+    // Fallback: If no invoices exist for current month, count all invoices
+    if (monthInvoicesCount === 0 && invoices.length > 0) {
+      invoices.forEach(inv => {
+        const s = (inv.status || 'unpaid').toLowerCase();
+        if (s === 'paid' || s === 'completed' || s === 'success') invoiceStatus.paid++;
+        else if (s === 'overdue') invoiceStatus.overdue++;
+        else invoiceStatus.unpaid++;
+      });
+    }
 
     const statusLabels = {
       paid: 'Đã thanh toán',

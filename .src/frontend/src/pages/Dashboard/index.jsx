@@ -196,6 +196,11 @@ export default function Dashboard() {
   const [loadingProvinces, setLoadingProvinces] = useState(false);
   const [loadingWards, setLoadingWards] = useState(false);
 
+  // Bộ lọc & Tìm kiếm cho bảng Nhân viên thu gom
+  const [collectorSearchText, setCollectorSearchText] = useState('');
+  const [collectorAreaFilter, setCollectorAreaFilter] = useState('all');
+  const [collectorTeamFilter, setCollectorTeamFilter] = useState('all');
+
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
     if (!currentUser) {
@@ -1078,33 +1083,32 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* KPI Cards — always visible */}
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Lịch thu gom</p>
-            <p className="text-3xl font-bold text-slate-900 dark:text-white">{summary.totalSchedules}</p>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Tổng số lịch đang quản lý</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Tuyến đã gán</p>
-            <p className="text-3xl font-bold text-slate-900 dark:text-white">{summary.assignedRoutes}</p>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Số tuyến đã được phân công</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Phản ánh mở</p>
-            <p className="text-3xl font-bold text-slate-900 dark:text-white">{summary.openComplaints}</p>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Phản ánh chưa xử lý</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Lương hiệu suất</p>
-            <p className="text-3xl font-bold text-slate-900 dark:text-white">{summary.onTimeRate}%</p>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Tuyến gán đúng hạn</p>
-          </div>
-        </div>
-
-        {/* Overview Tab — Charts */}
+        {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {/* KPI Cards — chỉ hiển thị ở tab Tổng quan */}
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+              <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Lịch thu gom</p>
+                <p className="text-3xl font-bold text-slate-900 dark:text-white">{summary.totalSchedules}</p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Tổng số lịch đang quản lý</p>
+              </div>
+              <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Tuyến đã gán</p>
+                <p className="text-3xl font-bold text-slate-900 dark:text-white">{summary.assignedRoutes}</p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Số tuyến đã được phân công</p>
+              </div>
+              <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Phản ánh mở</p>
+                <p className="text-3xl font-bold text-slate-900 dark:text-white">{summary.openComplaints}</p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Phản ánh chưa xử lý</p>
+              </div>
+              <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Lương hiệu suất</p>
+                <p className="text-3xl font-bold text-slate-900 dark:text-white">{summary.onTimeRate}%</p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Tuyến gán đúng hạn</p>
+              </div>
+            </div>
             {loadingStats ? (
               <div className="flex items-center justify-center py-16 gap-3">
                 <span className="h-6 w-6 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
@@ -1146,16 +1150,23 @@ export default function Dashboard() {
                   {/* Invoice status pie */}
                   <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
                     <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Trạng thái hóa đơn (tháng này)</h3>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <PieChart>
-                        <Pie data={dashStats.invoiceStatusChart} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({name, percent}) => `${name} ${(percent*100).toFixed(0)}%`}>
-                          {dashStats.invoiceStatusChart.map((entry, i) => (
-                            <Cell key={i} fill={['#10b981','#f59e0b','#ef4444'][i % 3]} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {dashStats.invoiceStatusChart && dashStats.invoiceStatusChart.some(d => d.value > 0) ? (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <PieChart>
+                          <Pie data={dashStats.invoiceStatusChart.filter(d => d.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({name, percent}) => `${name} ${(percent*100).toFixed(0)}%`}>
+                            {dashStats.invoiceStatusChart.filter(d => d.value > 0).map((entry, i) => (
+                              <Cell key={i} fill={['#10b981','#f59e0b','#ef4444'][i % 3]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-[220px] text-slate-400 text-sm">
+                        <span className="material-symbols-outlined text-3xl mb-2 text-slate-300 dark:text-slate-600">receipt_long</span>
+                        <p className="font-medium text-slate-500 dark:text-slate-400">Chưa có dữ liệu hóa đơn tháng này.</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Collector payload bar */}
@@ -1809,141 +1820,10 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Duyệt kết quả</p>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Phản ánh chờ duyệt</h2>
-                </div>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {feedbackReports.filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase())).length} chờ duyệt
-                </span>
-              </div>
-              <div className="space-y-4">
-                {feedbackReports.filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase())).length === 0 ? (
-                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-950/50 p-4 text-sm text-slate-500 dark:text-slate-400">
-                    Không có phản ánh chờ duyệt.
-                  </div>
-                ) : (
-                  feedbackReports
-                    .filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase()))
-                    .slice(0, 5)
-                    .map((item) => (
-                      <div key={item.id} className="rounded-2xl border border-amber-200 dark:border-amber-900/50 p-4 bg-amber-50/50 dark:bg-amber-950/20">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-semibold text-slate-900 dark:text-white">{item.title}</p>
-                            <p className="mt-1 text-sm text-slate-500 line-clamp-2">{item.description}</p>
-                            <p className="mt-2 text-xs text-slate-400">{item.ward}{item.neighborhood ? ` · ${item.neighborhood}` : ''}</p>
-                          </div>
-                          <button
-                            type="button"
-                            disabled={managerLoading}
-                            onClick={() => handleApproveReport(item.id)}
-                            className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                          >
-                            Duyệt
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                )}
-              </div>
-            </div>
-
-            <AIComplaintSummary />
-
-            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Quản lý Phản ánh & Sự cố</p>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Phản ánh & Sự cố môi trường</h2>
-                </div>
-                <span className="text-xs text-slate-500 dark:text-slate-400">{complaints.length} phản ánh</span>
-              </div>
-
-              {/* Status filter tabs */}
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {[
-                  { key: 'all', label: 'Tất cả' },
-                  { key: 'Open', label: 'Mới' },
-                  { key: 'in_resolve', label: 'Đang xử lý' },
-                  { key: 'resolved', label: 'Đã giải quyết' },
-                  { key: 'rejected', label: 'Từ chối' },
-                ].map((tab) => {
-                  const count = tab.key === 'all'
-                    ? complaints.length
-                    : complaints.filter((c) => (c.status || 'Open').toLowerCase() === tab.key.toLowerCase()).length;
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => setComplaintFilter(tab.key)}
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors ${
-                        complaintFilter === tab.key
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-                      }`}
-                    >
-                      {tab.label} ({count})
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
-                {(() => {
-                  const filtered = complaintFilter === 'all'
-                    ? complaints
-                    : complaints.filter((c) => (c.status || 'Open').toLowerCase() === complaintFilter.toLowerCase());
-                  if (filtered.length === 0) {
-                    return (
-                      <div className="rounded-2xl bg-slate-50 dark:bg-slate-950/50 p-4 text-sm text-slate-500 dark:text-slate-400 text-center">
-                        Không có phản ánh nào.
-                      </div>
-                    );
-                  }
-                  return filtered.map((item) => {
-                    const s = (item.status || 'Open').toLowerCase();
-                    let statusColor = 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300';
-                    let statusLabel = 'Chờ xử lý';
-                    if (s === 'in_resolve') { statusColor = 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'; statusLabel = 'Đang xử lý'; }
-                    else if (s === 'resolved' || s === 'completed') { statusColor = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'; statusLabel = 'Đã giải quyết'; }
-                    else if (s === 'rejected') { statusColor = 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'; statusLabel = 'Từ chối'; }
-
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => { setViewingComplaint(item); setComplaintComment(item.reply || ''); }}
-                        className="w-full text-left rounded-2xl border border-slate-100 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-950/50 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-semibold text-slate-900 dark:text-white text-sm truncate">{item.title || 'Phản ánh mới'}</p>
-                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                              {item.userName || 'Cư dân'} · {item.created_at ? new Date(item.created_at).toLocaleDateString('vi-VN') : ''}
-                            </p>
-                          </div>
-                          <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor}`}>
-                            {statusLabel}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{item.description || 'Không có nội dung chi tiết.'}</p>
-                        {item.type && (
-                          <span className="inline-block mt-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
-                            {item.type}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  });
-                })()}
-              </div>
-            </div>
           </aside>
         </div>
 
+        {/* Collection schedule list section (Quản lý lịch) */}
         <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -2077,6 +1957,147 @@ export default function Dashboard() {
         </div>
         )}
 
+        {/* Complaints Tab */}
+        {activeTab === 'complaints' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* 1. Duyệt kết quả (Phản ánh chờ duyệt) */}
+            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Duyệt kết quả</p>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Phản ánh chờ duyệt</h2>
+                </div>
+                <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-1 rounded-full">
+                  {feedbackReports.filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase())).length} chờ duyệt
+                </span>
+              </div>
+              <div className="space-y-4">
+                {feedbackReports.filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase())).length === 0 ? (
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-950/50 p-6 text-sm text-slate-500 dark:text-slate-400 text-center">
+                    Không có phản ánh nào đang chờ duyệt.
+                  </div>
+                ) : (
+                  feedbackReports
+                    .filter((r) => ['resolved_pending_approval', 'resolved'].includes((r.status || '').toLowerCase()))
+                    .slice(0, 10)
+                    .map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-amber-200 dark:border-amber-900/50 p-4 bg-amber-50/50 dark:bg-amber-950/20">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-900 dark:text-white">{item.title}</p>
+                            <p className="mt-1 text-sm text-slate-500 line-clamp-2">{item.description}</p>
+                            <p className="mt-2 text-xs text-slate-400">{item.ward}{item.neighborhood ? ` · ${item.neighborhood}` : ''}</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={managerLoading}
+                            onClick={() => handleApproveReport(item.id)}
+                            className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50 hover:bg-emerald-500 transition-colors"
+                          >
+                            Duyệt
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+
+            {/* 2. Tóm tắt phản ánh bằng AI */}
+            <AIComplaintSummary />
+
+            {/* 3. Quản lý Phản ánh & Sự cố môi trường */}
+            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Quản lý Phản ánh & Sự cố</p>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Phản ánh & Sự cố môi trường</h2>
+                </div>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{complaints.length} phản ánh</span>
+              </div>
+
+              {/* Status filter tabs */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                {[
+                  { key: 'all', label: 'Tất cả' },
+                  { key: 'Open', label: 'Mới' },
+                  { key: 'in_resolve', label: 'Đang xử lý' },
+                  { key: 'resolved', label: 'Đã giải quyết' },
+                  { key: 'rejected', label: 'Từ chối' },
+                ].map((tab) => {
+                  const count = tab.key === 'all'
+                    ? complaints.length
+                    : complaints.filter((c) => (c.status || 'Open').toLowerCase() === tab.key.toLowerCase()).length;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setComplaintFilter(tab.key)}
+                      className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors ${
+                        complaintFilter === tab.key
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                      }`}
+                    >
+                      {tab.label} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="space-y-3">
+                {(() => {
+                  const filtered = complaintFilter === 'all'
+                    ? complaints
+                    : complaints.filter((c) => (c.status || 'Open').toLowerCase() === complaintFilter.toLowerCase());
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="rounded-2xl bg-slate-50 dark:bg-slate-950/50 p-6 text-sm text-slate-500 dark:text-slate-400 text-center">
+                        Không có phản ánh nào trong danh mục này.
+                      </div>
+                    );
+                  }
+                  return filtered.map((item) => {
+                    const s = (item.status || 'Open').toLowerCase();
+                    let statusColor = 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300';
+                    let statusLabel = 'Chờ xử lý';
+                    if (s === 'in_resolve') { statusColor = 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'; statusLabel = 'Đang xử lý'; }
+                    else if (s === 'resolved' || s === 'completed') { statusColor = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'; statusLabel = 'Đã giải quyết'; }
+                    else if (s === 'rejected') { statusColor = 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'; statusLabel = 'Từ chối'; }
+
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => { setViewingComplaint(item); setComplaintComment(item.reply || ''); }}
+                        className="w-full text-left rounded-2xl border border-slate-100 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-950/50 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 dark:text-white text-base truncate">{item.title || 'Phản ánh mới'}</p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                              {item.userName || 'Cư dân'} · {item.created_at ? new Date(item.created_at).toLocaleDateString('vi-VN') : ''}
+                            </p>
+                          </div>
+                          <span className={`shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${statusColor}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 line-clamp-2">{item.description || 'Không có nội dung chi tiết.'}</p>
+                        {item.type && (
+                          <span className="inline-block mt-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
+                            {item.type}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Quản lý Collector Tab */}
         {activeTab === 'collectors' && (
           <div className="space-y-6 animate-fade-in">
@@ -2101,76 +2122,145 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* 2. Danh sách & Quản lý Nhóm */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Cột trái: Danh sách chi tiết */}
-              <div className="lg:col-span-2 space-y-6">
-                <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-                  <div className="mb-6">
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Chi tiết nhân sự</p>
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Danh sách Nhân viên thu gom</h2>
+            {/* 2. Quản lý Đội Nhóm (Nằm TRÊN Danh sách Nhân viên thu gom) */}
+            <TeamManager
+              teams={teams}
+              collectors={collectors}
+              refreshTeams={fetchTeams}
+              managerLoading={managerLoading}
+              setManagerLoading={setManagerLoading}
+              setManagerError={setManagerError}
+            />
+
+            {/* 3. Danh sách Nhân viên thu gom */}
+            <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Chi tiết nhân sự</p>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Danh sách Nhân viên thu gom</h2>
+                </div>
+
+                {/* Thanh Lọc & Tìm kiếm */}
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  {/* Ô tìm kiếm */}
+                  <div className="relative shrink-0">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+                    <input
+                      type="text"
+                      placeholder="Tìm tên, email, SĐT..."
+                      value={collectorSearchText}
+                      onChange={(e) => setCollectorSearchText(e.target.value)}
+                      className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-white focus:outline-none focus:border-sky-400 w-44 sm:w-52"
+                    />
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-left text-sm text-slate-600 dark:text-slate-300 font-medium">
-                      <thead className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
-                        <tr>
-                          <th className="px-4 py-3">Họ tên</th>
-                          <th className="px-4 py-3">Email / SĐT</th>
-                          <th className="px-4 py-3">Khu vực phụ trách</th>
-                          <th className="px-4 py-3">Đội nhóm (Team)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                        {collectors.length === 0 ? (
+                  {/* Lọc theo Khu vực */}
+                  <select
+                    value={collectorAreaFilter}
+                    onChange={(e) => setCollectorAreaFilter(e.target.value)}
+                    className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-white focus:outline-none focus:border-sky-400 cursor-pointer font-medium"
+                  >
+                    <option value="all">Tất cả khu vực</option>
+                    {Array.from(new Set(collectors.map(c => c.ward || c.district || c.area || 'Chưa thiết lập'))).map(area => (
+                      <option key={area} value={area}>{area}</option>
+                    ))}
+                  </select>
+
+                  {/* Lọc theo Đội nhóm */}
+                  <select
+                    value={collectorTeamFilter}
+                    onChange={(e) => setCollectorTeamFilter(e.target.value)}
+                    className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-white focus:outline-none focus:border-sky-400 cursor-pointer font-medium"
+                  >
+                    <option value="all">Tất cả đội nhóm</option>
+                    <option value="none">Chưa tham gia nhóm</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.team_name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm text-slate-600 dark:text-slate-300 font-medium">
+                  <thead className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Họ tên</th>
+                      <th className="px-4 py-3">Email / SĐT</th>
+                      <th className="px-4 py-3">Khu vực phụ trách</th>
+                      <th className="px-4 py-3">Đội nhóm (Team)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {(() => {
+                      const filteredCollectors = collectors.filter(col => {
+                        const area = col.ward || col.district || col.area || 'Chưa thiết lập';
+                        const team = teams.find(t => (t.members || []).some(m => m.id === col.uid));
+
+                        // 1. Tìm kiếm theo từ khóa
+                        if (collectorSearchText.trim()) {
+                          const q = collectorSearchText.toLowerCase();
+                          const matchName = (col.fullName || '').toLowerCase().includes(q);
+                          const matchEmail = (col.email || '').toLowerCase().includes(q);
+                          const matchPhone = (col.phone || '').toLowerCase().includes(q);
+                          if (!matchName && !matchEmail && !matchPhone) return false;
+                        }
+
+                        // 2. Lọc theo khu vực
+                        if (collectorAreaFilter !== 'all' && area !== collectorAreaFilter) {
+                          return false;
+                        }
+
+                        // 3. Lọc theo đội nhóm
+                        if (collectorTeamFilter === 'none') {
+                          if (team) return false;
+                        } else if (collectorTeamFilter !== 'all') {
+                          if (!team || team.id !== collectorTeamFilter) return false;
+                        }
+
+                        return true;
+                      });
+
+                      if (filteredCollectors.length === 0) {
+                        return (
                           <tr>
-                            <td colSpan="4" className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">Không có nhân viên thu gom nào.</td>
+                            <td colSpan="4" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                              Không tìm thấy nhân viên thu gom nào phù hợp với bộ lọc.
+                            </td>
                           </tr>
-                        ) : (
-                          collectors.map((col) => {
-                            const area = col.ward || col.district || col.area || 'Chưa thiết lập';
-                            const team = teams.find(t => (t.members || []).some(m => m.id === col.uid));
-                            const teamName = team ? team.team_name : 'Chưa tham gia nhóm';
+                        );
+                      }
 
-                            return (
-                              <tr key={col.uid} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
-                                <td className="px-4 py-4 font-semibold text-slate-900 dark:text-white">
-                                  {col.fullName}
-                                </td>
-                                <td className="px-4 py-4 text-xs">
-                                  <div className="text-slate-900 dark:text-white">{col.email}</div>
-                                  <div className="text-slate-400">{col.phone || '—'}</div>
-                                </td>
-                                <td className="px-4 py-4 text-slate-600 dark:text-slate-300 text-xs">
-                                  {area}
-                                </td>
-                                <td className="px-4 py-4 text-xs">
-                                  <span className={`px-2.5 py-1 rounded-full font-bold ${team ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/50 dark:text-slate-400'}`}>
-                                    {teamName}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              </div>
+                      return filteredCollectors.map((col) => {
+                        const area = col.ward || col.district || col.area || 'Chưa thiết lập';
+                        const team = teams.find(t => (t.members || []).some(m => m.id === col.uid));
+                        const teamName = team ? team.team_name : 'Chưa tham gia nhóm';
 
-              {/* Cột phải: Quản lý nhóm */}
-              <div>
-                <TeamManager
-                  teams={teams}
-                  collectors={collectors}
-                  refreshTeams={fetchTeams}
-                  managerLoading={managerLoading}
-                  setManagerLoading={setManagerLoading}
-                  setManagerError={setManagerError}
-                />
+                        return (
+                          <tr key={col.uid} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                            <td className="px-4 py-4 font-semibold text-slate-900 dark:text-white">
+                              {col.fullName}
+                            </td>
+                            <td className="px-4 py-4 text-xs">
+                              <div className="text-slate-900 dark:text-white">{col.email}</div>
+                              <div className="text-slate-400">{col.phone || '—'}</div>
+                            </td>
+                            <td className="px-4 py-4 text-slate-600 dark:text-slate-300 text-xs">
+                              {area}
+                            </td>
+                            <td className="px-4 py-4 text-xs">
+                              <span className={`px-2.5 py-1 rounded-full font-bold ${team ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/50 dark:text-slate-400'}`}>
+                                {teamName}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
               </div>
-            </div>
+            </section>
           </div>
         )}
 
@@ -2318,7 +2408,13 @@ export default function Dashboard() {
                 <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/50 p-4">
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Collector</p>
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                    {viewingCompletion.assigned_collector || 'Chưa gán'}
+                    {viewingCompletion.assigned_collector && viewingCompletion.assigned_collector !== 'Chưa gán'
+                      ? viewingCompletion.assigned_collector
+                      : Array.isArray(viewingCompletion.assignedCollectors) && viewingCompletion.assignedCollectors.length > 0
+                      ? viewingCompletion.assignedCollectors.map(c => typeof c === 'string' ? c : c.name || c.fullName || c.id).join(', ')
+                      : viewingCompletion.teamId
+                      ? `Đội nhóm (${viewingCompletion.teamId})`
+                      : 'Chưa gán'}
                   </p>
                 </div>
 
