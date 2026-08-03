@@ -85,8 +85,14 @@ async function getUpcomingSchedules(req, res) {
     const todayStr = now.toISOString().slice(0, 10);
     schedules = schedules.filter(s => {
       if (!s.schedule_date) return false;
-      const schedDate = new Date(s.schedule_date).toISOString().slice(0, 10);
-      return schedDate >= todayStr;
+      try {
+        const d = new Date(s.schedule_date);
+        if (isNaN(d.getTime())) return false;
+        const schedDate = d.toISOString().slice(0, 10);
+        return schedDate >= todayStr;
+      } catch (e) {
+        return false;
+      }
     });
 
     // Sắp xếp theo ngày tăng dần

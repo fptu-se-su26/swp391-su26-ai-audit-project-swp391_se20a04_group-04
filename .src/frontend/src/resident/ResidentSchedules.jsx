@@ -256,10 +256,10 @@ export default function ResidentSchedules() {
                       month: 'long',
                       year: 'numeric',
                     });
-                    const timeStr = schedDate.toLocaleTimeString('vi-VN', {
+                    const timeStr = schedule.schedule_time || (isNaN(schedDate.getTime()) ? 'Chưa xếp giờ' : schedDate.toLocaleTimeString('vi-VN', {
                       hour: '2-digit',
                       minute: '2-digit',
-                    });
+                    }));
 
                     const serviceTypeLabel = {
                       'Recycling': 'Rác tái chế',
