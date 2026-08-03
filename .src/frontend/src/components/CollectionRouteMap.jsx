@@ -11,12 +11,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-const defaultRoutePoints = [
-  [16.0628, 108.2232],
-  [16.0685, 108.2197],
-  [16.0752, 108.2253],
-  [16.0818, 108.2322],
-];
+const defaultRoutePoints = [];
 
 const normalizeRoutePoints = (points) => {
   if (!Array.isArray(points)) return [];

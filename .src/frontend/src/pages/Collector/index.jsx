@@ -702,9 +702,15 @@ export default function CollectorDashboard() {
                 </div>
                 <div className="p-3">
                   <CollectionRouteMap
-                    title={selectedItem.routeName}
+                    title={selectedItem.routeName || selectedItem.route_name || 'Tuyến thu gom'}
                     collectorName={user.fullName}
-                    routePoints={selectedItem.routePoints?.length ? selectedItem.routePoints : undefined}
+                    routePoints={
+                      (selectedItem.route_points && selectedItem.route_points.length > 0)
+                        ? selectedItem.route_points
+                        : (selectedItem.routePoints && selectedItem.routePoints.length > 0)
+                          ? selectedItem.routePoints
+                          : []
+                    }
                     readOnly
                   />
                 </div>

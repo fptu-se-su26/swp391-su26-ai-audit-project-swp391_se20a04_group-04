@@ -186,6 +186,23 @@ export default function Dashboard() {
     return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   }
 
+  function getScheduleDateKey(scheduleDate) {
+    if (!scheduleDate) return '';
+    if (typeof scheduleDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(scheduleDate)) {
+      return scheduleDate;
+    }
+    try {
+      const d = new Date(scheduleDate);
+      if (Number.isNaN(d.getTime())) return '';
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    } catch {
+      return '';
+    }
+  }
+
   function getMondayOfWeek(dateStr) {
     const d = parseLocalDate(dateStr);
     const day = d.getDay();
@@ -677,8 +694,12 @@ export default function Dashboard() {
           city = newSchedule.city || selectedRoute.city;
           ward = newSchedule.ward || selectedRoute.ward;
           neighborhood = newSchedule.neighborhood || selectedRoute.neighborhood;
-          rtPoints = sanitizeRoutePoints(selectedRoute.route_points || []);
+          rtPoints = sanitizeRoutePoints(selectedRoute.route_points || selectedRoute.routePoints || []);
         }
+      }
+
+      if ((!rtPoints || rtPoints.length === 0) && routePoints && routePoints.length > 0) {
+        rtPoints = sanitizeRoutePoints(routePoints);
       }
 
       let assignedCollectors = [];
@@ -733,6 +754,17 @@ export default function Dashboard() {
 
       const created = datesToCreate.length - failed.length;
       setApiMessage(`Đã tạo ${created}/${datesToCreate.length} lịch thành công${failed.length > 0 ? ` (${failed.length} thất bại do trùng lịch)` : ''}. `);
+
+      // Tự động chuyển calendarMonth & calendarYear sang tháng của lịch mới vừa tạo để hiển thị ngay lập tức
+      if (datesToCreate[0]) {
+        const targetDateObj = parseLocalDate(datesToCreate[0]);
+        if (!Number.isNaN(targetDateObj.getTime())) {
+          setCalendarMonth(targetDateObj.getMonth());
+          setCalendarYear(targetDateObj.getFullYear());
+        }
+      }
+      setScheduleTeamFilter('all');
+
       await fetchSchedules();
     } catch (error) {
       setManagerError(error.message || 'Lỗi khi tạo lịch thu gom.');
@@ -2218,8 +2250,10 @@ export default function Dashboard() {
               {/* Số lịch tìm thấy */}
               <span className="ml-auto text-xs text-slate-400">
                 {schedules.filter(s => {
-                  const d = s.schedule_date ? new Date(s.schedule_date) : null;
-                  const monthMatch = !d ? false : (d.getMonth() === calendarMonth && d.getFullYear() === calendarYear);
+                  const key = getScheduleDateKey(s.schedule_date || s.date);
+                  if (!key) return false;
+                  const d = parseLocalDate(key);
+                  const monthMatch = d.getMonth() === calendarMonth && d.getFullYear() === calendarYear;
                   const teamMatch = scheduleTeamFilter === 'all' || s.team_id === scheduleTeamFilter;
                   return monthMatch && teamMatch;
                 }).length} lịch trong tháng
@@ -2240,12 +2274,11 @@ export default function Dashboard() {
             // Build schedulesByDay map: { 'YYYY-MM-DD': [schedules] }
             const schedulesByDay = {};
             schedules.forEach(s => {
-              if (!s.schedule_date) return;
-              const d = new Date(s.schedule_date);
-              if (isNaN(d.getTime())) return;
+              const key = getScheduleDateKey(s.schedule_date || s.date);
+              if (!key) return;
+              const d = parseLocalDate(key);
               if (d.getMonth() !== calendarMonth || d.getFullYear() !== calendarYear) return;
               if (scheduleTeamFilter !== 'all' && s.team_id !== scheduleTeamFilter) return;
-              const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
               if (!schedulesByDay[key]) schedulesByDay[key] = [];
               schedulesByDay[key].push(s);
             });
@@ -2374,25 +2407,11 @@ export default function Dashboard() {
                 // FIX: Normalize schedule_date về YYYY-MM-DD để tránh lặp ngày do ISO timestamp khác nhau
                 const dateMap = {};
                 schedules.forEach((s) => {
-                  // Filter theo tháng/năm + đội
-                  if (s.schedule_date) {
-                    const d = new Date(s.schedule_date);
-                    if (!isNaN(d.getTime())) {
-                      if (d.getMonth() !== calendarMonth || d.getFullYear() !== calendarYear) return;
-                    }
-                  }
+                  const dateKey = getScheduleDateKey(s.schedule_date || s.date);
+                  if (!dateKey) return;
+                  const d = parseLocalDate(dateKey);
+                  if (d.getMonth() !== calendarMonth || d.getFullYear() !== calendarYear) return;
                   if (scheduleTeamFilter !== 'all' && s.team_id !== scheduleTeamFilter) return;
-
-                  // Normalize dateKey về YYYY-MM-DD
-                  let dateKey = 'Chưa xếp ngày';
-                  if (s.schedule_date) {
-                    const d = new Date(s.schedule_date);
-                    if (!isNaN(d.getTime())) {
-                      dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                    } else if (typeof s.schedule_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.schedule_date)) {
-                      dateKey = s.schedule_date;
-                    }
-                  }
 
                   if (!dateMap[dateKey]) dateMap[dateKey] = {};
 
@@ -2402,6 +2421,9 @@ export default function Dashboard() {
                     teamName = foundTeam ? foundTeam.team_name : `Đội ${s.team_id}`;
                   } else if (s.assigned_collectors && s.assigned_collectors.length > 0) {
                     teamName = s.assigned_collectors.map((c) => c.name).join(', ');
+                  } else if (s.assigned_collector) {
+                    const foundCol = collectors.find(c => c.uid === s.assigned_collector);
+                    teamName = foundCol ? foundCol.fullName : `Cá nhân (${s.assigned_collector.slice(0, 6)})`;
                   }
 
                   if (!dateMap[dateKey][teamName]) dateMap[dateKey][teamName] = [];
@@ -3578,12 +3600,18 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-4">
                 <CollectionRouteMap
-                  initialRoutePoints={viewingRouteMapSchedule.route_points || routePoints}
+                  title={`Lộ trình: ${viewingRouteMapSchedule.route_name || 'Tuyến thu gom'}`}
+                  collectorName={viewingRouteMapSchedule.assigned_collector || viewingRouteMapSchedule.assigned_driver || 'Chưa gán'}
+                  routePoints={
+                    (viewingRouteMapSchedule.route_points && viewingRouteMapSchedule.route_points.length > 0)
+                      ? viewingRouteMapSchedule.route_points
+                      : (viewingRouteMapSchedule.routePoints && viewingRouteMapSchedule.routePoints.length > 0)
+                        ? viewingRouteMapSchedule.routePoints
+                        : routePoints
+                  }
                   readOnly={true}
                 />
-              </div>
 
               <div className="border-t border-slate-100 dark:border-slate-700 p-4 flex justify-end">
                 <button
