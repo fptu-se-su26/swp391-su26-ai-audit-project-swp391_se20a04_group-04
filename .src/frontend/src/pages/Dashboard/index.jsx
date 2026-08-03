@@ -95,11 +95,19 @@ function formatScheduleTime(schedule) {
 const sanitizeRoutePoints = (points) => {
   if (!Array.isArray(points)) return [];
   return points.reduce((valid, point) => {
-    if (!Array.isArray(point) || point.length < 2) return valid;
-    const lat = Number(point[0]);
-    const lng = Number(point[1]);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return valid;
-    valid.push([lat, lng]);
+    // Hỗ trợ cả dạng [lat, lng] array lẫn { lat, lng } object (Firestore format)
+    if (Array.isArray(point) && point.length >= 2) {
+      const lat = Number(point[0]);
+      const lng = Number(point[1]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) valid.push([lat, lng]);
+      return valid;
+    }
+    if (point && typeof point === 'object' && point.lat !== undefined && point.lng !== undefined) {
+      const lat = Number(point.lat);
+      const lng = Number(point.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) valid.push([lat, lng]);
+      return valid;
+    }
     return valid;
   }, []);
 };
@@ -2078,21 +2086,37 @@ export default function Dashboard() {
                         }`}>{day}</span>
 
                         {/* Schedules dots / badges */}
-                        {daySchedules.length > 0 && (
-                          <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
-                            {daySchedules.slice(0, 2).map(s => {
-                              const teamName = s.team_id ? (teams.find(t => t.id === s.team_id)?.team_name || 'Đội') : 'Cá nhân';
-                              return (
-                                <span key={s.id} className="text-[9px] font-semibold px-1 py-0.5 rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300 truncate leading-tight">
-                                  {teamName}
+                        {daySchedules.length > 0 && (() => {
+                          const groupedInCell = {};
+                          daySchedules.forEach(s => {
+                            let tn = 'Cá nhân';
+                            if (s.team_id) { const ft = teams.find(t => t.id === s.team_id); tn = ft ? ft.team_name : `Đội ${s.team_id}`; }
+                            if (!groupedInCell[tn]) groupedInCell[tn] = [];
+                            groupedInCell[tn].push(s);
+                          });
+                          const teamEntries = Object.entries(groupedInCell);
+
+                          return (
+                            <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
+                              {teamEntries.slice(0, 2).map(([tName, list]) => (
+                                <span
+                                  key={tName}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewingGroupDetail({ dateStr: dateKey, teamName: tName, scheduleList: list, allGroups: groupedInCell });
+                                  }}
+                                  className="text-[9px] font-semibold px-1 py-0.5 rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300 hover:bg-sky-200 dark:hover:bg-sky-900 truncate leading-tight transition-colors"
+                                  title={`Bấm xem đội ${tName}`}
+                                >
+                                  {tName} ({list.length})
                                 </span>
-                              );
-                            })}
-                            {daySchedules.length > 2 && (
-                              <span className="text-[9px] text-slate-400 pl-1">+{daySchedules.length - 2} nữa</span>
-                            )}
-                          </div>
-                        )}
+                              ))}
+                              {teamEntries.length > 2 && (
+                                <span className="text-[9px] text-slate-400 pl-1">+{teamEntries.length - 2} đội nữa</span>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Status indicators */}
                         <div className="flex items-center gap-1 mt-auto">
@@ -2205,7 +2229,7 @@ export default function Dashboard() {
                           return (
                             <div
                               key={teamName}
-                              onClick={() => setViewingGroupDetail({ dateStr, teamName, scheduleList })}
+                              onClick={() => setViewingGroupDetail({ dateStr, teamName, scheduleList, allGroups: teamsInDate })}
                               className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-4 shadow-sm hover:border-sky-400 hover:shadow-md transition-all cursor-pointer group"
                             >
                               <div className="flex items-start justify-between gap-2 mb-3">
@@ -3106,6 +3130,41 @@ export default function Dashboard() {
               </div>
 
               <div className="p-6 space-y-5">
+                {/* 🔄 Thanh chuyển đổi giữa các Đội trong ngày (khi ngày đó có nhiều hơn 1 đội hoạt động) */}
+                {viewingGroupDetail.allGroups && Object.keys(viewingGroupDetail.allGroups).length > 1 && (
+                  <div className="p-3.5 rounded-2xl bg-sky-50/70 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/50 space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-sky-800 dark:text-sky-300">
+                      🏢 Các đội hoạt động trong ngày ({Object.keys(viewingGroupDetail.allGroups).length} đội):
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(viewingGroupDetail.allGroups).map(([tName, sList]) => {
+                        const isActive = viewingGroupDetail.teamName === tName;
+                        return (
+                          <button
+                            key={tName}
+                            type="button"
+                            onClick={() => setViewingGroupDetail(prev => ({
+                              ...prev,
+                              teamName: tName,
+                              scheduleList: sList
+                            }))}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                              isActive
+                                ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-300 dark:ring-sky-500'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-sky-100 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            <span>👥 {tName}</span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
+                              {sList.length} tuyến
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Thông tin Xe & Tuyến */}
                 <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-sm">
                   <div>

@@ -22,11 +22,20 @@ const normalizeRoutePoints = (points) => {
   if (!Array.isArray(points)) return [];
   return points
     .map((p) => {
-      if (!Array.isArray(p) || p.length < 2) return null;
-      const lat = Number(p[0]);
-      const lng = Number(p[1]);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-      return [lat, lng];
+      // Hỗ trợ cả dạng array [lat, lng] lẫn object { lat, lng }
+      if (Array.isArray(p) && p.length >= 2) {
+        const lat = Number(p[0]);
+        const lng = Number(p[1]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return [lat, lng];
+      }
+      if (p && typeof p === 'object' && p.lat !== undefined && p.lng !== undefined) {
+        const lat = Number(p.lat);
+        const lng = Number(p.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return [lat, lng];
+      }
+      return null;
     })
     .filter(Boolean);
 };
