@@ -201,6 +201,11 @@ export default function Dashboard() {
   const [collectorAreaFilter, setCollectorAreaFilter] = useState('all');
   const [collectorTeamFilter, setCollectorTeamFilter] = useState('all');
 
+  // Chế độ xem Lịch thu gom: 'calendar' (Lịch theo Đội nhóm) | 'table' (Bảng chi tiết)
+  const [scheduleViewMode, setScheduleViewMode] = useState('calendar');
+  const [viewingGroupDetail, setViewingGroupDetail] = useState(null);
+  const [viewingRouteMapSchedule, setViewingRouteMapSchedule] = useState(null);
+
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
     if (!currentUser) {
@@ -1823,136 +1828,293 @@ export default function Dashboard() {
           </aside>
         </div>
 
-        {/* Collection schedule list section (Quản lý lịch) */}
+        {/* Collection schedule list section (Quản lý lịch: Lịch theo Đội nhóm & Bảng chi tiết) */}
         <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Bảng chi tiết</p>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Collection schedule list</h2>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Quản lý lịch</p>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                {scheduleViewMode === 'calendar' ? 'Lịch làm việc theo Đội nhóm' : 'Bảng danh sách lịch thu gom'}
+              </h2>
             </div>
-            <button
-              onClick={loadManagerData}
-              className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
-            >
-              Làm mới
-            </button>
+
+            <div className="flex items-center gap-3">
+              {/* Nút chuyển đổi chế độ xem */}
+              <div className="inline-flex rounded-2xl bg-slate-100 dark:bg-slate-900 p-1 border border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setScheduleViewMode('calendar')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${
+                    scheduleViewMode === 'calendar'
+                      ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base">calendar_month</span>
+                  Lịch Đội nhóm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScheduleViewMode('table')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${
+                    scheduleViewMode === 'table'
+                      ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base">format_list_bulleted</span>
+                  Bảng chi tiết
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={loadManagerData}
+                className="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 shrink-0"
+              >
+                Làm mới
+              </button>
+            </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-slate-600 dark:text-slate-300">
-              <thead className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
-                <tr>
-                  <th className="px-4 py-3">Tuyến</th>
-                  <th className="px-4 py-3">Ngày giờ</th>
-                  <th className="px-4 py-3">Trạng thái</th>
-                  <th className="px-4 py-3">Xe</th>
-                  <th className="px-4 py-3">Phân công</th>
-                  <th className="px-4 py-3 text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                {schedules.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">Không có lịch thu gom nào.</td>
-                  </tr>
-                ) : (
-                  schedules.map((schedule) => (
-                    <tr key={schedule.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/70 transition-colors">
-                      <td className="px-4 py-4 font-medium text-slate-900 dark:text-white">
+
+          {/* CHẾ ĐỘ 1: LỊCH THEO ĐỘI NHÓM & NGÀY (CALENDAR VIEW) */}
+          {scheduleViewMode === 'calendar' && (
+            <div className="space-y-6">
+              {(() => {
+                // Nhóm lịch theo ngày -> sau đó nhóm theo Đội nhóm
+                const dateMap = {};
+                schedules.forEach((s) => {
+                  const dateStr = s.schedule_date || 'Chưa xếp ngày';
+                  if (!dateMap[dateStr]) dateMap[dateStr] = {};
+
+                  let teamName = 'Cá nhân';
+                  if (s.team_id) {
+                    const foundTeam = teams.find((t) => t.id === s.team_id);
+                    teamName = foundTeam ? foundTeam.team_name : `Đội ${s.team_id}`;
+                  } else if (s.assigned_collectors && s.assigned_collectors.length > 0) {
+                    teamName = s.assigned_collectors.map((c) => c.name).join(', ');
+                  }
+
+                  if (!dateMap[dateStr][teamName]) dateMap[dateStr][teamName] = [];
+                  dateMap[dateStr][teamName].push(s);
+                });
+
+                const sortedDates = Object.keys(dateMap).sort();
+                const todayStr = toLocalDateString(new Date());
+
+                if (sortedDates.length === 0) {
+                  return (
+                    <div className="p-8 text-center rounded-2xl bg-slate-50 dark:bg-slate-900/50 text-slate-400 text-sm">
+                      Chưa có lịch thu gom nào được khởi tạo.
+                    </div>
+                  );
+                }
+
+                return sortedDates.map((dateStr) => {
+                  const teamsInDate = dateMap[dateStr];
+                  const isToday = dateStr === todayStr;
+
+                  return (
+                    <div key={dateStr} className="rounded-2xl border border-slate-100 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/30 p-5 space-y-4">
+                      {/* Tiêu đề Ngày */}
+                      <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-3">
                         <div className="flex items-center gap-2">
-                          {schedule.route_name || 'Không xác định'}
-                          {schedule.incident && (
-                            <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
-                              <span className="material-symbols-outlined text-xs">warning</span>
-                              Sự cố
+                          <span className="material-symbols-outlined text-sky-600 dark:text-sky-400">calendar_today</span>
+                          <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                            Ngày {formatDate(dateStr)}
+                          </h3>
+                          {isToday && (
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-extrabold uppercase tracking-wider">
+                              Hôm nay
                             </span>
                           )}
                         </div>
-                      </td>
-                      <td className="px-4 py-4 text-slate-600 dark:text-slate-300">{formatDate(schedule.schedule_date)} {schedule.schedule_time || ''}</td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusBadge(schedule.status)}`}>
-                          {formatStatusLabel(schedule.status)}
+                        <span className="text-xs text-slate-500 font-medium">
+                          {Object.keys(teamsInDate).length} Đội/Nhân viên hoạt động
                         </span>
-                      </td>
-                      <td className="px-4 py-4">{schedule.assigned_truck || 'Chưa gán'}</td>
-                      <td className="px-4 py-4">
-                        {schedule.team_id ? (
-                          <span className="font-semibold text-sky-600 dark:text-sky-400">
-                            Đội: {teams.find(t => t.id === schedule.team_id)?.team_name || schedule.team_id}
+                      </div>
+
+                      {/* Lưới Thẻ Đội Nhóm trong Ngày */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {Object.entries(teamsInDate).map(([teamName, scheduleList]) => {
+                          const hasIncident = scheduleList.some((s) => s.incident);
+                          const isPendingApproval = scheduleList.some((s) => (s.status || '').toLowerCase() === 'completed_pending_approval');
+                          const truckName = scheduleList[0]?.assigned_truck || 'Chưa gán xe';
+
+                          return (
+                            <div
+                              key={teamName}
+                              onClick={() => setViewingGroupDetail({ dateStr, teamName, scheduleList })}
+                              className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-4 shadow-sm hover:border-sky-400 hover:shadow-md transition-all cursor-pointer group"
+                            >
+                              <div className="flex items-start justify-between gap-2 mb-3">
+                                <div>
+                                  <span className="inline-block px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 text-xs font-bold mb-1">
+                                    👥 {teamName}
+                                  </span>
+                                  <p className="text-xs text-slate-400">🚚 Xe: <span className="font-semibold text-slate-700 dark:text-slate-300">{truckName}</span></p>
+                                </div>
+                                <span className="material-symbols-outlined text-slate-400 group-hover:text-sky-500 transition-colors">chevron_right</span>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                  📌 <span className="font-bold text-slate-900 dark:text-white">{scheduleList.length} tuyến</span> thu gom:
+                                </p>
+                                <div className="flex flex-wrap gap-1">
+                                  {scheduleList.map((s) => (
+                                    <span key={s.id} className="text-[11px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 truncate max-w-[150px]">
+                                      {s.route_name || 'Tuyến'}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Cảnh báo & Trạng thái */}
+                              <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
+                                {hasIncident ? (
+                                  <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-xs">warning</span> Có sự cố
+                                  </span>
+                                ) : isPendingApproval ? (
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-xs">verified</span> Chờ duyệt
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">Bấm xem chi tiết...</span>
+                                )}
+                                <span className="text-sky-600 dark:text-sky-400 font-semibold group-hover:underline">Chi tiết ➔</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
+
+          {/* CHẾ ĐỘ 2: BẢNG DANH SÁCH CHI TIẾT (TABLE VIEW) */}
+          {scheduleViewMode === 'table' && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                <thead className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">Tuyến</th>
+                    <th className="px-4 py-3">Ngày giờ</th>
+                    <th className="px-4 py-3">Trạng thái</th>
+                    <th className="px-4 py-3">Xe</th>
+                    <th className="px-4 py-3">Phân công</th>
+                    <th className="px-4 py-3 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                  {schedules.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">Không có lịch thu gom nào.</td>
+                    </tr>
+                  ) : (
+                    schedules.map((schedule) => (
+                      <tr key={schedule.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/70 transition-colors">
+                        <td className="px-4 py-4 font-medium text-slate-900 dark:text-white">
+                          <div className="flex items-center gap-2">
+                            {schedule.route_name || 'Không xác định'}
+                            {schedule.incident && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                                <span className="material-symbols-outlined text-xs">warning</span>
+                                Sự cố
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-slate-600 dark:text-slate-300">{formatDate(schedule.schedule_date)} {schedule.schedule_time || ''}</td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusBadge(schedule.status)}`}>
+                            {formatStatusLabel(schedule.status)}
                           </span>
-                        ) : schedule.assigned_collectors && schedule.assigned_collectors.length > 0 ? (
-                          <span className="text-slate-700 dark:text-slate-300">
-                            Cá nhân: {schedule.assigned_collectors.map(c => c.name).join(', ')}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">Chưa gán</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {(schedule.status || '').toLowerCase() === 'completed_pending_approval' && (
-                            <>
+                        </td>
+                        <td className="px-4 py-4">{schedule.assigned_truck || 'Chưa gán'}</td>
+                        <td className="px-4 py-4">
+                          {schedule.team_id ? (
+                            <span className="font-semibold text-sky-600 dark:text-sky-400">
+                              Đội: {teams.find(t => t.id === schedule.team_id)?.team_name || schedule.team_id}
+                            </span>
+                          ) : schedule.assigned_collectors && schedule.assigned_collectors.length > 0 ? (
+                            <span className="text-slate-700 dark:text-slate-300">
+                              Cá nhân: {schedule.assigned_collectors.map(c => c.name).join(', ')}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">Chưa gán</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {(schedule.status || '').toLowerCase() === 'completed_pending_approval' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setViewingCompletion({
+                                      id: schedule.id,
+                                      route_name: schedule.route_name,
+                                      schedule_date: schedule.schedule_date,
+                                      assigned_collector: schedule.assigned_collector,
+                                      evidence_urls: schedule.evidence_urls || schedule.evidenceUrls || [],
+                                    });
+                                    setRejectCompletionNote('');
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
+                                >
+                                  <span className="material-symbols-outlined text-sm">image</span>
+                                  Minh chứng
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={managerLoading}
+                                  onClick={() => handleApproveCompletion(schedule.id)}
+                                  className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                                >
+                                  Xác nhận
+                                </button>
+                              </>
+                            )}
+                            {schedule.incident && (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setViewingCompletion({
-                                    id: schedule.id,
-                                    route_name: schedule.route_name,
-                                    schedule_date: schedule.schedule_date,
-                                    assigned_collector: schedule.assigned_collector,
-                                    evidence_urls: schedule.evidence_urls || schedule.evidenceUrls || [],
-                                  });
-                                  setRejectCompletionNote('');
-                                }}
+                                onClick={() => setViewingIncident(schedule)}
                                 className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
                               >
-                                <span className="material-symbols-outlined text-sm">image</span>
-                                Minh chứng
+                                <span className="material-symbols-outlined text-sm">visibility</span>
+                                Xem sự cố
                               </button>
+                            )}
+                            {schedule.collector_confirmed ? (
+                              <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
+                                <span className="material-symbols-outlined text-sm">lock</span>
+                                Đã khóa
+                              </span>
+                            ) : (
                               <button
                                 type="button"
                                 disabled={managerLoading}
-                                onClick={() => handleApproveCompletion(schedule.id)}
-                                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                                onClick={() => handleDeleteSchedule(schedule.id, schedule.route_name)}
+                                className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-400"
                               >
-                                Xác nhận
+                                <span className="material-symbols-outlined text-sm">delete</span>
+                                Xóa
                               </button>
-                            </>
-                          )}
-                          {schedule.incident && (
-                            <button
-                              type="button"
-                              onClick={() => setViewingIncident(schedule)}
-                              className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
-                            >
-                              <span className="material-symbols-outlined text-sm">visibility</span>
-                              Xem sự cố
-                            </button>
-                          )}
-                          {schedule.collector_confirmed ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
-                              <span className="material-symbols-outlined text-sm">lock</span>
-                              Đã khóa
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={managerLoading}
-                              onClick={() => handleDeleteSchedule(schedule.id, schedule.route_name)}
-                              className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-400"
-                            >
-                              <span className="material-symbols-outlined text-sm">delete</span>
-                              Xóa
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
         </div>
         )}
@@ -2647,6 +2809,240 @@ export default function Dashboard() {
                 >
                   <span className="material-symbols-outlined text-base">cancel</span>
                   Từ chối
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Chi Tiết Đội Nhóm Trong Ngày (Cho Calendar View) */}
+        {viewingGroupDetail && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingGroupDetail(null)}>
+            <div
+              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-3xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-slate-100 dark:border-slate-700 p-6 flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-sky-100 text-sky-600 dark:bg-sky-950/60 dark:text-sky-400">
+                      <span className="material-symbols-outlined text-lg">group</span>
+                    </span>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">{viewingGroupDetail.teamName}</h3>
+                  </div>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Lịch hoạt động ngày: <span className="font-semibold text-slate-800 dark:text-slate-200">{formatDate(viewingGroupDetail.dateStr)}</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingGroupDetail(null)}
+                  className="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                {/* Thông tin Xe & Tuyến */}
+                <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-sm">
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider">Phương tiện gán</p>
+                    <p className="font-bold text-slate-800 dark:text-white mt-0.5">🚚 {viewingGroupDetail.scheduleList[0]?.assigned_truck || 'Chưa gán xe'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-slate-400 uppercase tracking-wider">Tổng số tuyến</p>
+                    <p className="font-bold text-sky-600 dark:text-sky-400 mt-0.5">{viewingGroupDetail.scheduleList.length} tuyến thu gom</p>
+                  </div>
+                </div>
+
+                {/* 👥 1. DANH SÁCH THÀNH VIÊN TRONG ĐỘI */}
+                {(() => {
+                  const currentTeamObj = teams.find(
+                    (t) => t.id === viewingGroupDetail.scheduleList[0]?.team_id || t.team_name === viewingGroupDetail.teamName
+                  );
+                  const teamMembers = currentTeamObj?.members || [];
+
+                  return (
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        👥 Thành viên trong Đội ({teamMembers.length}):
+                      </p>
+                      {teamMembers.length === 0 ? (
+                        <p className="text-xs text-slate-400 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl">
+                          Chưa có thông tin danh sách thành viên cụ thể.
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                          {teamMembers.map((m, idx) => {
+                            const collectorObj = collectors.find((c) => c.uid === m.id || c.fullName === m.name);
+                            const phone = collectorObj?.phone || collectorObj?.email || 'Chưa có SĐT';
+                            return (
+                              <div
+                                key={m.id || idx}
+                                className="flex items-center gap-2 bg-sky-50/60 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/40 p-2.5 rounded-xl text-xs"
+                              >
+                                <span className="w-7 h-7 rounded-full bg-sky-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
+                                  {(m.name || 'C')[0].toUpperCase()}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-slate-800 dark:text-white truncate">{m.name}</p>
+                                  <p className="text-[10px] text-slate-400 truncate">{phone}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 🗺️ 2. DANH SÁCH TUYẾN KÈM NÚT XEM BẢN ĐỒ LỘ TRÌNH */}
+                <div className="space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Danh sách tuyến trong ngày:</p>
+                  {viewingGroupDetail.scheduleList.map((schedule) => (
+                    <div key={schedule.id} className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-slate-900 dark:text-white text-base">{schedule.route_name || 'Tuyến thu gom'}</p>
+                            {schedule.incident && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                                <span className="material-symbols-outlined text-xs">warning</span> Sự cố
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1">Giờ chạy: {schedule.schedule_time || 'Chưa đặt giờ'}</p>
+                        </div>
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadge(schedule.status)}`}>
+                          {formatStatusLabel(schedule.status)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                        {/* Nút Xem Bản Đồ Lộ Trình */}
+                        <button
+                          type="button"
+                          onClick={() => setViewingRouteMapSchedule(schedule)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300"
+                        >
+                          <span className="material-symbols-outlined text-sm">map</span> Xem lộ trình
+                        </button>
+
+                        {(schedule.status || '').toLowerCase() === 'completed_pending_approval' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViewingCompletion({
+                                  id: schedule.id,
+                                  route_name: schedule.route_name,
+                                  schedule_date: schedule.schedule_date,
+                                  assigned_collector: schedule.assigned_collector,
+                                  evidence_urls: schedule.evidence_urls || schedule.evidenceUrls || [],
+                                });
+                                setRejectCompletionNote('');
+                              }}
+                              className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
+                            >
+                              <span className="material-symbols-outlined text-sm">image</span> Minh chứng
+                            </button>
+                            <button
+                              type="button"
+                              disabled={managerLoading}
+                              onClick={() => handleApproveCompletion(schedule.id)}
+                              className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                            >
+                              Xác nhận
+                            </button>
+                          </>
+                        )}
+                        {schedule.incident && (
+                          <button
+                            type="button"
+                            onClick={() => setViewingIncident(schedule)}
+                            className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
+                          >
+                            <span className="material-symbols-outlined text-sm">visibility</span> Xem sự cố
+                          </button>
+                        )}
+                        {!schedule.collector_confirmed && (
+                          <button
+                            type="button"
+                            disabled={managerLoading}
+                            onClick={() => {
+                              handleDeleteSchedule(schedule.id, schedule.route_name);
+                              setViewingGroupDetail(null);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-400"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span> Xóa tuyến
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 dark:border-slate-700 p-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setViewingGroupDetail(null)}
+                  className="rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Xem Bản Đồ Lộ Trình (Leaflet Map Modal) */}
+        {viewingRouteMapSchedule && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4" onClick={() => setViewingRouteMapSchedule(null)}>
+            <div
+              className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-3xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-slate-100 dark:border-slate-700 p-6 flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+                      <span className="material-symbols-outlined text-lg">map</span>
+                    </span>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                      Bản đồ Lộ trình: {viewingRouteMapSchedule.route_name || 'Tuyến thu gom'}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Ngày chạy: {formatDate(viewingRouteMapSchedule.schedule_date)} · Xe: {viewingRouteMapSchedule.assigned_truck || 'Chưa gán'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingRouteMapSchedule(null)}
+                  className="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <CollectionRouteMap
+                  initialRoutePoints={viewingRouteMapSchedule.route_points || routePoints}
+                  readOnly={true}
+                />
+              </div>
+
+              <div className="border-t border-slate-100 dark:border-slate-700 p-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setViewingRouteMapSchedule(null)}
+                  className="rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                >
+                  Đóng bản đồ
                 </button>
               </div>
             </div>
