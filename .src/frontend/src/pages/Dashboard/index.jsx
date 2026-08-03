@@ -286,6 +286,14 @@ export default function Dashboard() {
   const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
   const [scheduleTeamFilter, setScheduleTeamFilter] = useState('all'); // filter by team id
 
+  // Table view pagination states
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(10);
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [calendarMonth, calendarYear, scheduleTeamFilter, scheduleViewMode]);
+
   // Ref cho modal chi tiết: auto-scroll về đầu mỗi khi mở
   const groupDetailModalRef = useRef(null);
   useEffect(() => {
@@ -2532,124 +2540,245 @@ export default function Dashboard() {
           )}
 
           {/* CHẾ ĐỘ 2: BẢNG DANH SÁCH CHI TIẾT (TABLE VIEW) */}
-          {scheduleViewMode === 'table' && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm text-slate-600 dark:text-slate-300">
-                <thead className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
-                  <tr>
-                    <th className="px-4 py-3">Tuyến</th>
-                    <th className="px-4 py-3">Ngày giờ</th>
-                    <th className="px-4 py-3">Trạng thái</th>
-                    <th className="px-4 py-3">Xe</th>
-                    <th className="px-4 py-3">Phân công</th>
-                    <th className="px-4 py-3 text-right">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {schedules.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">Không có lịch thu gom nào.</td>
-                    </tr>
-                  ) : (
-                    schedules.map((schedule) => (
-                      <tr key={schedule.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/70 transition-colors">
-                        <td className="px-4 py-4 font-medium text-slate-900 dark:text-white">
-                          <div className="flex items-center gap-2">
-                            {schedule.route_name || 'Không xác định'}
-                            {schedule.incident && (
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
-                                <span className="material-symbols-outlined text-xs">warning</span>
-                                Sự cố
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-slate-600 dark:text-slate-300">{formatDate(schedule.schedule_date)} · {formatScheduleTime(schedule)}</td>
-                        <td className="px-4 py-4">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusBadge(schedule.status)}`}>
-                            {formatStatusLabel(schedule.status)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4">{schedule.assigned_truck || 'Chưa gán'}</td>
-                        <td className="px-4 py-4">
-                          {schedule.team_id ? (
-                            <span className="font-semibold text-sky-600 dark:text-sky-400">
-                              Đội: {teams.find(t => t.id === schedule.team_id)?.team_name || schedule.team_id}
-                            </span>
-                          ) : schedule.assigned_collectors && schedule.assigned_collectors.length > 0 ? (
-                            <span className="text-slate-700 dark:text-slate-300">
-                              Cá nhân: {schedule.assigned_collectors.map(c => c.name).join(', ')}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">Chưa gán</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {(schedule.status || '').toLowerCase() === 'completed_pending_approval' && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setViewingCompletion({
-                                      id: schedule.id,
-                                      route_name: schedule.route_name,
-                                      schedule_date: schedule.schedule_date,
-                                      assigned_collector: schedule.assigned_collector,
-                                      evidence_urls: schedule.evidence_urls || schedule.evidenceUrls || [],
-                                    });
-                                    setRejectCompletionNote('');
-                                  }}
-                                  className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
-                                >
-                                  <span className="material-symbols-outlined text-sm">image</span>
-                                  Minh chứng
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={managerLoading}
-                                  onClick={() => handleApproveCompletion(schedule.id)}
-                                  className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                                >
-                                  Xác nhận
-                                </button>
-                              </>
-                            )}
-                            {schedule.incident && (
-                              <button
-                                type="button"
-                                onClick={() => setViewingIncident(schedule)}
-                                className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
-                              >
-                                <span className="material-symbols-outlined text-sm">visibility</span>
-                                Xem sự cố
-                              </button>
-                            )}
-                            {schedule.collector_confirmed ? (
-                              <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
-                                <span className="material-symbols-outlined text-sm">lock</span>
-                                Đã khóa
-                              </span>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled={managerLoading}
-                                onClick={() => handleDeleteSchedule(schedule.id, schedule.route_name)}
-                                className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-400"
-                              >
-                                <span className="material-symbols-outlined text-sm">delete</span>
-                                Xóa
-                              </button>
-                            )}
-                          </div>
-                        </td>
+          {scheduleViewMode === 'table' && (() => {
+            const filteredTableSchedules = schedules.filter(s => {
+              const key = getScheduleDateKey(s.schedule_date || s.date);
+              if (!key) return false;
+              const d = parseLocalDate(key);
+              const monthMatch = d.getMonth() === calendarMonth && d.getFullYear() === calendarYear;
+              const teamMatch = scheduleTeamFilter === 'all' || s.team_id === scheduleTeamFilter;
+              return monthMatch && teamMatch;
+            });
+
+            const totalTablePages = Math.ceil(filteredTableSchedules.length / tablePageSize) || 1;
+            const safeTablePage = Math.min(Math.max(1, tablePage), totalTablePages);
+            const startIndex = (safeTablePage - 1) * tablePageSize;
+            const paginatedSchedules = filteredTableSchedules.slice(startIndex, startIndex + tablePageSize);
+
+            return (
+              <div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                    <thead className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                      <tr>
+                        <th className="px-4 py-3">Tuyến</th>
+                        <th className="px-4 py-3">Ngày giờ</th>
+                        <th className="px-4 py-3">Trạng thái</th>
+                        <th className="px-4 py-3">Xe</th>
+                        <th className="px-4 py-3">Phân công</th>
+                        <th className="px-4 py-3 text-right">Thao tác</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                      {filteredTableSchedules.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                            Không có lịch thu gom nào trong tháng này.
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedSchedules.map((schedule) => (
+                          <tr key={schedule.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/70 transition-colors">
+                            <td className="px-4 py-4 font-medium text-slate-900 dark:text-white">
+                              <div className="flex items-center gap-2">
+                                {schedule.route_name || 'Không xác định'}
+                                {schedule.incident && (
+                                  <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                                    <span className="material-symbols-outlined text-xs">warning</span>
+                                    Sự cố
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-slate-600 dark:text-slate-300">{formatDate(schedule.schedule_date)} · {formatScheduleTime(schedule)}</td>
+                            <td className="px-4 py-4">
+                              <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusBadge(schedule.status)}`}>
+                                {formatStatusLabel(schedule.status)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4">{schedule.assigned_truck || 'Chưa gán'}</td>
+                            <td className="px-4 py-4">
+                              {schedule.team_id ? (
+                                <span className="font-semibold text-sky-600 dark:text-sky-400">
+                                  Đội: {teams.find(t => t.id === schedule.team_id)?.team_name || schedule.team_id}
+                                </span>
+                              ) : schedule.assigned_collectors && schedule.assigned_collectors.length > 0 ? (
+                                <span className="text-slate-700 dark:text-slate-300">
+                                  Cá nhân: {schedule.assigned_collectors.map(c => c.name).join(', ')}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">Chưa gán</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {(schedule.status || '').toLowerCase() === 'completed_pending_approval' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setViewingCompletion({
+                                          id: schedule.id,
+                                          route_name: schedule.route_name,
+                                          schedule_date: schedule.schedule_date,
+                                          assigned_collector: schedule.assigned_collector,
+                                          evidence_urls: schedule.evidence_urls || schedule.evidenceUrls || [],
+                                        });
+                                        setRejectCompletionNote('');
+                                      }}
+                                      className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
+                                    >
+                                      <span className="material-symbols-outlined text-sm">image</span>
+                                      Minh chứng
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={managerLoading}
+                                      onClick={() => handleApproveCompletion(schedule.id)}
+                                      className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                                    >
+                                      Xác nhận
+                                    </button>
+                                  </>
+                                )}
+                                {schedule.incident && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingIncident(schedule)}
+                                    className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
+                                  >
+                                    <span className="material-symbols-outlined text-sm">visibility</span>
+                                    Xem sự cố
+                                  </button>
+                                )}
+                                {schedule.collector_confirmed ? (
+                                  <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
+                                    <span className="material-symbols-outlined text-sm">lock</span>
+                                    Đã khóa
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={managerLoading}
+                                    onClick={() => handleDeleteSchedule(schedule.id, schedule.route_name)}
+                                    className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-400"
+                                  >
+                                    <span className="material-symbols-outlined text-sm">delete</span>
+                                    Xóa
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Thanh Phân Trang Pagination */}
+                {filteredTableSchedules.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-600 dark:text-slate-400">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>Hiển thị</span>
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        {startIndex + 1} - {Math.min(startIndex + tablePageSize, filteredTableSchedules.length)}
+                      </span>
+                      <span>trong tổng số</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{filteredTableSchedules.length}</span>
+                      <span>lịch</span>
+
+                      <span className="mx-2 text-slate-300 dark:text-slate-600">|</span>
+
+                      <span>Hiển thị:</span>
+                      <select
+                        value={tablePageSize}
+                        onChange={(e) => {
+                          setTablePageSize(Number(e.target.value));
+                          setTablePage(1);
+                        }}
+                        className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-slate-700 dark:text-slate-200 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-400"
+                      >
+                        <option value={10}>10 / trang</option>
+                        <option value={20}>20 / trang</option>
+                        <option value={50}>50 / trang</option>
+                        <option value={100}>100 / trang</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={safeTablePage <= 1}
+                        onClick={() => setTablePage(1)}
+                        className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition font-bold"
+                        title="Trang đầu"
+                      >
+                        «
+                      </button>
+                      <button
+                        type="button"
+                        disabled={safeTablePage <= 1}
+                        onClick={() => setTablePage(p => Math.max(1, p - 1))}
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition font-semibold"
+                      >
+                        ‹ Trước
+                      </button>
+
+                      {/* Page number buttons */}
+                      {Array.from({ length: totalTablePages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalTablePages || Math.abs(p - safeTablePage) <= 1)
+                        .reduce((acc, p, idx, arr) => {
+                          if (idx > 0 && p - arr[idx - 1] > 1) {
+                            acc.push('...');
+                          }
+                          acc.push(p);
+                          return acc;
+                        }, [])
+                        .map((item, idx) => {
+                          if (item === '...') {
+                            return <span key={`dots-${idx}`} className="px-1 text-slate-400 font-bold">...</span>;
+                          }
+                          const isCurrent = item === safeTablePage;
+                          return (
+                            <button
+                              key={item}
+                              type="button"
+                              onClick={() => setTablePage(item)}
+                              className={`min-w-[32px] h-[32px] rounded-xl text-xs font-extrabold transition-all ${
+                                isCurrent
+                                  ? 'bg-sky-600 text-white shadow-sm ring-2 ring-sky-300 dark:ring-sky-900'
+                                  : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
+                              }`}
+                            >
+                              {item}
+                            </button>
+                          );
+                        })}
+
+                      <button
+                        type="button"
+                        disabled={safeTablePage >= totalTablePages}
+                        onClick={() => setTablePage(p => Math.min(totalTablePages, p + 1))}
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition font-semibold"
+                      >
+                        Sau ›
+                      </button>
+                      <button
+                        type="button"
+                        disabled={safeTablePage >= totalTablePages}
+                        onClick={() => setTablePage(totalTablePages)}
+                        className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition font-bold"
+                        title="Trang cuối"
+                      >
+                        »
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </section>
         </div>
         )}

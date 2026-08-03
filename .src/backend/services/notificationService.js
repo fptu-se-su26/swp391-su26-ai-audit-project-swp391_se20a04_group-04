@@ -29,6 +29,14 @@ async function getNotifications(userId) {
   if (!personalSnapshot.empty) {
     personalSnapshot.docs.forEach((doc) => {
       const data = doc.data();
+      // Nếu userRole là manager/admin/collector -> Lọc bỏ các thông báo xác nhận thanh toán cá nhân của cư dân
+      if (['manager', 'admin', 'collector'].includes(userRole)) {
+        if (data.type === 'payment_success' || data.type === 'payment') {
+          if (data.targetRole === 'resident' || !data.targetRole) {
+            return;
+          }
+        }
+      }
       resultsMap.set(doc.id, {
         id: doc.id,
         ...data,
@@ -41,6 +49,13 @@ async function getNotifications(userId) {
     roleSnapshot.docs.forEach((doc) => {
       if (!resultsMap.has(doc.id)) {
         const data = doc.data();
+        if (['manager', 'admin', 'collector'].includes(userRole)) {
+          if (data.type === 'payment_success' || data.type === 'payment') {
+            if (data.targetRole === 'resident') {
+              return;
+            }
+          }
+        }
         const readBy = data.read_by || [];
         resultsMap.set(doc.id, {
           id: doc.id,

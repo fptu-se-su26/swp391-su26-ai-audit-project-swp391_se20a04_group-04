@@ -170,9 +170,10 @@ async function verifyPayment(req, res) {
       paidAt: new Date().toISOString(),
     });
 
-    // Gửi thông báo thanh toán thành công cho cư dân
+    // Gửi thông báo thanh toán thành công CHỈ cho Cư dân (chủ sở hữu hóa đơn)
     await db.collection('notifications').add({
-      user_id: req.uid,
+      user_id: invoice.userId || req.uid,
+      targetRole: 'resident',
       title: 'Thanh toán thành công',
       content: `Bạn đã thanh toán thành công hóa đơn phí vệ sinh môi trường tháng ${invoice.billingMonth || ''}/${invoice.billingYear || ''}. Số tiền: ${Number(invoice.amount || 0).toLocaleString('vi-VN')} ₫. Mã giao dịch: ${transactionCode}.`,
       type: 'payment_success',
