@@ -5,6 +5,7 @@ const complaintService = require('../services/complaintService');
 const reportService = require('../services/reportService');
 const invoiceService = require('../services/invoiceService');
 const scheduleCompletionService = require('../services/scheduleCompletionService');
+const attendanceService = require('../services/attendanceService');
 
 const USERS_COLLECTION = 'users';
 
@@ -602,6 +603,17 @@ async function approveDayCompletions(req, res) {
   }
 }
 
+async function getAttendanceSummary(req, res) {
+  try {
+    const { date, month, year } = req.query;
+    const data = await attendanceService.getManagerAttendanceSummary(date, month, year);
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('[API] Lỗi lấy báo cáo chấm công:', error.message);
+    return res.status(500).json({ error: 'Không thể tải dữ liệu chấm công.' });
+  }
+}
+
 module.exports = {
   getCollectors,
   getSchedules,
@@ -638,6 +650,7 @@ module.exports = {
   getTeamPerformance,
   getCollectorSalaries,
   setCollectorSalary,
+  getAttendanceSummary,
 };
 
 /**

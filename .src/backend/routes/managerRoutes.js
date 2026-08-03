@@ -47,4 +47,7 @@ router.get('/team-performance', managerController.getTeamPerformance);
 router.get('/collector-salaries', managerController.getCollectorSalaries);
 router.post('/collector-salaries', managerController.setCollectorSalary);
 
+// Attendance management
+router.get('/attendances', managerController.getAttendanceSummary);
+
 module.exports = router;

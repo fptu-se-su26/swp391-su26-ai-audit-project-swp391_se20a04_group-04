@@ -95,6 +95,12 @@ export default function CollectorDashboard() {
   const [currentSalary, setCurrentSalary] = useState(null);
   const [salaryHistory, setSalaryHistory] = useState([]);
 
+  // Attendance state
+  const [attendance, setAttendance] = useState(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [showAttendanceHistory, setShowAttendanceHistory] = useState(false);
+  const [attendanceHistory, setAttendanceHistory] = useState([]);
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -109,7 +115,7 @@ export default function CollectorDashboard() {
   const loadData = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
     try {
-      const [dashboardData, scheduleData, reportData, notifData, teamData, salaryData, salaryHistData] = await Promise.all([
+      const [dashboardData, scheduleData, reportData, notifData, teamData, salaryData, salaryHistData, attData] = await Promise.all([
         collectorService.getDashboard(todayISO()),
         collectorService.getAllSchedules(),
         collectorService.getAssignedReports().catch(() => []),
@@ -117,6 +123,7 @@ export default function CollectorDashboard() {
         collectorService.getMyTeam().catch(() => []),
         collectorService.getMySalary().catch(() => null),
         collectorService.getSalaryHistory().catch(() => []),
+        collectorService.getTodayAttendance().catch(() => null),
       ]);
       setError('');
       setSummary(dashboardData);
@@ -127,6 +134,7 @@ export default function CollectorDashboard() {
       setMyTeams(Array.isArray(teamData) ? teamData : []);
       setCurrentSalary(salaryData);
       setSalaryHistory(Array.isArray(salaryHistData) ? salaryHistData : []);
+      setAttendance(attData);
       setSelectedItem((prev) => {
         if (!prev) return items[0] || null;
         return items.find((i) => i.id === prev.id && i.sourceType === prev.sourceType) || items[0] || null;
@@ -137,6 +145,48 @@ export default function CollectorDashboard() {
       setLoading(false);
     }
   }, []);
+
+  const handleCheckIn = async () => {
+    setAttendanceLoading(true);
+    setMessage('');
+    setError('');
+    try {
+      const res = await collectorService.checkIn();
+      setMessage(res.message || 'Điểm danh vào ca thành công!');
+      const freshAtt = await collectorService.getTodayAttendance();
+      setAttendance(freshAtt);
+    } catch (err) {
+      setError(err.message || 'Không thể điểm danh vào ca.');
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const handleCheckOut = async () => {
+    setAttendanceLoading(true);
+    setMessage('');
+    setError('');
+    try {
+      const res = await collectorService.checkOut();
+      setMessage(res.message || 'Điểm danh ra ca thành công!');
+      const freshAtt = await collectorService.getTodayAttendance();
+      setAttendance(freshAtt);
+    } catch (err) {
+      setError(err.message || 'Không thể điểm danh ra ca.');
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const handleOpenAttendanceHistory = async () => {
+    setShowAttendanceHistory(true);
+    try {
+      const hist = await collectorService.getAttendanceHistory();
+      setAttendanceHistory(hist);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const filteredSchedules = useMemo(() => {
     if (!dateFilter) return schedules;
@@ -896,6 +946,56 @@ export default function CollectorDashboard() {
                   className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold disabled:opacity-60">
                   {denyLoading ? 'Đang gửi...' : 'Xác nhận từ chối'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Lịch Sử Chấm Công */}
+        {showAttendanceHistory && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowAttendanceHistory(false)}>
+            <div className="w-full max-w-2xl bg-white dark:bg-slate-800 rounded-3xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center p-6 border-b border-slate-100 dark:border-slate-700">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sky-600 dark:text-sky-400">calendar_month</span>
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">Lịch sử điểm danh chấm công tháng này</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAttendanceHistory(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-full"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="p-6 max-h-[70vh] overflow-y-auto space-y-3">
+                {attendanceHistory.length === 0 ? (
+                  <p className="text-center text-sm text-slate-400 py-8">Chưa có dữ liệu chấm công trong tháng này.</p>
+                ) : (
+                  attendanceHistory.map((rec) => (
+                    <div key={rec.id} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 text-sm">
+                      <div>
+                        <p className="font-bold text-slate-900 dark:text-white">Ngày {formatDateLabel(rec.date)}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          Vào ca: <span className="font-semibold text-slate-700 dark:text-slate-300">{rec.check_in ? new Date(rec.check_in).toLocaleTimeString('vi-VN') : '--:--'}</span>
+                          {rec.check_out && (
+                            <> · Ra ca: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(rec.check_out).toLocaleTimeString('vi-VN')}</span></>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          rec.status === 'completed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                          rec.status === 'in_shift' ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {rec.status === 'completed' ? 'Đã xong' : rec.status === 'in_shift' ? 'Đang làm' : rec.status}
+                        </span>
+                        <p className="text-xs font-bold text-sky-600 dark:text-sky-400 mt-1">{rec.work_hours || 0} giờ</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

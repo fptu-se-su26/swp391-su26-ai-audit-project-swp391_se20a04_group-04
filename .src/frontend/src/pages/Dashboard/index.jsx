@@ -238,6 +238,32 @@ export default function Dashboard() {
   const [scheduleViewMode, setScheduleViewMode] = useState('monthgrid');
   const [viewingGroupDetail, setViewingGroupDetail] = useState(null);
   const [viewingRouteMapSchedule, setViewingRouteMapSchedule] = useState(null);
+
+  // Manager Attendance tab states
+  const [attendanceSummary, setAttendanceSummary] = useState(null);
+  const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [attendanceMonth, setAttendanceMonth] = useState(() => new Date().getMonth() + 1);
+  const [attendanceYear, setAttendanceYear] = useState(() => new Date().getFullYear());
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
+  const [attendanceSubTab, setAttendanceSubTab] = useState('daily'); // 'daily' | 'monthly'
+
+  useEffect(() => {
+    if (activeTab === 'attendance' && user) {
+      let cancelled = false;
+      (async () => {
+        setLoadingAttendance(true);
+        try {
+          const data = await managerReportService.getAttendances(attendanceDate, attendanceMonth, attendanceYear);
+          if (!cancelled) setAttendanceSummary(data);
+        } catch (err) {
+          console.error('Lỗi tải chấm công:', err);
+        } finally {
+          if (!cancelled) setLoadingAttendance(false);
+        }
+      })();
+      return () => { cancelled = true; };
+    }
+  }, [activeTab, attendanceDate, attendanceMonth, attendanceYear, user]);
   // Bộ lọc lịch
   const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth()); // 0-indexed
   const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
@@ -1114,6 +1140,7 @@ export default function Dashboard() {
               { id: 'overview', label: 'Tổng quan', icon: 'dashboard' },
               { id: 'work', label: 'Quản lý lịch', icon: 'event_note' },
               { id: 'collectors', label: 'Nhân sự', icon: 'groups' },
+              { id: 'attendance', label: 'Chấm công ca làm', icon: 'how_to_reg' },
               { id: 'complaints', label: 'Phản ánh & Sự cố', icon: 'feedback' },
               { id: 'salaries', label: 'Lương & Hiệu suất', icon: 'payments' },
             ].map(tab => (
@@ -1240,6 +1267,207 @@ export default function Dashboard() {
               </>
             ) : (
               <p className="text-sm text-slate-400 text-center py-16">Không thể tải thống kê. Vui lòng thử lại.</p>
+            )}
+          </div>
+        )}
+
+        {/* Attendance Tab (Quản lý chấm công ca làm) */}
+        {activeTab === 'attendance' && (
+          <div className="space-y-6">
+            {/* Header & Sub-tabs */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Quản lý nhân sự</p>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Điểm danh & Chấm công Ca làm việc</h2>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-2xl bg-slate-100 dark:bg-slate-900 p-1 border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setAttendanceSubTab('daily')}
+                    className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
+                      attendanceSubTab === 'daily'
+                        ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                    }`}
+                  >
+                    📌 Điểm danh hôm nay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAttendanceSubTab('monthly')}
+                    className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
+                      attendanceSubTab === 'monthly'
+                        ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                    }`}
+                  >
+                    📊 Bảng công tháng
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Sub-tab 1: Daily Roll-Call */}
+            {attendanceSubTab === 'daily' && (
+              <div className="space-y-6">
+                {/* Metric Summary Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <p className="text-slate-400 text-xs font-bold uppercase mb-1">Tổng nhân viên</p>
+                    <p className="text-3xl font-bold text-slate-900 dark:text-white">{attendanceSummary?.stats?.totalCollectors || 0}</p>
+                  </div>
+                  <div className="bg-emerald-50/70 dark:bg-emerald-950/30 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-900/50 shadow-sm">
+                    <p className="text-emerald-700 dark:text-emerald-400 text-xs font-bold uppercase mb-1">Đang trong ca làm</p>
+                    <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{attendanceSummary?.stats?.inShift || 0}</p>
+                  </div>
+                  <div className="bg-sky-50/70 dark:bg-sky-950/30 p-5 rounded-2xl border border-sky-100 dark:border-sky-900/50 shadow-sm">
+                    <p className="text-sky-700 dark:text-sky-400 text-xs font-bold uppercase mb-1">Đã hoàn thành ca</p>
+                    <p className="text-3xl font-bold text-sky-600 dark:text-sky-400">{attendanceSummary?.stats?.completedToday || 0}</p>
+                  </div>
+                  <div className="bg-amber-50/70 dark:bg-amber-950/30 p-5 rounded-2xl border border-amber-100 dark:border-amber-900/50 shadow-sm">
+                    <p className="text-amber-700 dark:text-amber-400 text-xs font-bold uppercase mb-1">Chưa điểm danh</p>
+                    <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{attendanceSummary?.stats?.notCheckedIn || 0}</p>
+                  </div>
+                </div>
+
+                {/* Filter & Daily Table */}
+                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">Bảng điểm danh ca làm việc</h3>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500 font-semibold">Chọn ngày:</span>
+                      <input
+                        type="date"
+                        value={attendanceDate}
+                        onChange={e => setAttendanceDate(e.target.value)}
+                        className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white text-xs px-3 py-1.5"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                      <thead className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase">
+                        <tr>
+                          <th className="px-4 py-3">Nhân viên thu gom</th>
+                          <th className="px-4 py-3">Số điện thoại</th>
+                          <th className="px-4 py-3">Giờ vào ca (Check-in)</th>
+                          <th className="px-4 py-3">Giờ ra ca (Check-out)</th>
+                          <th className="px-4 py-3">Tổng giờ làm</th>
+                          <th className="px-4 py-3">Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {loadingAttendance ? (
+                          <tr><td colSpan="6" className="py-8 text-center text-slate-400">Đang tải bảng điểm danh...</td></tr>
+                        ) : !attendanceSummary?.dailySummary || attendanceSummary.dailySummary.length === 0 ? (
+                          <tr><td colSpan="6" className="py-8 text-center text-slate-400">Không có dữ liệu nhân viên.</td></tr>
+                        ) : (
+                          attendanceSummary.dailySummary.map((item) => (
+                            <tr key={item.collector_id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                              <td className="px-4 py-4 font-bold text-slate-900 dark:text-white">{item.collector_name}</td>
+                              <td className="px-4 py-4 text-slate-500">{item.phone || '--'}</td>
+                              <td className="px-4 py-4 font-semibold text-slate-700 dark:text-slate-300">
+                                {item.check_in ? new Date(item.check_in).toLocaleTimeString('vi-VN') : '--:--'}
+                              </td>
+                              <td className="px-4 py-4 font-semibold text-slate-700 dark:text-slate-300">
+                                {item.check_out ? new Date(item.check_out).toLocaleTimeString('vi-VN') : '--:--'}
+                              </td>
+                              <td className="px-4 py-4 font-bold text-sky-600 dark:text-sky-400">
+                                {item.work_hours ? `${item.work_hours} giờ` : '--'}
+                              </td>
+                              <td className="px-4 py-4">
+                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                                  item.status === 'in_shift' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                  item.status === 'completed' ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300' :
+                                  'bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400'
+                                }`}>
+                                  {item.status === 'in_shift' ? '🟢 Đang trong ca' :
+                                   item.status === 'completed' ? '🔵 Đã xong ca' : '⚪ Chưa vào ca'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab 2: Monthly Timesheet Summary */}
+            {attendanceSubTab === 'monthly' && (
+              <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">Bảng tổng hợp công tháng</h3>
+                    <p className="text-xs text-slate-400">Thống kê tổng số ngày công và giờ làm thực tế để duyệt lương</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={attendanceMonth}
+                      onChange={e => setAttendanceMonth(Number(e.target.value))}
+                      className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white text-xs px-3 py-1.5"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                        <option key={m} value={m}>Tháng {m}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={attendanceYear}
+                      onChange={e => setAttendanceYear(Number(e.target.value))}
+                      className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white text-xs px-3 py-1.5"
+                    >
+                      {[2025, 2026, 2027].map(y => (
+                        <option key={y} value={y}>Năm {y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                    <thead className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase">
+                      <tr>
+                        <th className="px-4 py-3">Nhân viên thu gom</th>
+                        <th className="px-4 py-3">Tổng số ngày công</th>
+                        <th className="px-4 py-3">Tổng số giờ làm</th>
+                        <th className="px-4 py-3">Đánh giá chuyên cần</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                      {loadingAttendance ? (
+                        <tr><td colSpan="4" className="py-8 text-center text-slate-400">Đang tải bảng công tháng...</td></tr>
+                      ) : !attendanceSummary?.monthlyTimesheet || attendanceSummary.monthlyTimesheet.length === 0 ? (
+                        <tr><td colSpan="4" className="py-8 text-center text-slate-400">Chưa có dữ liệu bảng công tháng này.</td></tr>
+                      ) : (
+                        attendanceSummary.monthlyTimesheet.map((row) => (
+                          <tr key={row.collector_id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                            <td className="px-4 py-4 font-bold text-slate-900 dark:text-white">{row.collector_name}</td>
+                            <td className="px-4 py-4 font-bold text-emerald-600 dark:text-emerald-400">
+                              {row.totalDays} ngày công
+                            </td>
+                            <td className="px-4 py-4 font-bold text-sky-600 dark:text-sky-400">
+                              {row.totalHours} giờ
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                                row.totalDays >= 20 ? 'bg-emerald-100 text-emerald-800' :
+                                row.totalDays >= 10 ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {row.totalDays >= 20 ? '🌟 Chuyên cần tốt' : row.totalDays >= 10 ? '👍 Đạt chỉ tiêu' : '⚠️ Cần cải thiện'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </div>
         )}

@@ -99,6 +99,7 @@ export default function CollectorLayout({ children, user }) {
 
   const navItems = [
     { path: '/collector', label: 'Lịch & Tuyến thu gom', icon: 'calendar_today' },
+    { path: '/collector/attendance', label: 'Chấm công & Ca làm', icon: 'timer' },
     { path: '/collector/reports', label: 'Phản ánh phân công', icon: 'chat_bubble' },
     { path: '/thong-bao', label: 'Trung tâm thông báo', icon: 'notifications' },
   ];

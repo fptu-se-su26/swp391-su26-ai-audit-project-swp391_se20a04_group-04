@@ -49,6 +49,19 @@ const managerReportService = {
     if (!response.ok) throw new Error(data.error || 'Không thể duyệt phản ánh.');
     return data;
   },
+
+  async getAttendances(date, month, year) {
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    if (month) params.set('month', month);
+    if (year) params.set('year', year);
+    const response = await fetch(`${API_BASE}/api/manager/attendances?${params}`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || 'Không thể tải dữ liệu chấm công.');
+    return data.data;
+  },
 };
 
 export default managerReportService;

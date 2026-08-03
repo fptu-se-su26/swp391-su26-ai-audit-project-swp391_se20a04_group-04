@@ -1,5 +1,6 @@
 const { db } = require('../config/firebase');
 const collectorService = require('../services/collectorService');
+const attendanceService = require('../services/attendanceService');
 
 /**
  * GET /api/dashboard/collector
@@ -213,6 +214,43 @@ async function confirmRoute(req, res) {
   }
 }
 
+async function getTodayAttendance(req, res) {
+  try {
+    const data = await attendanceService.getTodayAttendance(req.uid);
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Không thể tải điểm danh.' });
+  }
+}
+
+async function checkIn(req, res) {
+  try {
+    const data = await attendanceService.checkIn(req.uid, req.userProfile?.fullName, req.body);
+    return res.status(200).json({ success: true, message: 'Điểm danh vào ca thành công!', data });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message || 'Không thể điểm danh vào ca.' });
+  }
+}
+
+async function checkOut(req, res) {
+  try {
+    const data = await attendanceService.checkOut(req.uid, req.userProfile?.fullName, req.body);
+    return res.status(200).json({ success: true, message: 'Điểm danh ra ca thành công!', data });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message || 'Không thể điểm danh ra ca.' });
+  }
+}
+
+async function getAttendanceHistory(req, res) {
+  try {
+    const { month, year } = req.query;
+    const data = await attendanceService.getCollectorAttendanceHistory(req.uid, month, year);
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Không thể tải lịch sử điểm danh.' });
+  }
+}
+
 module.exports = {
   getDashboard,
   getSchedules,
@@ -228,6 +266,10 @@ module.exports = {
   getMyTeam,
   getMySalary,
   getSalaryHistory,
+  getTodayAttendance,
+  checkIn,
+  checkOut,
+  getAttendanceHistory,
 };
 
 /**

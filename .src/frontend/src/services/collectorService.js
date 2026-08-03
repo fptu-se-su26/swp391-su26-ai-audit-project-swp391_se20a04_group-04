@@ -137,6 +137,49 @@ const collectorService = {
     if (!response.ok) throw new Error(data.error || 'Không thể tải lịch sử lương.');
     return data.data;
   },
+
+  async getTodayAttendance() {
+    const response = await fetch(`${API_BASE}/collector/attendance/today`, {
+      headers: await getAuthHeaders(),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || 'Không thể tải thông tin điểm danh.');
+    return data.data;
+  },
+
+  async checkIn(payload = {}) {
+    const response = await fetch(`${API_BASE}/collector/attendance/check-in`, {
+      method: 'POST',
+      headers: await getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || 'Không thể điểm danh vào ca.');
+    return data;
+  },
+
+  async checkOut(payload = {}) {
+    const response = await fetch(`${API_BASE}/collector/attendance/check-out`, {
+      method: 'POST',
+      headers: await getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || 'Không thể điểm danh ra ca.');
+    return data;
+  },
+
+  async getAttendanceHistory(month, year) {
+    const params = new URLSearchParams();
+    if (month) params.set('month', month);
+    if (year) params.set('year', year);
+    const response = await fetch(`${API_BASE}/collector/attendance/history?${params}`, {
+      headers: await getAuthHeaders(),
+    });
+    const data = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(data.error || 'Không thể tải lịch sử điểm danh.');
+    return data.data;
+  },
 };
 
 export default collectorService;
