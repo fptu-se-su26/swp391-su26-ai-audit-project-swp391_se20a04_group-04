@@ -93,6 +93,8 @@ async function createSchedule(req, res) {
       route_name: routeName,
       service_type: serviceType,
       schedule_date: scheduleDate.toISOString(),
+      schedule_time: time,
+      time: time,
       city: city || '',
       ward: ward || '',
       neighborhood: neighborhood || '',
@@ -969,23 +971,27 @@ async function getDashboardStats(req, res) {
     });
     const complaintStatusChart = Object.entries(cStatus).map(([name, value]) => ({ name, value }));
 
-    // 5. Completed schedules count by collector (this week - starts on Monday)
-    const weekStart = new Date(now);
-    const day = weekStart.getDay();
-    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
-    weekStart.setDate(diff);
-    weekStart.setHours(0, 0, 0, 0);
+    // 5. Completed schedules count by collector (this week - starts on Monday, Vietnam UTC+7)
+    const VN_OFFSET_MS = 7 * 60 * 60 * 1000; // UTC+7
+    const nowVN = new Date(now.getTime() + VN_OFFSET_MS);
+    const dayVN = nowVN.getUTCDay(); // 0=Sun in VN local time
+    const mondayOffsetDays = dayVN === 0 ? -6 : 1 - dayVN;
+    const mondayVN = new Date(nowVN);
+    mondayVN.setUTCDate(nowVN.getUTCDate() + mondayOffsetDays);
+    mondayVN.setUTCHours(0, 0, 0, 0);
+    // Convert back to UTC for comparison with schedule_date
+    const weekStart = new Date(mondayVN.getTime() - VN_OFFSET_MS);
 
     const collectorPayload = {};
     schedules.forEach(s => {
       if (!['completed', 'completed_pending_approval'].includes((s.status || '').toLowerCase())) return;
       const sDate = s.schedule_date ? new Date(s.schedule_date) : null;
-      if (!sDate || sDate < weekStart) return;
+      if (!sDate || isNaN(sDate.getTime()) || sDate < weekStart) return;
 
       // Đếm cho từng collector (đơn lẻ hoặc mảng assigned_collectors)
       let cols = [];
       if (Array.isArray(s.assigned_collectors) && s.assigned_collectors.length > 0) {
-        cols = s.assigned_collectors.map(c => c.name || 'Unknown');
+        cols = s.assigned_collectors.map(c => (typeof c === 'string' ? c : c.name || c.fullName || 'Unknown'));
       } else {
         const singleCol = s.assigned_collector || s.assignedCollector;
         if (singleCol) {
@@ -993,11 +999,19 @@ async function getDashboardStats(req, res) {
         }
       }
 
+      // FIX: Nếu vẫn không có collector nào, fallback về team_name hoặc team_id
+      if (cols.length === 0) {
+        const teamLabel = s.team_name || s.teamName || (s.team_id ? `Đội ${s.team_id}` : null);
+        if (teamLabel) cols = [teamLabel];
+      }
+
       cols.forEach(col => {
         collectorPayload[col] = (collectorPayload[col] || 0) + 1;
       });
     });
-    const collectorChart = Object.entries(collectorPayload).map(([collector, completed]) => ({ collector, completed }));
+    const collectorChart = Object.entries(collectorPayload)
+      .map(([collector, completed]) => ({ collector, completed }))
+      .sort((a, b) => b.completed - a.completed);
 
     // 6. KPI Summary Calculation
     const totalSchedules = schedules.length;

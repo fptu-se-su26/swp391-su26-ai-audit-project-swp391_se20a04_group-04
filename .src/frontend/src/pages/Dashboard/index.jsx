@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -67,6 +67,31 @@ function formatDate(dateString) {
   });
 }
 
+function formatScheduleTime(schedule) {
+  if (!schedule) return 'Chưa đặt giờ';
+  if (schedule.schedule_time) return schedule.schedule_time;
+  if (schedule.time) return schedule.time;
+  if (schedule.scheduleTime) return schedule.scheduleTime;
+
+  if (schedule.schedule_date) {
+    if (typeof schedule.schedule_date === 'string' && schedule.schedule_date.includes('T')) {
+      const timePart = schedule.schedule_date.split('T')[1]?.substring(0, 5);
+      if (timePart && timePart !== '00:00') return timePart;
+    }
+    try {
+      const d = new Date(schedule.schedule_date);
+      if (!isNaN(d.getTime())) {
+        const h = String(d.getHours()).padStart(2, '0');
+        const m = String(d.getMinutes()).padStart(2, '0');
+        if (h !== '00' || m !== '00') return `${h}:${m}`;
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }
+  return 'Chưa đặt giờ';
+}
+
 const sanitizeRoutePoints = (points) => {
   if (!Array.isArray(points)) return [];
   return points.reduce((valid, point) => {
@@ -127,7 +152,7 @@ export default function Dashboard() {
     date: new Date().toISOString().slice(0, 10),
     time: '08:00',
     assignedTruck: 'TRUCK-402',
-    assignedDriver: 'Nguyễn Văn A',
+    assignedDriver: '',
     assignedType: 'team',
     assignedCollector: '',
     teamId: '',
@@ -177,8 +202,8 @@ export default function Dashboard() {
   const [assignment, setAssignment] = useState({
     scheduleId: '',
     assignedTruck: 'TRUCK-402',
-    assignedDriver: 'Nguyễn Văn A',
-    assignedCollector: 'Collector placeholder',
+    assignedDriver: '',
+    assignedCollector: '',
   });
 
   const [routePoints, setRoutePoints] = useState([
@@ -201,10 +226,22 @@ export default function Dashboard() {
   const [collectorAreaFilter, setCollectorAreaFilter] = useState('all');
   const [collectorTeamFilter, setCollectorTeamFilter] = useState('all');
 
-  // Chế độ xem Lịch thu gom: 'calendar' (Lịch theo Đội nhóm) | 'table' (Bảng chi tiết)
-  const [scheduleViewMode, setScheduleViewMode] = useState('calendar');
+  // Chế độ xem Lịch thu gom: 'monthgrid' | 'calendar' (Theo Đội nhóm) | 'table' (Bảng chi tiết)
+  const [scheduleViewMode, setScheduleViewMode] = useState('monthgrid');
   const [viewingGroupDetail, setViewingGroupDetail] = useState(null);
   const [viewingRouteMapSchedule, setViewingRouteMapSchedule] = useState(null);
+  // Bộ lọc lịch
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth()); // 0-indexed
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
+  const [scheduleTeamFilter, setScheduleTeamFilter] = useState('all'); // filter by team id
+
+  // Ref cho modal chi tiết: auto-scroll về đầu mỗi khi mở
+  const groupDetailModalRef = useRef(null);
+  useEffect(() => {
+    if (viewingGroupDetail && groupDetailModalRef.current) {
+      groupDetailModalRef.current.scrollTop = 0;
+    }
+  }, [viewingGroupDetail]);
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
@@ -1669,13 +1706,19 @@ export default function Dashboard() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Tài xế (Tùy chọn)</span>
-                    <input
+                    <select
                       name="assignedDriver"
                       value={newSchedule.assignedDriver}
                       onChange={(e) => setNewSchedule(prev => ({...prev, assignedDriver: e.target.value}))}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      placeholder="Nguyễn Văn A"
-                    />
+                    >
+                      <option value="">-- Chọn tài xế từ danh sách Nhân viên --</option>
+                      {collectors.map((c) => (
+                        <option key={c.uid} value={c.fullName}>
+                          {c.fullName} {c.phone ? `(${c.phone})` : c.email ? `(${c.email})` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label className="block">
                     <span className="text-sm text-slate-600 dark:text-slate-300">Ghi chú</span>
@@ -1828,64 +1871,278 @@ export default function Dashboard() {
           </aside>
         </div>
 
-        {/* Collection schedule list section (Quản lý lịch: Lịch theo Đội nhóm & Bảng chi tiết) */}
+        {/* Collection schedule list section (Quản lý lịch) */}
         <section className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Quản lý lịch</p>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                {scheduleViewMode === 'calendar' ? 'Lịch làm việc theo Đội nhóm' : 'Bảng danh sách lịch thu gom'}
-              </h2>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {/* Nút chuyển đổi chế độ xem */}
-              <div className="inline-flex rounded-2xl bg-slate-100 dark:bg-slate-900 p-1 border border-slate-200 dark:border-slate-700">
+          <div className="flex flex-col gap-4 mb-6">
+            {/* Row 1: Tiêu đề + Nút toggle view */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Quản lý lịch</p>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  {scheduleViewMode === 'monthgrid' ? 'Lịch tháng tổng quan' : scheduleViewMode === 'calendar' ? 'Lịch theo Đội nhóm & Ngày' : 'Bảng danh sách lịch'}
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* View toggle */}
+                <div className="inline-flex rounded-2xl bg-slate-100 dark:bg-slate-900 p-1 border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleViewMode('monthgrid')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${
+                      scheduleViewMode === 'monthgrid'
+                        ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-base">grid_view</span>
+                    Lịch tháng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleViewMode('calendar')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${
+                      scheduleViewMode === 'calendar'
+                        ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-base">calendar_month</span>
+                    Theo ngày
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleViewMode('table')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${
+                      scheduleViewMode === 'table'
+                        ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-base">format_list_bulleted</span>
+                    Bảng
+                  </button>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setScheduleViewMode('calendar')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-                    scheduleViewMode === 'calendar'
-                      ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
+                  onClick={loadManagerData}
+                  className="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 shrink-0"
                 >
-                  <span className="material-symbols-outlined text-base">calendar_month</span>
-                  Lịch Đội nhóm
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setScheduleViewMode('table')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-                    scheduleViewMode === 'table'
-                      ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-base">format_list_bulleted</span>
-                  Bảng chi tiết
+                  Làm mới
                 </button>
               </div>
+            </div>
 
-              <button
-                type="button"
-                onClick={loadManagerData}
-                className="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 shrink-0"
+            {/* Row 2: Bộ lọc tháng/năm + đội */}
+            <div className="flex flex-wrap items-center gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-700/50">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Lọc:</span>
+              {/* Tháng/Năm navigation */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear(y => y - 1); }
+                    else setCalendarMonth(m => m - 1);
+                  }}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition text-slate-600 dark:text-slate-300"
+                >
+                  <span className="material-symbols-outlined text-sm">chevron_left</span>
+                </button>
+                <span className="text-sm font-bold text-slate-800 dark:text-white px-2 min-w-[90px] text-center">
+                  Tháng {calendarMonth + 1}/{calendarYear}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear(y => y + 1); }
+                    else setCalendarMonth(m => m + 1);
+                  }}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition text-slate-600 dark:text-slate-300"
+                >
+                  <span className="material-symbols-outlined text-sm">chevron_right</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCalendarMonth(new Date().getMonth()); setCalendarYear(new Date().getFullYear()); }}
+                  className="ml-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300 hover:bg-sky-200 dark:hover:bg-sky-900/60 transition"
+                >
+                  Hôm nay
+                </button>
+              </div>
+              {/* Lọc đội */}
+              <select
+                value={scheduleTeamFilter}
+                onChange={e => setScheduleTeamFilter(e.target.value)}
+                className="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-sky-400"
               >
-                Làm mới
-              </button>
+                <option value="all">Tất cả đội</option>
+                {teams.map(t => (
+                  <option key={t.id} value={t.id}>{t.team_name}</option>
+                ))}
+              </select>
+              {/* Số lịch tìm thấy */}
+              <span className="ml-auto text-xs text-slate-400">
+                {schedules.filter(s => {
+                  const d = s.schedule_date ? new Date(s.schedule_date) : null;
+                  const monthMatch = !d ? false : (d.getMonth() === calendarMonth && d.getFullYear() === calendarYear);
+                  const teamMatch = scheduleTeamFilter === 'all' || s.team_id === scheduleTeamFilter;
+                  return monthMatch && teamMatch;
+                }).length} lịch trong tháng
+              </span>
             </div>
           </div>
+
+          {/* CHẾ ĐỘ 0: LỊCH THÁNG DẠNG GRID (MONTH GRID VIEW) */}
+          {scheduleViewMode === 'monthgrid' && (() => {
+            const DAYS_LABEL = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+            const firstDay = new Date(calendarYear, calendarMonth, 1);
+            const lastDay = new Date(calendarYear, calendarMonth + 1, 0);
+            const startDow = firstDay.getDay(); // 0=Sun
+            const totalDays = lastDay.getDate();
+            const todayDate = new Date();
+            const todayKey = `${todayDate.getFullYear()}-${String(todayDate.getMonth()+1).padStart(2,'0')}-${String(todayDate.getDate()).padStart(2,'0')}`;
+
+            // Build schedulesByDay map: { 'YYYY-MM-DD': [schedules] }
+            const schedulesByDay = {};
+            schedules.forEach(s => {
+              if (!s.schedule_date) return;
+              const d = new Date(s.schedule_date);
+              if (isNaN(d.getTime())) return;
+              if (d.getMonth() !== calendarMonth || d.getFullYear() !== calendarYear) return;
+              if (scheduleTeamFilter !== 'all' && s.team_id !== scheduleTeamFilter) return;
+              const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+              if (!schedulesByDay[key]) schedulesByDay[key] = [];
+              schedulesByDay[key].push(s);
+            });
+
+            // Build calendar cells: leading empty + day cells + trailing empty
+            const cells = [];
+            for (let i = 0; i < startDow; i++) cells.push(null);
+            for (let d = 1; d <= totalDays; d++) cells.push(d);
+            while (cells.length % 7 !== 0) cells.push(null);
+
+            return (
+              <div>
+                {/* Weekday headers */}
+                <div className="grid grid-cols-7 mb-1">
+                  {DAYS_LABEL.map(d => (
+                    <div key={d} className={`text-center text-[11px] font-extrabold uppercase tracking-wider py-2 ${
+                      d === 'CN' ? 'text-rose-500' : d === 'T7' ? 'text-orange-500' : 'text-slate-500 dark:text-slate-400'
+                    }`}>{d}</div>
+                  ))}
+                </div>
+                {/* Calendar cells */}
+                <div className="grid grid-cols-7 gap-1.5">
+                  {cells.map((day, idx) => {
+                    if (!day) return <div key={`empty-${idx}`} className="h-24 rounded-2xl" />;
+                    const dateKey = `${calendarYear}-${String(calendarMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                    const daySchedules = schedulesByDay[dateKey] || [];
+                    const isToday = dateKey === todayKey;
+                    const hasPending = daySchedules.some(s => (s.status||'').toLowerCase() === 'completed_pending_approval');
+                    const hasIncident = daySchedules.some(s => s.incident);
+                    const dow = (startDow + day - 1) % 7;
+                    const isSun = dow === 0;
+                    const isSat = dow === 6;
+
+                    return (
+                      <div
+                        key={dateKey}
+                        className={`relative h-24 rounded-2xl border p-1.5 flex flex-col gap-0.5 transition-all cursor-pointer group
+                          ${ isToday
+                            ? 'border-sky-400 bg-sky-50/80 dark:bg-sky-950/40 shadow-md ring-2 ring-sky-300/40'
+                            : daySchedules.length > 0
+                              ? 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-sky-300 hover:shadow-md'
+                              : 'border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20'
+                          }`}
+                        onClick={() => {
+                          if (daySchedules.length > 0) {
+                            // Tạo group detail từ ngày này
+                            const grouped = {};
+                            daySchedules.forEach(s => {
+                              let tn = 'Cá nhân';
+                              if (s.team_id) { const ft = teams.find(t => t.id === s.team_id); tn = ft ? ft.team_name : `Đội ${s.team_id}`; }
+                              if (!grouped[tn]) grouped[tn] = [];
+                              grouped[tn].push(s);
+                            });
+                            // Open first team detail or show all
+                            const firstTeam = Object.keys(grouped)[0];
+                            setViewingGroupDetail({ dateStr: dateKey, teamName: firstTeam, scheduleList: grouped[firstTeam], allGroups: grouped });
+                          }
+                        }}
+                      >
+                        {/* Số ngày */}
+                        <span className={`text-xs font-bold self-start px-1.5 py-0.5 rounded-lg ${
+                          isToday ? 'bg-sky-500 text-white' :
+                          isSun ? 'text-rose-500 dark:text-rose-400' :
+                          isSat ? 'text-orange-500 dark:text-orange-400' :
+                          'text-slate-700 dark:text-slate-200'
+                        }`}>{day}</span>
+
+                        {/* Schedules dots / badges */}
+                        {daySchedules.length > 0 && (
+                          <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
+                            {daySchedules.slice(0, 2).map(s => {
+                              const teamName = s.team_id ? (teams.find(t => t.id === s.team_id)?.team_name || 'Đội') : 'Cá nhân';
+                              return (
+                                <span key={s.id} className="text-[9px] font-semibold px-1 py-0.5 rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300 truncate leading-tight">
+                                  {teamName}
+                                </span>
+                              );
+                            })}
+                            {daySchedules.length > 2 && (
+                              <span className="text-[9px] text-slate-400 pl-1">+{daySchedules.length - 2} nữa</span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Status indicators */}
+                        <div className="flex items-center gap-1 mt-auto">
+                          {hasIncident && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Có sự cố" />}
+                          {hasPending && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Chờ duyệt" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center gap-4 mt-4 text-[11px] text-slate-500">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-500"/> Hôm nay</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400"/> Có sự cố</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"/> Chờ duyệt</span>
+                  <span className="ml-auto text-slate-400">Bấm vào ngày có lịch để xem chi tiết</span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* CHẾ ĐỘ 1: LỊCH THEO ĐỘI NHÓM & NGÀY (CALENDAR VIEW) */}
           {scheduleViewMode === 'calendar' && (
             <div className="space-y-6">
               {(() => {
-                // Nhóm lịch theo ngày -> sau đó nhóm theo Đội nhóm
+                // FIX: Normalize schedule_date về YYYY-MM-DD để tránh lặp ngày do ISO timestamp khác nhau
                 const dateMap = {};
                 schedules.forEach((s) => {
-                  const dateStr = s.schedule_date || 'Chưa xếp ngày';
-                  if (!dateMap[dateStr]) dateMap[dateStr] = {};
+                  // Filter theo tháng/năm + đội
+                  if (s.schedule_date) {
+                    const d = new Date(s.schedule_date);
+                    if (!isNaN(d.getTime())) {
+                      if (d.getMonth() !== calendarMonth || d.getFullYear() !== calendarYear) return;
+                    }
+                  }
+                  if (scheduleTeamFilter !== 'all' && s.team_id !== scheduleTeamFilter) return;
+
+                  // Normalize dateKey về YYYY-MM-DD
+                  let dateKey = 'Chưa xếp ngày';
+                  if (s.schedule_date) {
+                    const d = new Date(s.schedule_date);
+                    if (!isNaN(d.getTime())) {
+                      dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                    } else if (typeof s.schedule_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.schedule_date)) {
+                      dateKey = s.schedule_date;
+                    }
+                  }
+
+                  if (!dateMap[dateKey]) dateMap[dateKey] = {};
 
                   let teamName = 'Cá nhân';
                   if (s.team_id) {
@@ -1895,8 +2152,8 @@ export default function Dashboard() {
                     teamName = s.assigned_collectors.map((c) => c.name).join(', ');
                   }
 
-                  if (!dateMap[dateStr][teamName]) dateMap[dateStr][teamName] = [];
-                  dateMap[dateStr][teamName].push(s);
+                  if (!dateMap[dateKey][teamName]) dateMap[dateKey][teamName] = [];
+                  dateMap[dateKey][teamName].push(s);
                 });
 
                 const sortedDates = Object.keys(dateMap).sort();
@@ -1913,15 +2170,19 @@ export default function Dashboard() {
                 return sortedDates.map((dateStr) => {
                   const teamsInDate = dateMap[dateStr];
                   const isToday = dateStr === todayStr;
+                  // Tính thứ trong tuần
+                  const dateObj = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? new Date(dateStr + 'T12:00:00') : null;
+                  const dowLabel = dateObj ? ['Chủ nhật','Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7'][dateObj.getDay()] : '';
 
                   return (
-                    <div key={dateStr} className="rounded-2xl border border-slate-100 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/30 p-5 space-y-4">
+                    <div key={dateStr} className={`rounded-2xl border p-5 space-y-4 ${ isToday ? 'border-sky-300 bg-sky-50/60 dark:border-sky-700/60 dark:bg-sky-950/20' : 'border-slate-100 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/30' }`}>
                       {/* Tiêu đề Ngày */}
                       <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-3">
                         <div className="flex items-center gap-2">
                           <span className="material-symbols-outlined text-sky-600 dark:text-sky-400">calendar_today</span>
                           <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                            Ngày {formatDate(dateStr)}
+                            {dowLabel && <span className="text-sky-600 dark:text-sky-400 mr-1">{dowLabel},</span>}
+                            Ngày {formatDate(dateStr + 'T12:00:00')}
                           </h3>
                           {isToday && (
                             <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-extrabold uppercase tracking-wider">
@@ -2029,7 +2290,7 @@ export default function Dashboard() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-4 text-slate-600 dark:text-slate-300">{formatDate(schedule.schedule_date)} {schedule.schedule_time || ''}</td>
+                        <td className="px-4 py-4 text-slate-600 dark:text-slate-300">{formatDate(schedule.schedule_date)} · {formatScheduleTime(schedule)}</td>
                         <td className="px-4 py-4">
                           <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusBadge(schedule.status)}`}>
                             {formatStatusLabel(schedule.status)}
@@ -2819,6 +3080,7 @@ export default function Dashboard() {
         {viewingGroupDetail && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingGroupDetail(null)}>
             <div
+              ref={groupDetailModalRef}
               className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-3xl shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
@@ -2913,7 +3175,7 @@ export default function Dashboard() {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-400 mt-1">Giờ chạy: {schedule.schedule_time || 'Chưa đặt giờ'}</p>
+                          <p className="text-xs text-slate-400 mt-1">Giờ chạy: {formatScheduleTime(schedule)}</p>
                         </div>
                         <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadge(schedule.status)}`}>
                           {formatStatusLabel(schedule.status)}

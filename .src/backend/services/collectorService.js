@@ -168,7 +168,19 @@ function parseTimeFromISO(dateField) {
 
 function mapSchedule(doc, routes, targetDate, collectorId, collectorName, teamMap) {
   const data = doc.data();
-  if (!matchesCollector(data, collectorId, collectorName)) return null;
+
+  // FIX: Kiểm tra quyền truy cập: hoặc là collector trực tiếp, hoặc là thành viên team được gán
+  let hasAccess = matchesCollector(data, collectorId, collectorName);
+  if (!hasAccess && data.team_id && teamMap) {
+    const team = teamMap[data.team_id];
+    if (team) {
+      const members = team.members || [];
+      hasAccess = members.some(
+        (m) => m.id === collectorId || m.name === collectorName || m.name === collectorId,
+      );
+    }
+  }
+  if (!hasAccess) return null;
 
   const dateField = data.schedule_date || data.scheduleDate;
   const assignedKey = toDateKey(dateField);
@@ -528,10 +540,30 @@ async function assertOwnership(sourceType, id, collectorId, collectorName) {
       err.status = 403;
       throw err;
     }
-  } else if (!matchesCollector(data, collectorId, collectorName)) {
-    const err = new Error('Bạn không có quyền cập nhật lịch này.');
-    err.status = 403;
-    throw err;
+  } else {
+    // Kiểm tra trực tiếp trước
+    let hasAccess = matchesCollector(data, collectorId, collectorName);
+
+    // FIX: Nếu lịch được gán theo team, kiểm tra thêm xem collector có thuộc team đó không
+    if (!hasAccess && data.team_id) {
+      try {
+        const teamSnap = await db.collection(TEAMS_COLLECTION).doc(data.team_id).get();
+        if (teamSnap.exists) {
+          const members = teamSnap.data().members || [];
+          hasAccess = members.some(
+            (m) => m.id === collectorId || m.name === collectorName || m.name === collectorId,
+          );
+        }
+      } catch (e) {
+        // Không tìm được team → giữ hasAccess = false
+      }
+    }
+
+    if (!hasAccess) {
+      const err = new Error('Bạn không có quyền cập nhật lịch này.');
+      err.status = 403;
+      throw err;
+    }
   }
 
   return { docRef, data };
