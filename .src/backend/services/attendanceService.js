@@ -245,7 +245,87 @@ const attendanceService = {
       dailySummary,
       monthlyTimesheet,
     };
-  }
+  },
+
+  /**
+   * Động cơ tính lương tự động cho Collector dựa trên Chấm công & Số tuyến hoàn thành
+   * Phương hướng 1: (Số giờ làm * 40.000) + (Số tuyến hoàn thành * 50.000) + Phụ cấp độc hại (500.000)
+   */
+  async calculateCollectorSalaryDetails(collectorId, month, year) {
+    const HOURLY_RATE = 40000;
+    const ROUTE_BONUS_RATE = 50000;
+    const HAZARD_ALLOWANCE = 500000;
+
+    const targetMonth = Number(month) || (new Date().getMonth() + 1);
+    const targetYear = Number(year) || new Date().getFullYear();
+    const monthStr = String(targetMonth).padStart(2, '0');
+    const yearStr = String(targetYear);
+    const prefix = `${yearStr}-${monthStr}`;
+
+    // 1. Lấy dữ liệu điểm danh trong tháng
+    const attendSnap = await db.collection(ATTENDANCE_COLLECTION)
+      .where('collector_id', '==', collectorId)
+      .get();
+
+    let totalHours = 0;
+    const daysWorkedSet = new Set();
+
+    attendSnap.forEach((doc) => {
+      const data = doc.data();
+      const dateVal = data.date || '';
+      if (dateVal.startsWith(prefix)) {
+        if (data.work_hours) {
+          totalHours += Number(data.work_hours) || 0;
+        }
+        daysWorkedSet.add(dateVal);
+      }
+    });
+
+    totalHours = Math.round(totalHours * 10) / 10;
+    const daysWorked = daysWorkedSet.size;
+
+    // 2. Lấy dữ liệu tuyến rác đã hoàn thành trong tháng
+    const schedSnap = await db.collection('collection_schedules').get();
+    let completedRoutes = 0;
+
+    schedSnap.forEach((doc) => {
+      const data = doc.data();
+      const status = (data.status || '').toLowerCase();
+      if (status !== 'completed' && status !== 'completed_pending_approval') return;
+      const dateVal = (data.schedule_date || '').slice(0, 7);
+      if (dateVal !== prefix) return;
+
+      const isAssigned =
+        data.collector_id === collectorId ||
+        data.assigned_collector === collectorId ||
+        (Array.isArray(data.assigned_collectors) &&
+          data.assigned_collectors.some((c) => (typeof c === 'string' ? c === collectorId : c.id === collectorId)));
+
+      if (isAssigned) {
+        completedRoutes++;
+      }
+    });
+
+    const hourlyPay = totalHours * HOURLY_RATE;
+    const routePay = completedRoutes * ROUTE_BONUS_RATE;
+    const allowance = daysWorked > 0 ? HAZARD_ALLOWANCE : 0;
+    const calculatedBaseSalary = hourlyPay + routePay + allowance;
+
+    return {
+      collectorId,
+      month: targetMonth,
+      year: targetYear,
+      totalHours,
+      daysWorked,
+      completedRoutes,
+      hourlyRate: HOURLY_RATE,
+      routeBonusRate: ROUTE_BONUS_RATE,
+      hazardAllowance: allowance,
+      hourlyPay,
+      routePay,
+      calculatedBaseSalary,
+    };
+  },
 };
 
 module.exports = attendanceService;

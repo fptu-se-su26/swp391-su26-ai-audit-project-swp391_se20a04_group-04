@@ -1177,25 +1177,61 @@ async function getTeamPerformance(req, res) {
  */
 async function getCollectorSalaries(req, res) {
   try {
-    const month = parseInt(req.query.month, 10) || new Date().getMonth() + 1;
+    const month = parseInt(req.query.month, 10) || (new Date().getMonth() + 1);
     const year = parseInt(req.query.year, 10) || new Date().getFullYear();
 
-    const snap = await db.collection('collector_salaries')
+    // Lấy danh sách collectors
+    const collectorsSnap = await db.collection(USERS_COLLECTION)
+      .where('role', 'in', ['collector', 'Garbage Collector', 'GarbageCollector'])
+      .get();
+
+    // Lấy các bản ghi lương đã lưu trong DB
+    const salarySnap = await db.collection('collector_salaries')
       .where('month', '==', month)
       .where('year', '==', year)
       .get();
 
-    const salaries = [];
-    snap.forEach(doc => {
-      const data = doc.data();
-      salaries.push({
-        id: doc.id,
-        ...data,
-        totalSalary: (data.baseSalary || 0) + (data.bonus || 0),
-      });
+    const savedSalariesMap = {};
+    salarySnap.forEach(doc => {
+      savedSalariesMap[doc.data().collectorId] = { id: doc.id, ...doc.data() };
     });
 
-    return res.status(200).json({ success: true, data: salaries });
+    const result = [];
+    for (const doc of collectorsSnap.docs) {
+      const col = normalizeUser(doc.data(), doc.id);
+      const details = await attendanceService.calculateCollectorSalaryDetails(doc.id, month, year);
+      const saved = savedSalariesMap[doc.id] || {};
+
+      const baseSalary = saved.baseSalary !== undefined ? Number(saved.baseSalary) : details.calculatedBaseSalary;
+      const bonus = Number(saved.bonus || 0);
+      const totalSalary = baseSalary + bonus;
+
+      result.push({
+        id: saved.id || doc.id,
+        collectorId: doc.id,
+        collectorName: col.fullName || saved.collectorName || 'Nhân viên',
+        email: col.email || '',
+        month,
+        year,
+        baseSalary,
+        bonus,
+        bonusReason: saved.bonusReason || '',
+        totalSalary,
+        attendanceDetails: {
+          totalHours: details.totalHours,
+          daysWorked: details.daysWorked,
+          completedRoutes: details.completedRoutes,
+          hourlyRate: details.hourlyRate,
+          routeBonusRate: details.routeBonusRate,
+          hazardAllowance: details.hazardAllowance,
+          hourlyPay: details.hourlyPay,
+          routePay: details.routePay,
+          calculatedBaseSalary: details.calculatedBaseSalary,
+        },
+      });
+    }
+
+    return res.status(200).json({ success: true, data: result });
   } catch (error) {
     console.error('[Manager] Lỗi lấy lương collectors:', error.message);
     return res.status(500).json({ error: 'Không thể tải dữ liệu lương.' });

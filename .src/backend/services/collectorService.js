@@ -1,5 +1,6 @@
 const { db } = require('../config/firebase');
 const { ROLES } = require('../constants/roles');
+const attendanceService = require('./attendanceService');
 
 const ASSIGNMENTS_COLLECTION = 'route_assignments';
 const SCHEDULES_COLLECTION = 'collection_schedules';
@@ -700,28 +701,46 @@ async function getMyTeam(collectorId) {
 }
 
 async function getCollectorSalary(collectorId, month, year) {
+  const targetMonth = Number(month) || (new Date().getMonth() + 1);
+  const targetYear = Number(year) || new Date().getFullYear();
+
+  const details = await attendanceService.calculateCollectorSalaryDetails(collectorId, targetMonth, targetYear);
+
   const snap = await db.collection(SALARIES_COLLECTION)
     .where('collectorId', '==', collectorId)
-    .where('month', '==', month)
-    .where('year', '==', year)
+    .where('month', '==', targetMonth)
+    .where('year', '==', targetYear)
     .get();
 
-  if (snap.empty) return null;
+  const data = !snap.empty ? snap.docs[0].data() : {};
+  const docId = !snap.empty ? snap.docs[0].id : collectorId;
 
-  const doc = snap.docs[0];
-  const data = doc.data();
+  const baseSalary = data.baseSalary !== undefined ? Number(data.baseSalary) : details.calculatedBaseSalary;
+  const bonus = Number(data.bonus || 0);
+
   return {
-    id: doc.id,
-    collectorId: data.collectorId,
-    month: data.month,
-    year: data.year,
-    baseSalary: data.baseSalary || 0,
-    bonus: data.bonus || 0,
+    id: docId,
+    collectorId,
+    month: targetMonth,
+    year: targetYear,
+    baseSalary,
+    bonus,
     bonusReason: data.bonusReason || '',
-    totalSalary: (data.baseSalary || 0) + (data.bonus || 0),
-    assignedBy: data.assignedBy || '',
-    createdAt: toIsoString(data.createdAt),
-    updatedAt: toIsoString(data.updatedAt),
+    totalSalary: baseSalary + bonus,
+    assignedBy: data.assignedBy || 'Hệ thống tự động',
+    createdAt: toIsoString(data.createdAt || new Date()),
+    updatedAt: toIsoString(data.updatedAt || new Date()),
+    attendanceDetails: {
+      totalHours: details.totalHours,
+      daysWorked: details.daysWorked,
+      completedRoutes: details.completedRoutes,
+      hourlyRate: details.hourlyRate,
+      routeBonusRate: details.routeBonusRate,
+      hazardAllowance: details.hazardAllowance,
+      hourlyPay: details.hourlyPay,
+      routePay: details.routePay,
+      calculatedBaseSalary: details.calculatedBaseSalary,
+    },
   };
 }
 
