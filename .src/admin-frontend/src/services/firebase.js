@@ -3,12 +3,12 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = { 
-  apiKey: "AIzaSyCiOTRRFG-jw3fgeT2xrW-XAIwnqOY7gt0",
-  authDomain: "swp391-database.firebaseapp.com",
-  projectId: "swp391-database",
-  storageBucket: "swp391-database.firebasestorage.app",
-  messagingSenderId: "55209791344",
-  appId: "1:55209791344:web:dcee1ca5904fffda7a89b5",
+  apiKey: "AIzaSyBa5Mj7EKCdgp_T2NDpwE3YXNkXAksOpr0",
+  authDomain: "ecoschedule-demo.firebaseapp.com",
+  projectId: "ecoschedule-demo",
+  storageBucket: "ecoschedule-demo.firebasestorage.app",
+  messagingSenderId: "579108475431",
+  appId: "1:579108475431:web:7d96228e2b17d02bfab402",
   measurementId: "G-17XHBQKN7N"
 };
 
