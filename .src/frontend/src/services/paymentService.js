@@ -132,3 +132,10 @@ export async function deleteInvoiceTemplate(templateId) {
   return parseJsonResponse(response);
 }
 
+export async function getResidentAreas() {
+  const response = await fetch(`${API_BASE}/api/manager/residents/areas`, {
+    headers: getAuthHeaders(),
+  });
+  return parseJsonResponse(response);
+}
+

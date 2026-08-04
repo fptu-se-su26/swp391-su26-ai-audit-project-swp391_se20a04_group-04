@@ -504,6 +504,7 @@ async function createInvoice(req, res) {
     const {
       invoiceId,
       userId,
+      area,
       amount,
       billingMonth,
       billingYear,
@@ -515,10 +516,6 @@ async function createInvoice(req, res) {
       paidAt,
       status,
     } = req.body;
-
-    if (!invoiceId || !userId || !amount || !currency || !dueDate || !feeType) {
-      return res.status(400).json({ error: 'invoiceId, userId, amount, currency, dueDate và feeType là bắt buộc.' });
-    }
 
     let bMonth = Number(billingMonth);
     let bYear = Number(billingYear);
@@ -534,48 +531,143 @@ async function createInvoice(req, res) {
       return res.status(400).json({ error: 'billingMonth (1-12) và billingYear không hợp lệ.' });
     }
 
-    // Check for duplicate unpaid invoice for same userId + billingMonth
-    const existingSnapshot = await db.collection('invoices')
-      .where('userId', '==', userId)
-      .where('billingMonth', '==', bMonth)
-      .where('billingYear', '==', bYear)
-      .where('status', '==', 'unpaid')
-      .get();
+    const creatorName = createdBy || req.userProfile?.fullName || req.uid;
 
-    if (!existingSnapshot.empty) {
-      return res.status(409).json({
-        error: `Cư dân này đã có hóa đơn chưa thanh toán cho tháng ${billingMonth}/${billingYear}. Không thể tạo thêm.`,
+    if (area) {
+      // CASE A: Tạo hóa đơn hàng loạt theo khu vực chỉ định
+      if (!amount || !currency || !dueDate || !feeType) {
+        return res.status(400).json({ error: 'amount, currency, dueDate và feeType là bắt buộc khi tạo theo khu vực.' });
+      }
+
+      const snapshot = await db.collection(USERS_COLLECTION)
+        .where('role', '==', 'resident')
+        .get();
+
+      const matchingResidents = [];
+      snapshot.forEach(doc => {
+        const u = doc.data();
+        const userArea = (u.area || u['khu vực'] || u['khu_vuc'] || '').toLowerCase();
+        const userAddress = (u.address || u['Địa chỉ'] || u['dia_chi'] || '').toLowerCase();
+        const target = area.toLowerCase().trim();
+
+        if (userArea.includes(target) || userAddress.includes(target)) {
+          matchingResidents.push({ uid: doc.id, ...u });
+        }
       });
+
+      if (matchingResidents.length === 0) {
+        return res.status(404).json({ error: `Không tìm thấy cư dân nào thuộc khu vực "${area}".` });
+      }
+
+      const batch = db.batch();
+      const createdInvoices = [];
+      const nowStr = new Date().toISOString();
+      const dueDateFormatted = new Date(dueDate).toLocaleDateString('vi-VN');
+
+      for (const resident of matchingResidents) {
+        const invId = `invoice_${resident.uid}_${bYear}_${String(bMonth).padStart(2, '0')}`;
+
+        // Kiểm tra trùng lặp chưa thanh toán
+        const dupCheck = await db.collection('invoices')
+          .where('userId', '==', resident.uid)
+          .where('billingMonth', '==', bMonth)
+          .where('billingYear', '==', bYear)
+          .where('status', '==', 'unpaid')
+          .get();
+
+        if (!dupCheck.empty) {
+          continue; // Bỏ qua cư dân đã có hóa đơn chưa thanh toán kỳ này
+        }
+
+        const invoiceData = {
+          invoiceId: invId,
+          userId: resident.uid,
+          amount: Number(amount),
+          billingMonth: bMonth,
+          billingYear: bYear,
+          createdAt: nowStr,
+          createdBy: creatorName,
+          currency: currency || 'VND',
+          dueDate,
+          feeType: feeType || 'monthly_sanitation_fee',
+          paidAt: null,
+          status: 'unpaid',
+          updatedAt: nowStr,
+        };
+
+        const invRef = db.collection('invoices').doc(invId);
+        batch.set(invRef, invoiceData);
+
+        const notifRef = db.collection('notifications').doc();
+        batch.set(notifRef, {
+          user_id: resident.uid,
+          title: 'Hóa đơn mới',
+          content: `Hóa đơn phí vệ sinh môi trường tháng ${bMonth}/${bYear} đã được phát hành cho khu vực của bạn. Số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫. Hạn thanh toán: ${dueDateFormatted}. Vui lòng thanh toán đúng hạn.`,
+          type: 'invoice_created',
+          is_read: false,
+          sent_at: new Date(),
+        });
+
+        createdInvoices.push(invoiceData);
+      }
+
+      if (createdInvoices.length === 0) {
+        return res.status(400).json({ error: 'Tất cả cư dân trong khu vực này đã có hóa đơn kỳ này.' });
+      }
+
+      await batch.commit();
+      return res.status(201).json({
+        success: true,
+        count: createdInvoices.length,
+        invoices: createdInvoices,
+      });
+    } else {
+      // CASE B: Tạo hóa đơn đơn lẻ cho một cư dân (Logic cũ)
+      if (!invoiceId || !userId || !amount || !currency || !dueDate || !feeType) {
+        return res.status(400).json({ error: 'invoiceId, userId, amount, currency, dueDate và feeType là bắt buộc.' });
+      }
+
+      const existingSnapshot = await db.collection('invoices')
+        .where('userId', '==', userId)
+        .where('billingMonth', '==', bMonth)
+        .where('billingYear', '==', bYear)
+        .where('status', '==', 'unpaid')
+        .get();
+
+      if (!existingSnapshot.empty) {
+        return res.status(409).json({
+          error: `Cư dân này đã có hóa đơn chưa thanh toán cho tháng ${bMonth}/${bYear}. Không thể tạo thêm.`,
+        });
+      }
+
+      const invoice = await invoiceService.createOrUpdateInvoice({
+        invoiceId,
+        userId,
+        amount,
+        billingMonth: bMonth,
+        billingYear: bYear,
+        createdAt: createdAt || new Date().toISOString(),
+        createdBy: creatorName,
+        currency,
+        dueDate,
+        feeType,
+        paidAt: paidAt || null,
+        status: status || 'unpaid',
+        updatedAt: new Date().toISOString(),
+      });
+
+      const dueDateFormatted = new Date(dueDate).toLocaleDateString('vi-VN');
+      await db.collection('notifications').add({
+        user_id: userId,
+        title: 'Hóa đơn mới',
+        content: `Hóa đơn phí vệ sinh môi trường tháng ${bMonth}/${bYear} đã được phát hành. Số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫. Hạn thanh toán: ${dueDateFormatted}. Vui lòng thanh toán đúng hạn.`,
+        type: 'invoice_created',
+        is_read: false,
+        sent_at: new Date(),
+      });
+
+      return res.status(201).json(invoice);
     }
-
-    const invoice = await invoiceService.createOrUpdateInvoice({
-      invoiceId,
-      userId,
-      amount,
-      billingMonth,
-      billingYear,
-      createdAt,
-      createdBy: createdBy || req.userProfile.fullName || req.uid,
-      currency,
-      dueDate,
-      feeType,
-      paidAt: paidAt || null,
-      status: status || 'unpaid',
-      updatedAt: new Date().toISOString(),
-    });
-
-    // Gửi thông báo cho cư dân về hóa đơn mới
-    const dueDateFormatted = new Date(dueDate).toLocaleDateString('vi-VN');
-    await db.collection('notifications').add({
-      user_id: userId,
-      title: 'Hóa đơn mới',
-      content: `Hóa đơn phí vệ sinh môi trường tháng ${billingMonth}/${billingYear} đã được phát hành. Số tiền: ${Number(amount).toLocaleString('vi-VN')} ₫. Hạn thanh toán: ${dueDateFormatted}. Vui lòng thanh toán đúng hạn.`,
-      type: 'invoice_created',
-      is_read: false,
-      sent_at: new Date(),
-    });
-
-    return res.status(201).json(invoice);
   } catch (error) {
     console.error('[API] Lỗi tạo hóa đơn bởi manager:', error.message);
     return res.status(500).json({ error: error.message });
@@ -676,7 +768,30 @@ async function getAttendanceSummary(req, res) {
   }
 }
 
+async function getResidentAreas(req, res) {
+  try {
+    const snapshot = await db.collection(USERS_COLLECTION)
+      .where('role', '==', 'resident')
+      .get();
+
+    const areasSet = new Set();
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      const area = data.area || data['khu vực'] || data['khu_vuc'] || '';
+      if (area.trim()) {
+        areasSet.add(area.trim());
+      }
+    });
+
+    return res.status(200).json(Array.from(areasSet));
+  } catch (error) {
+    console.error('[Manager] Lỗi lấy danh sách khu vực:', error.message);
+    return res.status(500).json({ error: 'Không thể tải danh sách khu vực.' });
+  }
+}
+
 module.exports = {
+  getResidentAreas,
   getCollectors,
   getSchedules,
   createSchedule,

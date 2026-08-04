@@ -39,6 +39,7 @@ router.get('/dashboard/stats', managerController.getDashboardStats);
 router.get('/invoice-templates', managerController.getInvoiceTemplates);
 router.post('/invoice-templates', managerController.createInvoiceTemplate);
 router.delete('/invoice-templates/:templateId', managerController.deleteInvoiceTemplate);
+router.get('/residents/areas', managerController.getResidentAreas);
 router.get('/residents/search', managerController.searchResidents);
 router.get('/residents/:userId/invoices', managerController.getResidentInvoices);
 router.post('/invoices', managerController.createInvoice);

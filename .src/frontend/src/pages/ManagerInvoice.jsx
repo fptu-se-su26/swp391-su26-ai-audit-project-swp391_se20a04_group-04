@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import authService from '../services/authService';
 import { ROLES, normalizeRole } from '../constants/roles';
-import { createManagerInvoice, searchResidents, getResidentInvoices, getInvoiceTemplates, createInvoiceTemplate, deleteInvoiceTemplate } from '../services/paymentService';
+import { createManagerInvoice, getResidentAreas, getInvoiceTemplates, createInvoiceTemplate, deleteInvoiceTemplate } from '../services/paymentService';
 
 const buildErrorMessage = (error) => {
   if (!error) return 'Đã xảy ra lỗi.';
@@ -40,7 +40,6 @@ const getDefaultInvoice = () => ({
 
 export default function ManagerInvoice() {
   const navigate = useNavigate();
-  // Lấy user trực tiếp thay vì dùng useState + useEffect để tránh setState-in-effect
   const user = authService.getCurrentUser();
   
   const [invoice, setInvoice] = useState(() => {
@@ -54,18 +53,9 @@ export default function ManagerInvoice() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Resident search states
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedResident, setSelectedResident] = useState(null);
-  const searchRef = useRef(null);
-  const debounceRef = useRef(null);
-
-  // Existing invoices for selected resident
-  const [residentInvoices, setResidentInvoices] = useState([]);
-  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  // Area-based states
+  const [areas, setAreas] = useState([]);
+  const [selectedArea, setSelectedArea] = useState('');
 
   // Template state
   const [templates, setTemplates] = useState([]);
@@ -73,13 +63,6 @@ export default function ManagerInvoice() {
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
-
-  // Duplicate check
-  const hasDuplicate = selectedResident && residentInvoices.some(
-    (inv) => inv.status === 'unpaid'
-      && Number(inv.billingMonth) === Number(invoice.billingMonth)
-      && Number(inv.billingYear) === Number(invoice.billingYear)
-  );
 
   useEffect(() => {
     if (!user) {
@@ -93,90 +76,15 @@ export default function ManagerInvoice() {
       return;
     }
 
-    // Load templates on mount
+    // Load templates and resident areas on mount
     getInvoiceTemplates().then(setTemplates).catch(() => {});
+    getResidentAreas().then(setAreas).catch(() => {});
   }, [navigate, user]);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Debounced resident search
-  const handleSearchChange = useCallback((e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
-    setShowDropdown(true);
-
-    if (!value.trim()) {
-      setSearchResults([]);
-      setSelectedResident(null);
-      setResidentInvoices([]);
-      setInvoice((prev) => ({ ...prev, userId: '' }));
-      return;
-    }
-
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
-    debounceRef.current = setTimeout(async () => {
-      setSearchLoading(true);
-      try {
-        const results = await searchResidents(value.trim());
-        setSearchResults(results);
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setSearchLoading(false);
-      }
-    }, 300);
-  }, []);
-
-  // When a resident is selected from dropdown
-  const handleSelectResident = useCallback(async (resident) => {
-    setSelectedResident(resident);
-    setSearchQuery(`${resident.fullName} (${resident.email})`);
-    setShowDropdown(false);
-    setSearchResults([]);
-
-    setInvoice((prev) => {
-      const updated = { ...prev, userId: resident.uid };
-      if (!updated.invoiceId || updated.invoiceId.startsWith('invoice_')) {
-        updated.invoiceId = `invoice_${resident.uid}_${updated.billingYear}_${String(updated.billingMonth).padStart(2, '0')}`;
-      }
-      return updated;
-    });
-
-    setInvoicesLoading(true);
-    try {
-      const invoices = await getResidentInvoices(resident.uid);
-      setResidentInvoices(invoices);
-    } catch {
-      setResidentInvoices([]);
-    } finally {
-      setInvoicesLoading(false);
-    }
-  }, []);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setInvoice((prev) => {
-      const updated = { ...prev, [name]: value };
-      // Tự động tạo invoiceId khi userId, billingMonth, hoặc billingYear thay đổi
-      if ((name === 'userId' || name === 'billingMonth' || name === 'billingYear') && updated.userId) {
-        if (!updated.invoiceId || updated.invoiceId.startsWith('invoice_')) {
-          updated.invoiceId = `invoice_${updated.userId}_${updated.billingYear}_${String(updated.billingMonth).padStart(2, '0')}`;
-        }
-      }
-      return updated;
-    });
+    setInvoice((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (event) => {
@@ -184,8 +92,8 @@ export default function ManagerInvoice() {
     setError('');
     setSuccess('');
 
-    if (hasDuplicate) {
-      setError(`Cư dân này đã có hóa đơn chưa thanh toán cho tháng ${invoice.billingMonth}/${invoice.billingYear}. Không thể tạo thêm.`);
+    if (!selectedArea.trim()) {
+      setError('Vui lòng nhập hoặc chọn khu vực áp dụng.');
       return;
     }
 
@@ -193,16 +101,17 @@ export default function ManagerInvoice() {
 
     try {
       const payload = {
-        ...invoice,
+        area: selectedArea.trim(),
         amount: Number(invoice.amount),
         billingMonth: Number(invoice.billingMonth),
         billingYear: Number(invoice.billingYear),
-        createdAt: invoice.createdAt || new Date().toISOString(),
+        currency: invoice.currency,
+        dueDate: invoice.dueDate,
+        feeType: invoice.feeType,
         createdBy: invoice.createdBy,
-        paidAt: null,
       };
 
-      if (!payload.invoiceId || !payload.userId || !payload.amount || !payload.currency || !payload.dueDate || !payload.feeType) {
+      if (!payload.amount || !payload.currency || !payload.dueDate || !payload.feeType) {
         throw new Error('Vui lòng điền đầy đủ các trường bắt buộc.');
       }
 
@@ -213,8 +122,7 @@ export default function ManagerInvoice() {
       }
 
       const created = await createManagerInvoice(payload);
-      setInvoice((prev) => ({ ...prev, ...created }));
-      setSuccess('Hóa đơn đã được tạo thành công.');
+      setSuccess(`Đã tạo thành công ${created.count} hóa đơn cho cư dân thuộc khu vực "${selectedArea}".`);
 
       // Save as template if requested
       if (saveAsTemplate && templateName.trim()) {
@@ -231,16 +139,6 @@ export default function ManagerInvoice() {
           setSaveAsTemplate(false);
         } catch {
           // Template save failure is non-critical
-        }
-      }
-
-      // Refresh resident invoices
-      if (selectedResident) {
-        try {
-          const invoices = await getResidentInvoices(selectedResident.uid);
-          setResidentInvoices(invoices);
-        } catch {
-          // ignore
         }
       }
     } catch (err) {
@@ -260,13 +158,13 @@ export default function ManagerInvoice() {
         <nav className="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm mb-2">
           <Link to="/dashboard">Trang quản lý</Link>
           <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-          <span className="text-primary font-semibold">Tạo hóa đơn</span>
+          <span className="text-primary font-semibold">Tạo hóa đơn khu vực</span>
         </nav>
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="font-headline-lg text-headline-lg text-on-surface">Tạo hóa đơn cho cư dân</h1>
-            <p className="text-sm text-on-surface-variant mt-2">Tìm kiếm cư dân theo tên hoặc email, xem hóa đơn hiện tại trước khi tạo mới.</p>
+            <h1 className="font-headline-lg text-headline-lg text-on-surface">Tạo hóa đơn theo khu vực</h1>
+            <p className="text-sm text-on-surface-variant mt-2">Chọn hoặc nhập tên khu vực để tự động phát hành hóa đơn hàng loạt cho cư dân.</p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -296,163 +194,46 @@ export default function ManagerInvoice() {
           onSubmit={handleSubmit}
           className="xl:col-span-2 rounded-3xl border border-slate-100 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-800"
         >
-          {/* Resident Search Section */}
+          {/* Section: Select Area */}
           <div className="mb-6">
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
               <span className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-primary">person_search</span>
-                Tìm kiếm cư dân
+                <span className="material-symbols-outlined text-[18px] text-primary">map</span>
+                Khu vực áp dụng
               </span>
             </label>
-            <div className="relative" ref={searchRef}>
-              <div className="relative">
-                <input
-                  id="resident-search"
-                  type="text"
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  onFocus={() => searchQuery.trim() && setShowDropdown(true)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                  placeholder="Nhập tên hoặc email cư dân..."
-                  autoComplete="off"
-                />
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
-                {searchLoading && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent"></span>
-                  </span>
-                )}
-              </div>
-
-              {/* Dropdown results */}
-              {showDropdown && searchQuery.trim() && (
-                <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
-                  {searchLoading ? (
-                    <div className="px-4 py-3 text-sm text-slate-500">Đang tìm kiếm...</div>
-                  ) : searchResults.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-slate-500">Không tìm thấy cư dân nào phù hợp.</div>
-                  ) : (
-                    searchResults.map((resident) => (
-                      <button
-                        key={resident.uid}
-                        type="button"
-                        onClick={() => handleSelectResident(resident)}
-                        className="w-full text-left px-4 py-3 hover:bg-emerald-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-100 dark:border-slate-600 last:border-b-0 flex items-center gap-3"
-                      >
-                        <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center flex-shrink-0">
-                          <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[18px]">person</span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{resident.fullName || 'Chưa có tên'}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{resident.email}</p>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Selected resident badge */}
-            {selectedResident && (
-              <div className="mt-3 flex items-center gap-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 px-4 py-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-200 dark:bg-emerald-800 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-emerald-700 dark:text-emerald-300 text-[16px]">check</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">{selectedResident.fullName}</p>
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400">{selectedResident.email}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedResident(null);
-                    setSearchQuery('');
-                    setResidentInvoices([]);
-                    setInvoice((prev) => ({ ...prev, userId: '' }));
-                  }}
-                  className="text-emerald-500 hover:text-emerald-700 transition-colors"
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <select
+                  value={selectedArea}
+                  onChange={(e) => setSelectedArea(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                 >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
-                </button>
+                  <option value="">-- Chọn khu vực hiện có --</option>
+                  {areas.map(a => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <input
+                  type="text"
+                  value={selectedArea}
+                  onChange={(e) => setSelectedArea(e.target.value)}
+                  placeholder="Hoặc nhập từ khóa tự do (vd: Thọ Quang)..."
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+            {selectedArea && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <span className="material-symbols-outlined text-sm text-primary">info</span>
+                Hóa đơn sẽ được tạo tự động cho toàn bộ cư dân thuộc khu vực có tên chứa từ khóa <strong>"{selectedArea}"</strong>.
               </div>
             )}
           </div>
 
-          {/* Duplicate warning */}
-          {hasDuplicate && (
-            <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-900/30 p-4">
-              <span className="material-symbols-outlined text-amber-600 text-[22px] mt-0.5">warning</span>
-              <div>
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Không thể tạo hóa đơn trùng lặp</p>
-                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                  Cư dân <strong>{selectedResident?.fullName}</strong> đã có hóa đơn chưa thanh toán cho tháng {invoice.billingMonth}/{invoice.billingYear}. Vui lòng chọn kỳ thanh toán khác hoặc chờ hóa đơn hiện tại được thanh toán.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Existing invoices for the selected resident */}
-          {selectedResident && (
-            <div className="mb-6">
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-primary">receipt_long</span>
-                Hóa đơn hiện có của {selectedResident.fullName}
-              </h3>
-              {invoicesLoading ? (
-                <div className="text-sm text-slate-500 py-2">Đang tải hóa đơn...</div>
-              ) : residentInvoices.length === 0 ? (
-                <div className="text-sm text-slate-500 py-2 px-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
-                  Chưa có hóa đơn nào.
-                </div>
-              ) : (
-                <div className="rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 dark:bg-slate-900">
-                      <tr>
-                        <th className="text-left px-4 py-2 text-slate-600 dark:text-slate-300 font-medium">Kỳ</th>
-                        <th className="text-left px-4 py-2 text-slate-600 dark:text-slate-300 font-medium">Số tiền</th>
-                        <th className="text-left px-4 py-2 text-slate-600 dark:text-slate-300 font-medium">Trạng thái</th>
-                        <th className="text-left px-4 py-2 text-slate-600 dark:text-slate-300 font-medium">Hạn</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {residentInvoices.map((inv) => (
-                        <tr key={inv.invoiceId || inv.id} className="border-t border-slate-100 dark:border-slate-700">
-                          <td className="px-4 py-2.5 text-slate-800 dark:text-white">
-                            Tháng {inv.billingMonth}/{inv.billingYear}
-                          </td>
-                          <td className="px-4 py-2.5 text-slate-800 dark:text-white">
-                            {Number(inv.amount)?.toLocaleString('vi-VN')} {inv.currency}
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${inv.status === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'}`}>
-                              {inv.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">
-                            {formatDateTime(inv.dueDate)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
           <div className="grid gap-4 lg:grid-cols-2">
-            <label className="block">
-              <span className="text-sm text-slate-600 dark:text-slate-300">Mã hóa đơn</span>
-              <input
-                name="invoiceId"
-                value={invoice.invoiceId}
-                onChange={handleChange}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                placeholder="invoice_resident_123_2026_06"
-              />
-            </label>
             <label className="block">
               <span className="text-sm text-slate-600 dark:text-slate-300">Số tiền</span>
               <input
@@ -516,16 +297,15 @@ export default function ManagerInvoice() {
                 className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
               />
             </label>
-
           </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <button
               type="submit"
-              disabled={loading || hasDuplicate || !selectedResident}
+              disabled={loading || !selectedArea.trim()}
               className="inline-flex items-center justify-center rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? 'Đang lưu...' : hasDuplicate ? 'Không thể tạo – trùng lặp' : 'Tạo hóa đơn'}
+              {loading ? 'Đang tạo...' : 'Tạo hóa đơn hàng loạt'}
             </button>
             <button
               type="button"
@@ -629,8 +409,8 @@ export default function ManagerInvoice() {
           <h2 className="text-lg font-semibold text-on-surface mb-4">Thông tin hóa đơn</h2>
           <div className="grid gap-4 text-sm text-slate-600 dark:text-slate-300">
             <div>
-              <p className="font-semibold text-slate-900 dark:text-white">Cư dân</p>
-              <p>{selectedResident ? `${selectedResident.fullName} (${selectedResident.email})` : 'Chưa chọn cư dân'}</p>
+              <p className="font-semibold text-slate-900 dark:text-white">Khu vực áp dụng</p>
+              <p>{selectedArea ? selectedArea : 'Chưa chọn khu vực'}</p>
             </div>
             <div>
               <p className="font-semibold text-slate-900 dark:text-white">Người tạo</p>
@@ -643,15 +423,15 @@ export default function ManagerInvoice() {
             {success && (
               <div>
                 <p className="font-semibold text-slate-900 dark:text-white">Trạng thái</p>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                  <span className="material-symbols-outlined text-[14px]">schedule</span>
-                  Chưa thanh toán
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+                  <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                  Đã phát hành thành công
                 </span>
               </div>
             )}
             <div>
               <p className="font-semibold text-slate-900 dark:text-white">Lưu ý</p>
-              <p>Hóa đơn sẽ được lưu vào hệ thống và có thể được thanh toán bởi cư dân thông qua trang thanh toán của họ.</p>
+              <p>Hệ thống tự động bỏ qua các cư dân đã có hóa đơn chưa thanh toán cùng kỳ (tháng/năm) trong khu vực chỉ định để tránh tạo hóa đơn trùng lặp.</p>
             </div>
           </div>
         </div>
