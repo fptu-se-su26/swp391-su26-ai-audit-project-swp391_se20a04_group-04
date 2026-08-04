@@ -241,7 +241,7 @@ export default function CollectorDashboard() {
     };
   }), [schedules]);
 
-  // Custom format to show only start time when no distinct end
+  // Custom format for event times and column headers
   const calendarFormats = useMemo(() => ({
     eventTimeRangeFormat: ({ start, end }, culture, localizer) => {
       const startStr = localizer.format(start, 'HH:mm', culture);
@@ -251,6 +251,22 @@ export default function CollectorDashboard() {
       const diff = end.getTime() - start.getTime();
       if (diff === 3600000) return startStr; // 1 hour = auto block
       return `${startStr} – ${endStr}`;
+    },
+    dayFormat: (date, culture, localizer) => {
+      const dayOfWeek = localizer.format(date, 'eee', culture);
+      const dayOfMonth = localizer.format(date, 'dd/MM', culture);
+      return `${dayOfWeek}, ${dayOfMonth}`;
+    },
+    dayHeaderFormat: (date, culture, localizer) => {
+      const dayOfWeek = localizer.format(date, 'EEEE', culture);
+      const dateStr = localizer.format(date, 'dd/MM/yyyy', culture);
+      return `${dayOfWeek}, ${dateStr}`;
+    },
+    dayRangeHeaderFormat: ({ start, end }, culture, localizer) => {
+      const startStr = localizer.format(start, 'dd/MM', culture);
+      const endStr = localizer.format(end, 'dd/MM', culture);
+      const monthStr = localizer.format(start, 'MM', culture);
+      return `Tháng ${monthStr} (${startStr} – ${endStr})`;
     },
   }), []);
 
@@ -562,6 +578,7 @@ export default function CollectorDashboard() {
                   onView={(newView) => setCalendarView(newView)}
                   views={['week', 'month']}
                   culture="vi"
+                  formats={calendarFormats}
                   messages={{ week: 'Tuần', month: 'Tháng', today: 'Hôm nay', previous: '‹', next: '›', noEventsInRange: 'Không có lịch trong khoảng này.' }}
                   onSelectEvent={ev => {
                     setSelectedItem(ev.resource);
