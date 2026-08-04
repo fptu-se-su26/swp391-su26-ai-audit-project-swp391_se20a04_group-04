@@ -81,6 +81,8 @@ const attendanceService = {
       note: payload.note || '',
       created_at: nowIso,
       updated_at: nowIso,
+      is_suspicious: false,
+      suspicious_reason: null,
     };
 
     await docRef.set(newRecord);
@@ -121,12 +123,70 @@ const attendanceService = {
     }
 
     const hours = calculateWorkHours(data.check_in, nowIso);
+
+    // Kiểm tra nghi ngờ treo máy / không hoàn thành công việc
+    let is_suspicious = false;
+    let suspicious_reason = null;
+
+    try {
+      // Lấy tất cả lịch thu gom hôm nay
+      const schedSnap = await db.collection('collection_schedules')
+        .where('schedule_date', '==', todayKey)
+        .get();
+
+      const collectorSchedules = [];
+      schedSnap.forEach(d => {
+        const s = d.data();
+        const candidates = [
+          s.assigned_collector,
+          s.collector_id,
+          s.collectorId,
+        ].filter(Boolean);
+
+        let isMatch = candidates.some(v => v === collectorId || (collectorName && v === collectorName));
+        if (!isMatch && s.assigned_collectors && Array.isArray(s.assigned_collectors)) {
+          isMatch = s.assigned_collectors.some(c => c.id === collectorId || c.name === collectorName);
+        }
+        if (isMatch) {
+          collectorSchedules.push(s);
+        }
+      });
+
+      if (collectorSchedules.length > 0) {
+        // Điều kiện 1: Vào ca trên 2 tiếng mà không chấp nhận (xác nhận) chạy bất kỳ lịch trình nào
+        const hasAccepted = collectorSchedules.some(s => s.collector_confirmed === true || ['confirmed', 'in_progress', 'completed_pending_approval', 'completed'].includes((s.status || '').toLowerCase()));
+        if (hours >= 2 && !hasAccepted) {
+          is_suspicious = true;
+          suspicious_reason = "Vào ca hơn 2 tiếng nhưng không chấp nhận chạy bất kỳ lịch trình nào.";
+        }
+
+        // Điều kiện 2: Đã chấp nhận lịch trình nhưng chưa hoàn thành mà đã bấm checkout
+        if (!is_suspicious) {
+          const hasUnfinished = collectorSchedules.some(s => {
+            const statusLower = (s.status || '').toLowerCase();
+            const isAccepted = s.collector_confirmed === true || ['confirmed', 'in_progress'].includes(statusLower);
+            const isCompleted = ['completed', 'completed_pending_approval'].includes(statusLower);
+            return isAccepted && !isCompleted;
+          });
+
+          if (hasUnfinished) {
+            is_suspicious = true;
+            suspicious_reason = "Có lịch trình đã xác nhận chạy nhưng chưa hoàn thành khi bấm kết thúc ca.";
+          }
+        }
+      }
+    } catch (schedError) {
+      console.error('[Attendance] Lỗi kiểm tra lịch trình để cảnh báo treo máy:', schedError.message);
+    }
+
     const updates = {
       check_out: nowIso,
       status: 'completed',
       work_hours: hours,
       location_check_out: payload.location || null,
       updated_at: nowIso,
+      is_suspicious,
+      suspicious_reason,
     };
 
     await db.collection(ATTENDANCE_COLLECTION).doc(doc.id).update(updates);
@@ -201,6 +261,8 @@ const attendanceService = {
         check_in: att?.check_in || null,
         check_out: att?.check_out || null,
         work_hours: att?.work_hours || 0,
+        is_suspicious: att?.is_suspicious || false,
+        suspicious_reason: att?.suspicious_reason || null,
       };
     });
 

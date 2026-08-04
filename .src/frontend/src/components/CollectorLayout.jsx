@@ -46,7 +46,7 @@ export default function CollectorLayout({ children, user }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 10000);
+    const interval = setInterval(fetchNotifications, 60000);
     window.addEventListener('notificationsUpdated', fetchNotifications);
     return () => {
       clearInterval(interval);
