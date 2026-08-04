@@ -56,9 +56,10 @@ function mapReport(doc) {
 
 function toDateKey(value) {
   if (!value) return null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return value.trim();
   const d = value?.toDate ? value.toDate() : new Date(value);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(d);
 }
 
 function parseRoutePoints(route, schedule) {
@@ -157,13 +158,14 @@ function mapAssignment(doc, routes, targetDate) {
 
 function parseTimeFromISO(dateField) {
   if (!dateField) return '';
-  // If it's a Firestore Timestamp, convert to ISO string first
-  const isoStr = dateField.toDate
-    ? dateField.toDate().toISOString()
-    : (typeof dateField === 'string' ? dateField : new Date(dateField).toISOString());
-  // Extract HH:MM directly from the ISO string (always UTC-safe)
-  const match = isoStr.match(/T(\d{2}):(\d{2})/);
-  return match ? `${match[1]}:${match[2]}` : '';
+  const d = dateField?.toDate ? dateField.toDate() : new Date(dateField);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }).format(d);
 }
 
 function mapSchedule(doc, routes, targetDate, collectorId, collectorName, teamMap) {

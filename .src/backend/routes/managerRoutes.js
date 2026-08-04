@@ -14,6 +14,7 @@ router.patch('/schedules/:scheduleId/reject-completion', managerController.rejec
 router.get('/schedules', managerController.getSchedules);
 router.post('/schedules', managerController.createSchedule);
 router.put('/schedules/:scheduleId', managerController.updateSchedule);
+router.patch('/schedules/:scheduleId', managerController.updateSchedule);
 router.delete('/schedules/:scheduleId', managerController.deleteSchedule);
 router.post('/assign-route', managerController.assignRoute); // Might be deprecated later
 router.post('/confirm-route', managerController.confirmRoute);

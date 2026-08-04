@@ -399,7 +399,7 @@ export default function CollectorDashboard() {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <h2 className="text-xl lg:text-2xl font-bold text-on-surface font-headline">
-                  {user.fullName} <span className="text-sm text-outline font-normal">(DE190362)</span>
+                  {user.fullName} {user.employeeCode ? <span className="text-sm text-outline font-normal">({user.employeeCode})</span> : (user.uid ? <span className="text-sm text-outline font-normal">({user.uid.slice(0, 8)})</span> : null)}
                 </h2>
                 <span className="px-3 py-1 bg-primary-container/20 text-primary font-bold text-xs rounded-full uppercase tracking-wider">
                   Collector
@@ -494,9 +494,15 @@ export default function CollectorDashboard() {
             >
               <p className="text-outline text-xs font-bold uppercase mb-2">Thông báo</p>
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-bold text-on-surface">5</span>
+                <span className="text-4xl font-bold text-on-surface">
+                  {recentNotifications.filter((n) => !n.is_read).length}
+                </span>
               </div>
-              <p className="text-xs text-on-surface-variant mt-1">3 tin nhắn hệ thống</p>
+              <p className="text-xs text-on-surface-variant mt-1">
+                {recentNotifications.length > 0
+                  ? `${recentNotifications.filter((n) => !n.is_read).length} chưa đọc`
+                  : 'Không có thông báo mới'}
+              </p>
             </Link>
           </section>
         )}

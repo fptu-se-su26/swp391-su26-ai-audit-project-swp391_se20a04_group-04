@@ -1,4 +1,4 @@
-const { db } = require('../config/firebase');
+const { admin, db } = require('../config/firebase');
 const { ROLES } = require('../constants/roles');
 const { normalizeUser } = require('../helpers/normalizeUser');
 const complaintService = require('../services/complaintService');
@@ -186,18 +186,14 @@ async function confirmRoute(req, res) {
 }
 
 /**
- * PUT /api/manager/schedules/:scheduleId
+ * PUT/PATCH /api/manager/schedules/:scheduleId
  */
 async function updateSchedule(req, res) {
   const { scheduleId } = req.params;
-  const { routePoints } = req.body;
+  const { routePoints, status, incident } = req.body;
 
   if (!scheduleId) {
     return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch để cập nhật.' });
-  }
-
-  if (routePoints && !Array.isArray(routePoints)) {
-    return res.status(400).json({ error: 'routePoints phải là một mảng các điểm tọa độ.' });
   }
 
   try {
@@ -207,20 +203,34 @@ async function updateSchedule(req, res) {
       return res.status(404).json({ error: 'Không tìm thấy lịch cần cập nhật.' });
     }
 
-    const scheduleData = snapshot.data();
-    if (scheduleData?.collector_confirmed) {
-      return res.status(400).json({ error: 'Tuyến đã được nhân viên xác nhận, không thể chỉnh sửa nữa.' });
+    const updateFields = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (routePoints !== undefined) {
+      if (!Array.isArray(routePoints)) {
+        return res.status(400).json({ error: 'routePoints phải là một mảng các điểm tọa độ.' });
+      }
+      updateFields.route_points = routePoints;
     }
 
-    await docRef.update({
-      route_points: routePoints || [],
-      updated_at: new Date().toISOString(),
-    });
+    if (status !== undefined) {
+      updateFields.status = status;
+    }
 
-    return res.status(200).json({ success: true });
+    if (incident !== undefined) {
+      if (incident === null) {
+        updateFields.incident = admin.firestore.FieldValue.delete();
+      } else {
+        updateFields.incident = incident;
+      }
+    }
+
+    await docRef.update(updateFields);
+    return res.status(200).json({ success: true, message: 'Đã cập nhật lịch thu gom thành công.' });
   } catch (error) {
-    console.error('[API] Lỗi cập nhật tuyến cho lịch thu gom:', error.message);
-    return res.status(500).json({ error: 'Không thể cập nhật tuyến cho lịch. Vui lòng thử lại sau.' });
+    console.error('[API] Lỗi cập nhật lịch thu gom:', error.message);
+    return res.status(500).json({ error: 'Không thể cập nhật lịch. Vui lòng thử lại sau.' });
   }
 }
 

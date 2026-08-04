@@ -1,6 +1,6 @@
 import authService from './authService';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5002';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const getAuthHeaders = () => ({
   'Content-Type': 'application/json',

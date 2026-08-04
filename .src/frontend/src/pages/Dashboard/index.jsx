@@ -134,6 +134,7 @@ export default function Dashboard() {
   const [completionGroups, setCompletionGroups] = useState([]);
   const [viewingCompletion, setViewingCompletion] = useState(null);
   const [rejectCompletionNote, setRejectCompletionNote] = useState('');
+  const [scheduleToDelete, setScheduleToDelete] = useState(null);
 
   // Salary management states
   const [teamPerformance, setTeamPerformance] = useState([]);
@@ -493,6 +494,48 @@ export default function Dashboard() {
       setManagerError(error.message || 'Không thể từ chối xác nhận tuyến.');
     } finally {
       setManagerLoading(false);
+    }
+  };
+
+  const handleResolveIncident = async (scheduleId) => {
+    setManagerLoading(true);
+    setApiMessage('');
+    setManagerError('');
+    try {
+      const response = await fetch(`${API_BASE}/api/manager/schedules/${scheduleId}`, {
+        method: 'PATCH',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({
+          status: 'in_progress',
+          incident: null,
+        }),
+      });
+      const data = await safeJson(response);
+      if (!response.ok) throw new Error(data.error || 'Không thể khôi phục trạng thái tuyến.');
+      setApiMessage('Đã xác nhận xử lý sự cố & khôi phục tuyến thành công!');
+      setViewingIncident(null);
+      setSchedules((prev) =>
+        prev.map((s) => (s.id === scheduleId ? { ...s, status: 'in_progress', incident: null } : s))
+      );
+      await fetchSchedules();
+    } catch (error) {
+      setManagerError(error.message || 'Lỗi khi khôi phục trạng thái tuyến.');
+    } finally {
+      setManagerLoading(false);
+    }
+  };
+
+  const handleNavigateToReassign = (schedule) => {
+    setViewingIncident(null);
+    setActiveTab('work');
+    if (schedule && schedule.id) {
+      setAssignment((prev) => ({
+        ...prev,
+        scheduleId: schedule.id,
+        assignedTruck: schedule.assigned_truck || '',
+        assignedDriver: schedule.assigned_driver || '',
+        assignedCollector: schedule.assigned_collector || '',
+      }));
     }
   };
 
@@ -1009,8 +1052,14 @@ export default function Dashboard() {
     doc.save(`ecoschedule-report-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  const handleDeleteSchedule = async (scheduleId, routeName) => {
-    if (!window.confirm(`Xóa lịch thu gom "${routeName || scheduleId}"?\nHành động này không thể hoàn tác.`)) return;
+  const promptDeleteSchedule = (scheduleId, routeName) => {
+    setScheduleToDelete({ id: scheduleId, routeName });
+  };
+
+  const confirmDeleteSchedule = async () => {
+    if (!scheduleToDelete) return;
+    const { id: scheduleId } = scheduleToDelete;
+    setScheduleToDelete(null);
 
     setManagerLoading(true);
     setApiMessage('');
@@ -1109,6 +1158,10 @@ export default function Dashboard() {
     onTimeRate: totalSchedules > 0 ? Math.round((assignedRoutes / totalSchedules) * 100) : 0,
   };
 
+  const delayedSchedules = schedules.filter(
+    (item) => (item.status || '').toLowerCase() === 'delayed' || Boolean(item.incident),
+  );
+
   return (
     <div className="min-h-[calc(100vh-80px)] bg-slate-50 dark:bg-slate-900 py-10 px-4 md:px-8 animate-fade-in">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -1173,6 +1226,33 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* 🚨 Thanh Banner Cảnh Báo Sự Cố Nổi Bật Ở Đầu Trang (Top Emergency Incident Alert Banner) */}
+        {delayedSchedules.length > 0 && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50/90 dark:bg-rose-950/40 dark:border-rose-900 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-bold shrink-0">
+                <span className="material-symbols-outlined text-xl">warning</span>
+              </div>
+              <div>
+                <p className="font-bold text-rose-900 dark:text-rose-200 text-sm">
+                  ⚠️ Phát hiện {delayedSchedules.length} tuyến gặp sự cố cần xử lý
+                </p>
+                <p className="text-xs text-rose-700 dark:text-rose-300 mt-0.5">
+                  Tuyến gần nhất: <span className="font-semibold">{delayedSchedules[0].route_name || 'Tuyến thu gom'}</span> {delayedSchedules[0].incident?.description ? `("${delayedSchedules[0].incident.description}")` : ''}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewingIncident(delayedSchedules[0])}
+              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md hover:shadow-rose-600/30 transition-all flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <span className="material-symbols-outlined text-base">visibility</span>
+              Xem & Xử lý sự cố
+            </button>
+          </div>
+        )}
+
         {/* Tab Navigation */}
         {isManager && (
           <div className="flex gap-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-1.5 shadow-sm w-fit">
@@ -1204,7 +1284,7 @@ export default function Dashboard() {
         {activeTab === 'overview' && (
           <div className="space-y-6">
             {/* KPI Cards — chỉ hiển thị ở tab Tổng quan */}
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4 lg:gap-6">
               <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
                 <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Lịch thu gom</p>
                 <p className="text-3xl font-bold text-slate-900 dark:text-white">{summary.totalSchedules}</p>
@@ -1219,6 +1299,11 @@ export default function Dashboard() {
                 <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Phản ánh mở</p>
                 <p className="text-3xl font-bold text-slate-900 dark:text-white">{summary.openComplaints}</p>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Phản ánh chưa xử lý</p>
+              </div>
+              <div className="bg-white dark:bg-slate-800 rounded-3xl border border-rose-100 dark:border-rose-900/50 bg-rose-50/20 dark:bg-rose-950/20 p-6 shadow-sm">
+                <p className="text-sm uppercase tracking-[0.24em] text-rose-600 dark:text-rose-400 mb-4 font-bold">Sự cố / Bị hoãn</p>
+                <p className="text-3xl font-bold text-rose-600 dark:text-rose-400">{delayedSchedules.length}</p>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Tuyến gặp sự cố</p>
               </div>
               <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
                 <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400 mb-4">Lương hiệu suất</p>
@@ -3190,13 +3275,34 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div className="border-t border-slate-100 dark:border-slate-700 p-4 flex justify-end">
+              <div className="border-t border-slate-100 dark:border-slate-700 p-4 flex flex-wrap items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setViewingIncident(null)}
-                  className="rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                  className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors"
                 >
                   Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNavigateToReassign(viewingIncident)}
+                  className="rounded-xl bg-sky-600 hover:bg-sky-500 text-white px-4 py-2.5 text-xs font-bold shadow-md hover:shadow-sky-600/30 transition-all flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-base">directions_car</span>
+                  Phân công lại xe / Collector
+                </button>
+                <button
+                  type="button"
+                  disabled={managerLoading}
+                  onClick={() => handleResolveIncident(viewingIncident.id)}
+                  className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 text-xs font-bold shadow-md hover:shadow-emerald-600/30 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {managerLoading ? (
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <span className="material-symbols-outlined text-base">check_circle</span>
+                  )}
+                  Xác nhận đã xử lý xong
                 </button>
               </div>
             </div>
@@ -3672,7 +3778,7 @@ export default function Dashboard() {
                             type="button"
                             disabled={managerLoading}
                             onClick={() => {
-                              handleDeleteSchedule(schedule.id, schedule.route_name);
+                              promptDeleteSchedule(schedule.id, schedule.route_name);
                               setViewingGroupDetail(null);
                             }}
                             className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-400"
@@ -3693,6 +3799,50 @@ export default function Dashboard() {
                   className="rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 px-5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
                 >
                   Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Xác Nhận Xóa Tuyến Thu Gom Tùy Chỉnh (Custom Delete Confirmation Modal) */}
+        {scheduleToDelete && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in" onClick={() => setScheduleToDelete(null)}>
+            <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-6 border border-slate-100 dark:border-slate-700 space-y-4" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-xl shrink-0">
+                  <span className="material-symbols-outlined text-2xl">delete_forever</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">Xác nhận xóa lịch thu gom</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Hành động này không thể hoàn tác.</p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-rose-50/60 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50 text-sm text-slate-700 dark:text-slate-200">
+                Bạn có chắc chắn muốn xóa lịch thu gom <span className="font-bold text-rose-700 dark:text-rose-400">"{scheduleToDelete.routeName || scheduleToDelete.id}"</span> không?
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setScheduleToDelete(null)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  disabled={managerLoading}
+                  onClick={confirmDeleteSchedule}
+                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md hover:shadow-rose-600/30 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {managerLoading ? (
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <span className="material-symbols-outlined text-base">delete</span>
+                  )}
+                  Xóa lịch thu gom
                 </button>
               </div>
             </div>

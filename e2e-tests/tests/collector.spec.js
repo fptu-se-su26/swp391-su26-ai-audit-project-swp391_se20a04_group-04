@@ -50,6 +50,22 @@ test.describe('EcoSchedule Collector Role Mock', () => {
         await route.fulfill({ json: { data: [] } }); // Empty comments for the report
       });
 
+      await page.route('**/api/collector/my-team', async route => {
+        await route.fulfill({ json: { data: [] } });
+      });
+
+      await page.route('**/api/collector/salary*', async route => {
+        await route.fulfill({ json: { data: null } });
+      });
+
+      await page.route('**/api/collector/attendance/*', async route => {
+        await route.fulfill({ json: { data: null } });
+      });
+
+      await page.route('**/api/notifications*', async route => {
+        await route.fulfill({ json: [] });
+      });
+
       // Log in
       await loginPage.navigateTo('/login');
       await loginPage.fillCredentials('collector@test.com', 'AnyPassword123');

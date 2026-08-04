@@ -21,6 +21,7 @@ export default function UserManagement({ hideHeader = false }) {
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
   const [modalMode, setModalMode] = useState('add'); // 'add' or 'edit'
   const [formData, setFormData] = useState({
     uid: '',
@@ -87,8 +88,10 @@ export default function UserManagement({ hideHeader = false }) {
     setShowModal(true);
   };
 
-  const handleDelete = async (uid) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa người dùng này? Thao tác không thể hoàn tác!')) return;
+  const handleDelete = async () => {
+    if (!userToDelete) return;
+    const uid = userToDelete.uid;
+    setUserToDelete(null);
     try {
       await deleteUser(uid);
       fetchData();
@@ -245,8 +248,11 @@ export default function UserManagement({ hideHeader = false }) {
                           <button onClick={() => openEditModal(u)} className="p-2 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-xl transition-colors" title="Sửa">
                             <span className="material-symbols-outlined text-[20px]">edit</span>
                           </button>
-                          <button onClick={() => handleDelete(u.uid)} className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-colors" title="Xóa">
-                            <span className="material-symbols-outlined text-[20px]">delete</span>
+                          <button
+                          onClick={() => setUserToDelete(u)}
+                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors"
+                          title="Xóa"
+                        >    <span className="material-symbols-outlined text-[20px]">delete</span>
                           </button>
                         </div>
                       </td>
@@ -341,6 +347,43 @@ export default function UserManagement({ hideHeader = false }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {userToDelete && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in" onClick={() => setUserToDelete(null)}>
+          <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-6 border border-slate-100 dark:border-slate-700 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-xl shrink-0">
+                <span className="material-symbols-outlined text-2xl">delete_forever</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white">Xác nhận xóa người dùng</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Hành động này không thể hoàn tác.</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-rose-50/60 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50 text-sm text-slate-700 dark:text-slate-200">
+              Bạn có chắc chắn muốn xóa người dùng <span className="font-bold text-rose-700 dark:text-rose-400">"{userToDelete.fullName || userToDelete.email}"</span> không?
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setUserToDelete(null)}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md hover:shadow-rose-600/30 transition-all flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-base">delete</span>
+                Xóa người dùng
+              </button>
+            </div>
           </div>
         </div>
       )}

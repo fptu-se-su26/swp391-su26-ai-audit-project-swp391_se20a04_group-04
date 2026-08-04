@@ -313,7 +313,7 @@ export default function CollectorLayout({ children, user }) {
                 {currentUser ? getInitials(currentUser.fullName) : 'TN'}
               </div>
               <span className="font-label text-sm hidden sm:inline font-semibold text-on-surface">
-                {currentUser?.fullName || 'Tuấn Nguyễn Văn'}
+                {currentUser?.fullName || 'Nhân viên thu gom'}
               </span>
               <span className="material-symbols-outlined text-sm text-outline">keyboard_arrow_down</span>
             </button>
