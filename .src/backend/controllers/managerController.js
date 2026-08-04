@@ -6,6 +6,7 @@ const reportService = require('../services/reportService');
 const invoiceService = require('../services/invoiceService');
 const scheduleCompletionService = require('../services/scheduleCompletionService');
 const attendanceService = require('../services/attendanceService');
+const emailService = require('../services/emailService');
 
 const USERS_COLLECTION = 'users';
 
@@ -80,7 +81,12 @@ async function createSchedule(req, res) {
   }
 
   try {
-    const scheduleDate = new Date(`${date}T${time}`);
+    let tzOffset = '+07:00';
+    let isoTimeStr = time;
+    if (time && time.length === 5) {
+      isoTimeStr = `${time}:00`;
+    }
+    const scheduleDate = new Date(`${date}T${isoTimeStr}${tzOffset}`);
     if (Number.isNaN(scheduleDate.getTime())) {
       return res.status(400).json({ error: 'Ngày hoặc giờ không hợp lệ.' });
     }
@@ -232,7 +238,12 @@ async function updateSchedule(req, res) {
     if (date || scheduleDate || time) {
       const dStr = date || scheduleDate || snapshot.data().schedule_date;
       const tStr = time || snapshot.data().time || '08:00';
-      const parsedDate = new Date(`${dStr.slice(0, 10)}T${tStr}`);
+      let tzOffset = '+07:00';
+      let isoTimeStr = tStr;
+      if (tStr && tStr.length === 5) {
+        isoTimeStr = `${tStr}:00`;
+      }
+      const parsedDate = new Date(`${dStr.slice(0, 10)}T${isoTimeStr}${tzOffset}`);
       if (!Number.isNaN(parsedDate.getTime())) {
         updateFields.schedule_date = parsedDate.toISOString();
         updateFields.schedule_time = tStr;
@@ -616,6 +627,63 @@ async function createInvoice(req, res) {
       }
 
       await batch.commit();
+
+      // Gửi email cho các cư dân có email hợp lệ trong tiến trình nền
+      const emailPromises = createdInvoices.map(async (inv) => {
+        const resident = matchingResidents.find(r => r.uid === inv.userId);
+        if (resident && resident.email) {
+          try {
+            await emailService.sendMail({
+              to: resident.email,
+              subject: `[EcoSchedule] Hóa đơn phí vệ sinh mới – Tháng ${bMonth}/${bYear}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px; background: #ffffff; border-radius: 24px; border: 1px solid #f1f5f9; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);">
+                  <div style="text-align: center; margin-bottom: 24px;">
+                    <h2 style="color: #059669; font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.025em;">EcoSchedule</h2>
+                    <p style="color: #64748b; font-size: 14px; margin: 4px 0 0 0;">Hệ thống quản lý lịch thu gom & hóa đơn môi trường</p>
+                  </div>
+                  <div style="border-top: 4px solid #10b981; padding-top: 24px;">
+                    <h3 style="color: #0f172a; font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 12px;">Thông báo phát hành hóa đơn mới</h3>
+                    <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Xin chào cư dân, hóa đơn dịch vụ vệ sinh môi trường của bạn cho kỳ <strong>Tháng ${bMonth}/${bYear}</strong> đã được hệ thống phát hành.
+                    </p>
+                    <div style="background: #f8fafc; border-radius: 16px; padding: 20px; margin-bottom: 24px;">
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="color: #64748b; font-size: 14px; padding-bottom: 8px;">Số tiền thanh toán:</td>
+                          <td style="color: #0f172a; font-size: 15px; font-weight: 700; text-align: right; padding-bottom: 8px;">${Number(amount).toLocaleString('vi-VN')} ₫</td>
+                        </tr>
+                        <tr>
+                          <td style="color: #64748b; font-size: 14px; padding-bottom: 8px;">Loại phí:</td>
+                          <td style="color: #0f172a; font-size: 14px; text-align: right; padding-bottom: 8px;">Phí vệ sinh môi trường</td>
+                        </tr>
+                        <tr>
+                          <td style="color: #64748b; font-size: 14px;">Hạn thanh toán:</td>
+                          <td style="color: #ef4444; font-size: 14px; font-weight: 700; text-align: right;">${dueDateFormatted}</td>
+                        </tr>
+                      </table>
+                    </div>
+                    <p style="color: #334155; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+                      Vui lòng đăng nhập vào ứng dụng EcoSchedule của cư dân để thực hiện thanh toán trực tuyến nhanh chóng trước ngày hạn.
+                    </p>
+                    <div style="text-align: center;">
+                      <a href="http://localhost:5173" style="display: inline-block; background: #059669; color: #ffffff; text-decoration: none; padding: 12px 32px; border-radius: 12px; font-weight: 600; font-size: 14px;">Đến trang thanh toán</a>
+                    </div>
+                  </div>
+                  <div style="margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 16px; text-align: center; color: #94a3b8; font-size: 12px;">
+                    Đây là email tự động từ EcoSchedule. Vui lòng không phản hồi email này.<br>
+                    EcoSchedule Đà Nẵng — Công nghệ vì môi trường xanh.
+                  </div>
+                </div>
+              `
+            });
+          } catch (e) {
+            console.error(`Không thể gửi email hóa đơn mới cho resident ${resident.email}:`, e.message);
+          }
+        }
+      });
+      Promise.allSettled(emailPromises).catch(err => console.error("Lỗi gửi email hóa đơn hàng loạt:", err));
+
       return res.status(201).json({
         success: true,
         count: createdInvoices.length,
@@ -665,6 +733,64 @@ async function createInvoice(req, res) {
         is_read: false,
         sent_at: new Date(),
       });
+
+      // Gửi email cho cư dân đơn lẻ trong tiến trình nền
+      (async () => {
+        try {
+          const residentDoc = await db.collection('users').doc(userId).get();
+          if (residentDoc.exists) {
+            const resident = residentDoc.data();
+            if (resident.email) {
+              await emailService.sendMail({
+                to: resident.email,
+                subject: `[EcoSchedule] Hóa đơn phí vệ sinh mới – Tháng ${bMonth}/${bYear}`,
+                html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px; background: #ffffff; border-radius: 24px; border: 1px solid #f1f5f9; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                      <h2 style="color: #059669; font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.025em;">EcoSchedule</h2>
+                      <p style="color: #64748b; font-size: 14px; margin: 4px 0 0 0;">Hệ thống quản lý lịch thu gom & hóa đơn môi trường</p>
+                    </div>
+                    <div style="border-top: 4px solid #10b981; padding-top: 24px;">
+                      <h3 style="color: #0f172a; font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 12px;">Thông báo phát hành hóa đơn mới</h3>
+                      <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                        Xin chào cư dân, hóa đơn dịch vụ vệ sinh môi trường của bạn cho kỳ <strong>Tháng ${bMonth}/${bYear}</strong> đã được hệ thống phát hành.
+                      </p>
+                      <div style="background: #f8fafc; border-radius: 16px; padding: 20px; margin-bottom: 24px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px; padding-bottom: 8px;">Số tiền thanh toán:</td>
+                            <td style="color: #0f172a; font-size: 15px; font-weight: 700; text-align: right; padding-bottom: 8px;">${Number(amount).toLocaleString('vi-VN')} ₫</td>
+                          </tr>
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px; padding-bottom: 8px;">Loại phí:</td>
+                            <td style="color: #0f172a; font-size: 14px; text-align: right; padding-bottom: 8px;">Phí vệ sinh môi trường</td>
+                          </tr>
+                          <tr>
+                            <td style="color: #64748b; font-size: 14px;">Hạn thanh toán:</td>
+                            <td style="color: #ef4444; font-size: 14px; font-weight: 700; text-align: right;">${dueDateFormatted}</td>
+                          </tr>
+                        </table>
+                      </div>
+                      <p style="color: #334155; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+                        Vui lòng đăng nhập vào ứng dụng EcoSchedule của cư dân để thực hiện thanh toán trực tuyến nhanh chóng trước ngày hạn.
+                      </p>
+                      <div style="text-align: center;">
+                        <a href="http://localhost:5173" style="display: inline-block; background: #059669; color: #ffffff; text-decoration: none; padding: 12px 32px; border-radius: 12px; font-weight: 600; font-size: 14px;">Đến trang thanh toán</a>
+                      </div>
+                    </div>
+                    <div style="margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 16px; text-align: center; color: #94a3b8; font-size: 12px;">
+                      Đây là email tự động từ EcoSchedule. Vui lòng không phản hồi email này.<br>
+                      EcoSchedule Đà Nẵng — Công nghệ vì môi trường xanh.
+                    </div>
+                  </div>
+                `
+              });
+            }
+          }
+        } catch (e) {
+          console.error("Lỗi khi gửi email hóa đơn đơn lẻ:", e.message);
+        }
+      })().catch(err => console.error("Lỗi gửi email hóa đơn đơn lẻ:", err));
 
       return res.status(201).json(invoice);
     }

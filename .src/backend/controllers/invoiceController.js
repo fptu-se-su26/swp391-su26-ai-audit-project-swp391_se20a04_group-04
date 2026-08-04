@@ -2,6 +2,7 @@ const { db } = require('../config/firebase');
 const invoiceService = require('../services/invoiceService');
 const { serializeInvoice } = require('../services/invoiceService');
 const { createPayOSPaymentSession, verifyPayOSPayment } = require('../helpers/payosHelper');
+const emailService = require('../services/emailService');
 
 /**
  * POST /api/invoices
@@ -180,6 +181,70 @@ async function verifyPayment(req, res) {
       is_read: false,
       sent_at: new Date(),
     });
+
+    // Gửi email xác nhận thanh toán thành công cho cư dân trong tiến trình nền
+    (async () => {
+      try {
+        const userDoc = await db.collection('users').doc(invoice.userId || req.uid).get();
+        if (userDoc.exists) {
+          const user = userDoc.data();
+          if (user.email) {
+            await emailService.sendMail({
+              to: user.email,
+              subject: `[EcoSchedule] Xác nhận thanh toán thành công hóa đơn – Tháng ${invoice.billingMonth || ''}/${invoice.billingYear || ''}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px; background: #ffffff; border-radius: 24px; border: 1px solid #f1f5f9; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);">
+                  <div style="text-align: center; margin-bottom: 24px;">
+                    <h2 style="color: #059669; font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.025em;">EcoSchedule</h2>
+                    <p style="color: #64748b; font-size: 14px; margin: 4px 0 0 0;">Hệ thống quản lý lịch thu gom & hóa đơn môi trường</p>
+                  </div>
+                  <div style="border-top: 4px solid #10b981; padding-top: 24px;">
+                    <h3 style="color: #059669; font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 12px; text-align: center;">Thanh toán thành công!</h3>
+                    <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; text-align: center;">
+                      Cảm ơn bạn đã hoàn thành nghĩa vụ đóng phí vệ sinh môi trường. Giao dịch của bạn đã được ghi nhận thành công trên hệ thống EcoSchedule.
+                    </p>
+                    <div style="background: #f8fafc; border-radius: 16px; padding: 20px; margin-bottom: 24px;">
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="color: #64748b; font-size: 14px; padding-bottom: 8px;">Mã hóa đơn:</td>
+                          <td style="color: #0f172a; font-size: 14px; text-align: right; padding-bottom: 8px;">${invoice.invoiceId}</td>
+                        </tr>
+                        <tr>
+                          <td style="color: #64748b; font-size: 14px; padding-bottom: 8px;">Mã giao dịch:</td>
+                          <td style="color: #0f172a; font-size: 14px; font-weight: 700; text-align: right; padding-bottom: 8px;">${transactionCode}</td>
+                        </tr>
+                        <tr>
+                          <td style="color: #64748b; font-size: 14px; padding-bottom: 8px;">Kỳ hóa đơn:</td>
+                          <td style="color: #0f172a; font-size: 14px; text-align: right; padding-bottom: 8px;">Tháng ${invoice.billingMonth || ''}/${invoice.billingYear || ''}</td>
+                        </tr>
+                        <tr>
+                          <td style="color: #64748b; font-size: 14px; padding-bottom: 8px;">Số tiền đã trả:</td>
+                          <td style="color: #059669; font-size: 15px; font-weight: 700; text-align: right; padding-bottom: 8px;">${Number(invoice.amount || 0).toLocaleString('vi-VN')} ₫</td>
+                        </tr>
+                        <tr>
+                          <td style="color: #64748b; font-size: 14px; padding-bottom: 8px;">Phương thức:</td>
+                          <td style="color: #0f172a; font-size: 14px; text-align: right; padding-bottom: 8px;">Thanh toán trực tuyến PayOS</td>
+                        </tr>
+                        <tr>
+                          <td style="color: #64748b; font-size: 14px;">Thời gian:</td>
+                          <td style="color: #0f172a; font-size: 14px; text-align: right;">${new Date().toLocaleString('vi-VN')}</td>
+                        </tr>
+                      </table>
+                    </div>
+                  </div>
+                  <div style="margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 16px; text-align: center; color: #94a3b8; font-size: 12px;">
+                    Đây là email tự động từ EcoSchedule. Vui lòng không phản hồi email này.<br>
+                    EcoSchedule Đà Nẵng — Công nghệ vì môi trường xanh.
+                  </div>
+                </div>
+              `
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Lỗi khi gửi email xác nhận thanh toán thành công:", err.message);
+      }
+    })().catch(err => console.error("Lỗi gửi email thanh toán thành công:", err));
 
     return res.status(200).json({ invoice: updatedInvoice, paid: true });
   } catch (error) {
