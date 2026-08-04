@@ -1504,14 +1504,22 @@ export default function Dashboard() {
                                 {item.work_hours ? `${item.work_hours} giờ` : '--'}
                               </td>
                               <td className="px-4 py-4">
-                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
-                                  item.status === 'in_shift' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' :
-                                  item.status === 'completed' ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300' :
-                                  'bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400'
-                                }`}>
-                                  {item.status === 'in_shift' ? '🟢 Đang trong ca' :
-                                   item.status === 'completed' ? '🔵 Đã xong ca' : '⚪ Chưa vào ca'}
-                                </span>
+                                <div className="flex flex-col gap-1.5 items-start">
+                                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                                    item.status === 'in_shift' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                    item.status === 'completed' ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300' :
+                                    'bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400'
+                                  }`}>
+                                    {item.status === 'in_shift' ? '🟢 Đang trong ca' :
+                                     item.status === 'completed' ? '🔵 Đã xong ca' : '⚪ Chưa vào ca'}
+                                  </span>
+                                  {item.is_suspicious && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900/50" title={item.suspicious_reason}>
+                                      <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                                      Nghi ngờ treo máy
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))
