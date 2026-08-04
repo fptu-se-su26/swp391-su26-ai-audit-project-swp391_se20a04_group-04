@@ -17,12 +17,16 @@ async function getNotifications(userId) {
   const personalSnapshot = await db
     .collection(NOTIFICATIONS_COLLECTION)
     .where('user_id', '==', userId)
+    .orderBy('sent_at', 'desc')
+    .limit(20)
     .get();
 
   const roleSnapshot = await db
     .collection(NOTIFICATIONS_COLLECTION)
     .where('targetRole', 'in', ['all', userRole])
+    .limit(20)
     .get();
+
 
   const resultsMap = new Map();
 
