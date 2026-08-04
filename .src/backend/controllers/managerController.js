@@ -14,7 +14,7 @@ const USERS_COLLECTION = 'users';
  */
 async function getCollectors(req, res) {
   try {
-    const snapshot = await db.collection(USERS_COLLECTION).where('role', '==', ROLES.COLLECTOR).get();
+    const snapshot = await db.collection(USERS_COLLECTION).where('role', 'in', ['collector', 'Garbage Collector', 'GarbageCollector']).get();
     const collectors = [];
     snapshot.forEach(doc => {
       collectors.push(normalizeUser(doc.data(), doc.id));
@@ -96,6 +96,7 @@ async function createSchedule(req, res) {
       schedule_date: scheduleDate.toISOString(),
       schedule_time: time,
       time: time,
+      routeId: req.body.routeId || req.body.route_id || null,
       city: city || '',
       ward: ward || '',
       neighborhood: neighborhood || '',
@@ -190,7 +191,26 @@ async function confirmRoute(req, res) {
  */
 async function updateSchedule(req, res) {
   const { scheduleId } = req.params;
-  const { routePoints, status, incident } = req.body;
+  const {
+    routeName,
+    serviceType,
+    date,
+    time,
+    scheduleDate,
+    city,
+    ward,
+    neighborhood,
+    assignedTruck,
+    assignedDriver,
+    assignedCollector,
+    assignedCollectors,
+    teamId,
+    notes,
+    routePoints,
+    status,
+    incident,
+    routeId,
+  } = req.body;
 
   if (!scheduleId) {
     return res.status(400).json({ error: 'Vui lòng cung cấp ID lịch để cập nhật.' });
@@ -207,11 +227,39 @@ async function updateSchedule(req, res) {
       updated_at: new Date().toISOString(),
     };
 
+    if (routeName !== undefined) updateFields.route_name = routeName;
+    if (serviceType !== undefined) updateFields.service_type = serviceType;
+    if (date || scheduleDate || time) {
+      const dStr = date || scheduleDate || snapshot.data().schedule_date;
+      const tStr = time || snapshot.data().time || '08:00';
+      const parsedDate = new Date(`${dStr.slice(0, 10)}T${tStr}`);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        updateFields.schedule_date = parsedDate.toISOString();
+        updateFields.schedule_time = tStr;
+        updateFields.time = tStr;
+      }
+    }
+    if (city !== undefined) updateFields.city = city;
+    if (ward !== undefined) updateFields.ward = ward;
+    if (neighborhood !== undefined) updateFields.neighborhood = neighborhood;
+    if (assignedTruck !== undefined) updateFields.assigned_truck = assignedTruck;
+    if (assignedDriver !== undefined) updateFields.assigned_driver = assignedDriver;
+    if (assignedCollector !== undefined) updateFields.assigned_collector = assignedCollector;
+    if (assignedCollectors !== undefined) updateFields.assigned_collectors = assignedCollectors;
+    if (teamId !== undefined) updateFields.team_id = teamId;
+    if (notes !== undefined) updateFields.notes = notes;
+    if (routeId !== undefined) updateFields.routeId = routeId;
+
     if (routePoints !== undefined) {
       if (!Array.isArray(routePoints)) {
         return res.status(400).json({ error: 'routePoints phải là một mảng các điểm tọa độ.' });
       }
-      updateFields.route_points = routePoints;
+      const formattedPoints = routePoints.map(p => {
+        if (Array.isArray(p) && p.length >= 2) return { lat: Number(p[0]), lng: Number(p[1]) };
+        if (p && typeof p === 'object' && p.lat !== undefined && p.lng !== undefined) return { lat: Number(p.lat), lng: Number(p.lng) };
+        return p;
+      });
+      updateFields.route_points = formattedPoints;
     }
 
     if (status !== undefined) {
@@ -441,17 +489,7 @@ async function getResidentInvoices(req, res) {
 
     const invoices = [];
     snapshot.forEach((doc) => {
-      const data = doc.data();
-      // Serialize date fields
-      const dateFields = ['createdAt', 'dueDate', 'paidAt', 'updatedAt'];
-      dateFields.forEach((field) => {
-        if (data[field] && typeof data[field].toDate === 'function') {
-          data[field] = data[field].toDate().toISOString();
-        } else if (data[field] instanceof Date) {
-          data[field] = data[field].toISOString();
-        }
-      });
-      invoices.push({ id: doc.id, ...data });
+      invoices.push(invoiceService.serializeInvoice(doc));
     });
 
     return res.status(200).json(invoices);
@@ -482,11 +520,25 @@ async function createInvoice(req, res) {
       return res.status(400).json({ error: 'invoiceId, userId, amount, currency, dueDate và feeType là bắt buộc.' });
     }
 
+    let bMonth = Number(billingMonth);
+    let bYear = Number(billingYear);
+    if ((!bMonth || Number.isNaN(bMonth) || !bYear || Number.isNaN(bYear)) && dueDate) {
+      const d = new Date(dueDate);
+      if (!Number.isNaN(d.getTime())) {
+        bMonth = d.getMonth() + 1;
+        bYear = d.getFullYear();
+      }
+    }
+
+    if (Number.isNaN(bMonth) || bMonth < 1 || bMonth > 12 || Number.isNaN(bYear)) {
+      return res.status(400).json({ error: 'billingMonth (1-12) và billingYear không hợp lệ.' });
+    }
+
     // Check for duplicate unpaid invoice for same userId + billingMonth
     const existingSnapshot = await db.collection('invoices')
       .where('userId', '==', userId)
-      .where('billingMonth', '==', Number(billingMonth))
-      .where('billingYear', '==', Number(billingYear))
+      .where('billingMonth', '==', bMonth)
+      .where('billingYear', '==', bYear)
       .where('status', '==', 'unpaid')
       .get();
 
@@ -911,7 +963,8 @@ async function getDashboardStats(req, res) {
       revenueByMonth[key] = 0;
     }
     invoices.forEach(inv => {
-      if (inv.status !== 'paid') return;
+      const s = (inv.status || '').toLowerCase();
+      if (s !== 'paid' && s !== 'completed' && s !== 'success') return;
       const yr = inv.billingYear || inv.year;
       const mo = inv.billingMonth || inv.month;
       if (!yr || !mo) return;
@@ -989,8 +1042,8 @@ async function getDashboardStats(req, res) {
     // 4. Complaint status breakdown (all time)
     const cStatus = {};
     complaints.forEach(c => {
-      const s = c.status || 'open';
-      cStatus[s] = (cStatus[s] || 0) + 1;
+      const st = (c.status || 'open').toLowerCase();
+      cStatus[st] = (cStatus[st] || 0) + 1;
     });
     const complaintStatusChart = Object.entries(cStatus).map(([name, value]) => ({ name, value }));
 

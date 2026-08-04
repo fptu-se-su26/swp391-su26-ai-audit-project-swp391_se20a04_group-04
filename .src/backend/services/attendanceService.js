@@ -164,9 +164,9 @@ const attendanceService = {
   async getManagerAttendanceSummary(dateStr, month, year) {
     const todayKey = dateStr || getTodayDateKey();
 
-    // 1. Lấy tất cả collector
+    // 1. Lấy tất cả collector (bao gồm cả role legacy)
     const collectorsSnap = await db.collection(USERS_COLLECTION)
-      .where('role', '==', 'collector')
+      .where('role', 'in', ['collector', 'Garbage Collector', 'GarbageCollector'])
       .get();
 
     const allCollectors = [];

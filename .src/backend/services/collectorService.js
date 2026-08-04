@@ -495,18 +495,30 @@ async function notifyResidentsScheduleDelayed({ ward, routeName, description }) 
 
   const usersSnap = await db
     .collection(USERS_COLLECTION)
-    .where('role', '==', ROLES.RESIDENT)
-    .where('ward', '==', ward)
+    .where('role', 'in', ['resident', 'Citizen'])
     .get();
 
   if (usersSnap.empty) return { notified: 0 };
+
+  const normalizedTargetWard = ward.toLowerCase().replace(/\s+/g, '');
+  const matchedDocs = usersSnap.docs.filter((doc) => {
+    const data = doc.data();
+    const userWard = (data.ward || '').toLowerCase().replace(/\s+/g, '');
+    const userArea = (data.area || data.address || '').toLowerCase().replace(/\s+/g, '');
+    return (
+      (userWard && (userWard.includes(normalizedTargetWard) || normalizedTargetWard.includes(userWard))) ||
+      (userArea && (userArea.includes(normalizedTargetWard) || normalizedTargetWard.includes(userArea)))
+    );
+  });
+
+  if (matchedDocs.length === 0) return { notified: 0 };
 
   const batch = db.batch();
   const now = new Date();
   const content = description
     || `Lịch thu gom tuyến "${routeName || 'được phân công'}" tại ${ward} bị hoãn. Vui lòng theo dõi lịch mới trên EcoSchedule.`;
 
-  usersSnap.docs.forEach((doc) => {
+  matchedDocs.forEach((doc) => {
     const ref = db.collection(NOTIFICATIONS_COLLECTION).doc();
     batch.set(ref, {
       user_id: doc.id,
@@ -522,7 +534,7 @@ async function notifyResidentsScheduleDelayed({ ward, routeName, description }) 
   });
 
   await batch.commit();
-  return { notified: usersSnap.size };
+  return { notified: matchedDocs.length };
 }
 
 async function assertOwnership(sourceType, id, collectorId, collectorName) {

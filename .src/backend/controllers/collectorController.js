@@ -313,25 +313,33 @@ async function getSalaryHistory(req, res) {
   }
 }
 
+function isScheduleAssignedToCollector(s, collectorUid, collectorName) {
+  if (s.collector_id === collectorUid || s.collectorId === collectorUid) return true;
+  if (s.assigned_collector === collectorUid) return true;
+  if (collectorName && s.assigned_collector && typeof s.assigned_collector === 'string' && s.assigned_collector.includes(collectorName)) return true;
+  if (Array.isArray(s.assigned_collectors)) {
+    return s.assigned_collectors.some(c => typeof c === 'string' ? (c === collectorUid || (collectorName && c.includes(collectorName))) : (c.id === collectorUid || c.uid === collectorUid));
+  }
+  return false;
+}
+
 /**
  * POST /api/collector/confirm-week
  * Body: { isoWeek: 'YYYY-WNN' }
- * Marks all schedules assigned to this collector in the given ISO week as collector_confirmed: true
  */
 async function confirmWeek(req, res) {
   const { isoWeek } = req.body;
   if (!isoWeek) return res.status(400).json({ error: 'isoWeek là bắt buộc (định dạng YYYY-WNN).' });
 
   try {
-    const snap = await db.collection('collection_schedules')
-      .where('assigned_collector', '==', req.uid)
-      .get();
+    const snap = await db.collection('collection_schedules').get();
 
     const batch = db.batch();
     let count = 0;
 
     snap.forEach(doc => {
       const s = doc.data();
+      if (!isScheduleAssignedToCollector(s, req.uid, req.userProfile?.fullName)) return;
       const dateStr = s.schedule_date;
       if (!dateStr) return;
       if (getISOWeekLabel(new Date(dateStr)) !== isoWeek) return;
@@ -359,15 +367,14 @@ async function denyWeek(req, res) {
   }
 
   try {
-    const snap = await db.collection('collection_schedules')
-      .where('assigned_collector', '==', req.uid)
-      .get();
+    const snap = await db.collection('collection_schedules').get();
 
     const batch = db.batch();
     let count = 0;
 
     snap.forEach(doc => {
       const s = doc.data();
+      if (!isScheduleAssignedToCollector(s, req.uid, req.userProfile?.fullName)) return;
       const dateStr = s.schedule_date;
       if (!dateStr) return;
       if (getISOWeekLabel(new Date(dateStr)) !== isoWeek) return;

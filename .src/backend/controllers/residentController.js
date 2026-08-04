@@ -53,10 +53,21 @@ async function getUpcomingSchedules(req, res) {
     // user.area format: "Phường Thọ Quang, Thành phố Đà Nẵng" hoặc "Quận Sơn Trà, Đà Nẵng"
     const normalizedArea = normalizeStr(userArea);
 
-    // Tách ward và city từ user.area (format: "ward, city")
-    const areaParts = userArea.split(',').map(p => p.trim());
-    const userWardPart = areaParts.length >= 2 ? areaParts[0] : ''; // "Phường An Khê"
-    const userCityPart = areaParts.length >= 2 ? areaParts[areaParts.length - 1] : areaParts[0]; // "Thành phố Đà Nẵng"
+    // Tách ward và city từ user.area bằng hàm phân tích thông minh
+    const parts = (userArea || '').split(',').map(p => p.trim()).filter(Boolean);
+    let userWardPart = '';
+    let userCityPart = parts.length > 0 ? parts[parts.length - 1] : '';
+
+    for (const part of parts) {
+      const lower = part.toLowerCase();
+      if (lower.startsWith('phường') || lower.startsWith('xã') || lower.startsWith('thị trấn') || lower.includes('phường')) {
+        userWardPart = part;
+        break;
+      }
+    }
+    if (!userWardPart && parts.length >= 2) {
+      userWardPart = parts[0];
+    }
 
     const normalizedUserWard = normalizeStr(userWardPart);
     const normalizedUserCity = normalizeStr(userCityPart);
@@ -65,20 +76,23 @@ async function getUpcomingSchedules(req, res) {
       const normalizedScheduleCity = normalizeStr(s.city);
       const normalizedScheduleWard = normalizeStr(s.ward);
 
-      // Phải khớp city trước
-      const matchCity = normalizedScheduleCity &&
-        (normalizedUserCity.includes(normalizedScheduleCity) || normalizedScheduleCity.includes(normalizedUserCity) ||
-         normalizedArea.includes(normalizedScheduleCity) || normalizedScheduleCity.includes(normalizedArea));
+      // Phải khớp city trước nếu có thông tin thành phố
+      if (normalizedUserCity && normalizedScheduleCity) {
+        const matchCity = normalizedUserCity.includes(normalizedScheduleCity) ||
+          normalizedScheduleCity.includes(normalizedUserCity) ||
+          normalizedArea.includes(normalizedScheduleCity);
+        if (!matchCity) return false;
+      }
 
-      if (!matchCity) return false;
+      // Nếu lịch thu gom chung không chỉ định Phường (lịch toàn thành phố) → Giữ lại cho cư dân
+      if (!normalizedScheduleWard) return true;
 
-      // Nếu user có ward trong area → chỉ hiển thị schedule có ward khớp
+      // Nếu cả lịch và cư dân đều có thông tin Phường → So khớp Phường
       if (normalizedUserWard && normalizedScheduleWard) {
         return normalizedUserWard.includes(normalizedScheduleWard) || normalizedScheduleWard.includes(normalizedUserWard);
       }
 
-      // Nếu user không có ward (area chỉ có city) → hiển thị tất cả schedule trong city
-      return !normalizedUserWard;
+      return true;
     });
 
     // Chỉ lấy lịch sắp tới (ngày >= hôm nay)
