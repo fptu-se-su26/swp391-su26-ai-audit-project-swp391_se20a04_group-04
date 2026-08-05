@@ -6,13 +6,12 @@ import { getDatabase, ref, get } from "firebase/database";
 import * as fs from "fs";
 
 const firebaseConfig = { 
-  apiKey: "AIzaSyBa5Mj7EKCdgp_T2NDpwE3YXNkXAksOpr0",
-  authDomain: "ecoschedule-demo.firebaseapp.com",
-  projectId: "ecoschedule-demo",
-  storageBucket: "ecoschedule-demo.firebasestorage.app",
-  messagingSenderId: "579108475431",
-  appId: "1:579108475431:web:7d96228e2b17d02bfab402",
-  measurementId: "G-17XHBQKN7N"
+  apiKey: "AIzaSyAIN5FqIktCoBt47eufcA0miv1-YqInOD0",
+  authDomain: "swp302-db.firebaseapp.com",
+  projectId: "swp302-db",
+  storageBucket: "swp302-db.firebasestorage.app",
+  messagingSenderId: "77909565820",
+  appId: "1:77909565820:web:4cb48bab494e1919e344f9"
 };
 
 const app = initializeApp(firebaseConfig);
